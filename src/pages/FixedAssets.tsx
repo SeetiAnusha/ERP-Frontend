@@ -67,7 +67,21 @@ const FixedAssets = () => {
   const openModal = (asset?: FixedAsset) => {
     if (asset) {
       setEditingAsset(asset);
-      setFormData(asset);
+      setFormData({
+        code: asset.code || '',
+        name: asset.name || '',
+        description: asset.description || '',
+        category: asset.category || '',
+        acquisitionDate: asset.acquisitionDate || '',
+        acquisitionCost: asset.acquisitionCost || 0,
+        usefulLife: asset.usefulLife || 0,
+        depreciationMethod: asset.depreciationMethod || '',
+        residualValue: asset.residualValue || 0,
+        accumulatedDepreciation: asset.accumulatedDepreciation || 0,
+        status: asset.status || '',
+        location: asset.location || '',
+        serialNumber: asset.serialNumber || ''
+      });
     } else {
       setEditingAsset(null);
       setFormData({

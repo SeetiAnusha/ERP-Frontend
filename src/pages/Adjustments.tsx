@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { FaPlus, FaEdit, FaTrash, FaFileInvoice, FaSearch } from 'react-icons/fa';
 import axios from '../api/axios';
-import { Adjustment, Purchase, Sale, Client, Supplier, Product } from '../types';
+import { Adjustment, Purchase, Sale, Product } from '../types';
 
 interface AdjustmentItem {
   productCode: string;
@@ -19,8 +19,6 @@ const Adjustments = () => {
   const [adjustments, setAdjustments] = useState<Adjustment[]>([]);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [editingAdjustment, setEditingAdjustment] = useState<Adjustment | null>(null);
@@ -54,8 +52,6 @@ const Adjustments = () => {
     fetchAdjustments();
     fetchPurchases();
     fetchSales();
-    fetchClients();
-    fetchSuppliers();
     fetchProducts();
   }, []);
 
@@ -83,24 +79,6 @@ const Adjustments = () => {
       setSales(response.data);
     } catch (error) {
       console.error('Error fetching sales:', error);
-    }
-  };
-
-  const fetchClients = async () => {
-    try {
-      const response = await axios.get('/clients');
-      setClients(response.data);
-    } catch (error) {
-      console.error('Error fetching clients:', error);
-    }
-  };
-
-  const fetchSuppliers = async () => {
-    try {
-      const response = await axios.get('/suppliers');
-      setSuppliers(response.data);
-    } catch (error) {
-      console.error('Error fetching suppliers:', error);
     }
   };
 
