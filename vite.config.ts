@@ -11,5 +11,13 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
+    // Disable caching during development
+    headers: {
+      'Cache-Control': 'no-store',
+    },
+  },
+  // Force rebuild on changes
+  optimizeDeps: {
+    force: true,
   },
 })

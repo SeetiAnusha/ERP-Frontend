@@ -102,9 +102,9 @@ const Reports = () => {
 
       setProductsData({
         totalProducts: products.length,
-        lowStockProducts: products.filter((p: any) => parseFloat(p.quantity) <= parseFloat(p.minimumStock)).length,
+        lowStockProducts: products.filter((p: any) => parseFloat(p.amount) <= parseFloat(p.minimumStock)).length,
         totalInventoryValue: products.reduce((sum: number, p: any) => 
-          sum + (parseFloat(p.quantity) * parseFloat(p.costPrice)), 0
+          sum + (parseFloat(p.amount) * parseFloat(p.unitCost)), 0
         ),
       });
 

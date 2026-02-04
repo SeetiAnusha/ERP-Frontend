@@ -511,7 +511,7 @@ const Adjustments = () => {
                       onChange={(e) => {
                         setSelectedProduct(e.target.value);
                         const product = products.find(p => p.id === parseInt(e.target.value));
-                        if (product) setUnitCost(Number(product.costPrice));
+                        if (product) setUnitCost(Number(product.unitCost));
                       }}
                       className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >

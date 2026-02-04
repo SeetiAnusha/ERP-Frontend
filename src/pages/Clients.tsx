@@ -3,8 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Search, Edit, Trash2, X } from 'lucide-react';
 import api from '../api/axios';
 import { Client } from '../types';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const Clients = () => {
+  const { t } = useLanguage();
   const [clients, setClients] = useState<Client[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -46,7 +48,7 @@ const Clients = () => {
   };
 
   const handleDelete = async (id: number) => {
-    if (window.confirm('Are you sure you want to delete this client?')) {
+    if (window.confirm(t('confirmDelete'))) {
       try {
         await api.delete(`/clients/${id}`);
         fetchClients();
@@ -86,7 +88,7 @@ const Clients = () => {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
           <input
             type="text"
-            placeholder="Search by code, name, ID..."
+            placeholder={t('search')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -99,7 +101,7 @@ const Clients = () => {
           className="ml-4 bg-blue-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 shadow-lg"
         >
           <Plus size={20} />
-          New Client
+          {t('newClient')}
         </motion.button>
       </div>
 
@@ -111,12 +113,12 @@ const Clients = () => {
         <table className="w-full">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">CODE</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">NAME</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">ID/TAX</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">PHONE</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">ADDRESS</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">ACTIONS</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('code').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('name').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('idTaxNumber').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('phone').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('address').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('actions').toUpperCase()}</th>
             </tr>
           </thead>
           <tbody>
@@ -179,14 +181,14 @@ const Clients = () => {
               className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md"
             >
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold">{editingClient ? 'Edit Client' : 'New Client'}</h2>
+                <h2 className="text-2xl font-bold">{editingClient ? t('editClient') : t('newClient')}</h2>
                 <button onClick={closeModal} className="text-gray-400 hover:text-gray-600">
                   <X size={24} />
                 </button>
               </div>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Code *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('code')} *</label>
                   <input
                     type="text"
                     required
@@ -196,7 +198,7 @@ const Clients = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('name')} *</label>
                   <input
                     type="text"
                     required
@@ -206,7 +208,7 @@ const Clients = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">ID/Tax Number *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('idTaxNumber')} *</label>
                   <input
                     type="text"
                     required
@@ -216,7 +218,7 @@ const Clients = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('phone')}</label>
                   <input
                     type="text"
                     value={formData.phone}
@@ -225,7 +227,7 @@ const Clients = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('address')}</label>
                   <input
                     type="text"
                     value={formData.address}
@@ -239,13 +241,13 @@ const Clients = () => {
                     onClick={closeModal}
                     className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
                   >
-                    Cancel
+                    {t('cancel')}
                   </button>
                   <button
                     type="submit"
                     className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                   >
-                    Save
+                    {t('save')}
                   </button>
                 </div>
               </form>

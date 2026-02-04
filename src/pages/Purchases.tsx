@@ -1,46 +1,72 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, Eye, CheckCircle, Clock, XCircle, X, Trash2, ShoppingCart, DollarSign } from 'lucide-react';
+import { Plus, Search, Eye, CheckCircle, Clock, XCircle, X, Trash2, ShoppingCart, Package, FileText } from 'lucide-react';
 import api from '../api/axios';
-import { Purchase, Supplier, Product } from '../types';
+import { Purchase, Supplier, Product, AssociatedInvoice } from '../types';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface PurchaseItem {
   productId: number;
+  productCode: string;
   productName: string;
+  unitOfMeasurement: string;
   quantity: number;
   unitCost: number;
   subtotal: number;
   tax: number;
   total: number;
+  adjustedUnitCost: number;
+  adjustedTotal: number;
 }
 
 const Purchases = () => {
+  const { t } = useLanguage();
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Main modal
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({
-    documentNumber: '',
     date: new Date().toISOString().split('T')[0],
     supplierId: '',
     supplierRnc: '',
     ncf: '',
     purchaseType: 'Merchandise for sale or consumption',
     paymentType: 'CASH',
-    paymentMethod: 'Cash',
     paidAmount: 0,
     status: 'COMPLETED',
-    invoice: '',
   });
+  
+  // Products
   const [purchaseItems, setPurchaseItems] = useState<PurchaseItem[]>([]);
+  const [showProductModal, setShowProductModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [unitCost, setUnitCost] = useState(0);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  
+  // Associated Invoices
+  const [associatedInvoices, setAssociatedInvoices] = useState<AssociatedInvoice[]>([]);
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [newAssociatedInvoice, setNewAssociatedInvoice] = useState({
+    supplierRnc: '',
+    supplierName: '',
+    concept: '',
+    ncf: '',
+    date: new Date().toISOString().split('T')[0],
+    tax: 0,
+    taxAmount: 0,
+    amount: 0,
+    purchaseType: '',
+    paymentType: ''
+  });
+
+  // View Details Modals
+  const [viewDetailsModal, setViewDetailsModal] = useState(false);
+  const [viewProductsModal, setViewProductsModal] = useState(false);
+  const [viewInvoicesModal, setViewInvoicesModal] = useState(false);
   const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(null);
-  const [paymentAmount, setPaymentAmount] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState('Cash');
 
   useEffect(() => {
     fetchPurchases();
@@ -76,47 +102,74 @@ const Purchases = () => {
   };
 
   const addProductToPurchase = () => {
-    if (!selectedProduct || quantity <= 0 || unitCost <= 0) return;
-    
-    const product = products.find(p => p.id === parseInt(selectedProduct));
-    if (!product) return;
-    
-    const existingIndex = purchaseItems.findIndex(item => item.productId === product.id);
-    if (existingIndex >= 0) {
-      const updated = [...purchaseItems];
-      updated[existingIndex].quantity += quantity;
-      updated[existingIndex].subtotal = updated[existingIndex].quantity * unitCost;
-      updated[existingIndex].tax = updated[existingIndex].subtotal * (Number(product.taxRate) / 100);
-      updated[existingIndex].total = updated[existingIndex].subtotal + updated[existingIndex].tax;
-      setPurchaseItems(updated);
-    } else {
-      const subtotal = quantity * unitCost;
-      const tax = subtotal * (Number(product.taxRate) / 100);
-      const total = subtotal + tax;
-      
-      setPurchaseItems([...purchaseItems, {
-        productId: product.id,
-        productName: product.name,
-        quantity,
-        unitCost,
-        subtotal,
-        tax,
-        total,
-      }]);
+    if (!selectedProduct || quantity <= 0 || unitCost <= 0) {
+      alert('Please select a product and enter valid quantity and cost');
+      return;
     }
     
+    const product: any = products.find(p => p.id === parseInt(selectedProduct));
+    if (!product) return;
+    
+    //const subtotal = product.quantity * unitCost;
+    const tax = product.taxRate;
+    const total =   Number(product.subtotal) + Number(tax);
+    
+    const newItem: PurchaseItem = {
+      productId: product.id,
+      productCode: product.code,
+      productName: product.name,
+      unitOfMeasurement: product.unit,
+      quantity: product.quantity,
+      unitCost: unitCost,
+      subtotal: product.subtotal,
+      tax: tax,
+      total: total,
+      adjustedUnitCost: unitCost,
+      adjustedTotal: total,
+    };
+    
+    setPurchaseItems([...purchaseItems, newItem]);
     setSelectedProduct('');
     setQuantity(1);
     setUnitCost(0);
+    setShowProductModal(false);
   };
 
   const removeItem = (index: number) => {
     setPurchaseItems(purchaseItems.filter((_, i) => i !== index));
   };
 
+  const addAssociatedInvoice = () => {
+    if (!newAssociatedInvoice.supplierRnc || !newAssociatedInvoice.supplierName || !newAssociatedInvoice.tax) {
+      alert('Please enter Supplier RNC, Supplier Name, and Tax Amount');
+      return;
+    }
+    const totalAmount = newAssociatedInvoice.tax + newAssociatedInvoice.taxAmount;
+    setAssociatedInvoices([...associatedInvoices, {...newAssociatedInvoice, amount: totalAmount}]);
+    setNewAssociatedInvoice({
+      supplierRnc: '', 
+      supplierName: '', 
+      concept: '', 
+      ncf: '', 
+      date: new Date().toISOString().split('T')[0], 
+      tax: 0, 
+      taxAmount: 0, 
+      amount: 0, 
+      purchaseType: '',
+      paymentType: ''
+    });
+    setShowInvoiceModal(false);
+  };
+
+  const removeAssociatedInvoice = (index: number) => {
+    setAssociatedInvoices(associatedInvoices.filter((_, i) => i !== index));
+  };
+
   const calculateTotals = () => {
     const productTotal = purchaseItems.reduce((sum, item) => sum + item.total, 0);
-    return { productTotal, total: productTotal };
+    const associatedTotal = associatedInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+    const grandTotal = productTotal + associatedTotal;
+    return { productTotal, associatedTotal, grandTotal };
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -129,7 +182,7 @@ const Purchases = () => {
     
     try {
       const totals = calculateTotals();
-      const paidAmount = formData.paymentMethod === 'Credit' ? 0 : totals.total;
+      const paidAmount = formData.paymentType === 'CREDIT' ? 0 : totals.grandTotal;
       
       await api.post('/purchases', {
         ...formData,
@@ -138,11 +191,12 @@ const Purchases = () => {
         ncf: formData.ncf,
         purchaseType: formData.purchaseType,
         productTotal: totals.productTotal,
-        additionalExpenses: 0,
-        total: totals.total,
+        additionalExpenses: totals.associatedTotal,
+        total: totals.grandTotal,
         paidAmount: paidAmount,
-        balanceAmount: totals.total - paidAmount,
+        balanceAmount: totals.grandTotal - paidAmount,
         items: purchaseItems,
+        associatedInvoices: associatedInvoices,
       });
       fetchPurchases();
       closeModal();
@@ -154,55 +208,24 @@ const Purchases = () => {
 
   const openModal = () => {
     setFormData({
-      documentNumber: `PUR-${Date.now()}`,
       date: new Date().toISOString().split('T')[0],
       supplierId: '',
       supplierRnc: '',
       ncf: '',
       purchaseType: 'Merchandise for sale or consumption',
       paymentType: 'CASH',
-      paymentMethod: 'Cash',
       paidAmount: 0,
       status: 'COMPLETED',
-      invoice: '',
     });
     setPurchaseItems([]);
+    setAssociatedInvoices([]);
     setShowModal(true);
   };
 
   const closeModal = () => {
     setShowModal(false);
     setPurchaseItems([]);
-  };
-
-  const openPaymentModal = (purchase: Purchase) => {
-    setSelectedPurchase(purchase);
-    setPaymentAmount(Number(purchase.balanceAmount));
-    setPaymentMethod('Cash');
-    setShowPaymentModal(true);
-  };
-
-  const closePaymentModal = () => {
-    setShowPaymentModal(false);
-    setSelectedPurchase(null);
-    setPaymentAmount(0);
-  };
-
-  const handleCollectPayment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedPurchase) return;
-
-    try {
-      await api.post(`/purchases/${selectedPurchase.id}/collect-payment`, {
-        amount: paymentAmount,
-        paymentMethod: paymentMethod,
-      });
-      fetchPurchases();
-      closePaymentModal();
-    } catch (error: any) {
-      alert(error.response?.data?.error || 'Error collecting payment');
-      console.error('Error collecting payment:', error);
-    }
+    setAssociatedInvoices([]);
   };
 
   const getStatusBadge = (status: string) => {
@@ -240,7 +263,7 @@ const Purchases = () => {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
           <input
             type="text"
-            placeholder="Search purchases..."
+            placeholder={t('search')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -253,10 +276,11 @@ const Purchases = () => {
           className="ml-4 bg-blue-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 shadow-lg"
         >
           <Plus size={20} />
-          New Purchase
+          {t('newPurchase')}
         </motion.button>
       </div>
 
+      {/* Purchases List */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -266,15 +290,12 @@ const Purchases = () => {
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">REG. NUMBER</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">DATE</th>
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">SUPPLIER</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">PAYMENT METHOD</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">PAYMENT STATUS</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">TOTAL</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">PAID</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">BALANCE</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">SUPPLIER RNC</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">DATE</th>
+              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">TOTAL</th>
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">STATUS</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">ACTIONS</th>
+              <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">ACTIONS</th>
             </tr>
           </thead>
           <tbody>
@@ -287,47 +308,49 @@ const Purchases = () => {
                 className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
               >
                 <td className="px-6 py-4 text-sm font-medium">{purchase.registrationNumber}</td>
-                <td className="px-6 py-4 text-sm">{new Date(purchase.date).toLocaleDateString()}</td>
                 <td className="px-6 py-4 text-sm">{purchase.supplier?.name || 'N/A'}</td>
-                <td className="px-6 py-4 text-sm">
-                  <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
-                    {purchase.paymentMethod}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-sm">
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${
-                    purchase.paymentStatus === 'Paid' ? 'bg-green-100 text-green-800' :
-                    purchase.paymentStatus === 'Partial' ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-red-100 text-red-800'
-                  }`}>
-                    {purchase.paymentStatus}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-sm font-semibold">${Number(purchase.total).toFixed(2)}</td>
-                <td className="px-6 py-4 text-sm text-green-600">${Number(purchase.paidAmount).toFixed(2)}</td>
-                <td className="px-6 py-4 text-sm text-red-600">${Number(purchase.balanceAmount).toFixed(2)}</td>
-                <td className="px-6 py-4">{getStatusBadge(purchase.status)}</td>
+                <td className="px-6 py-4 text-sm">{purchase.supplierRnc || 'N/A'}</td>
+                <td className="px-6 py-4 text-sm">{new Date(purchase.date).toLocaleDateString()}</td>
+                <td className="px-6 py-4 text-sm font-semibold text-right">{Number(purchase.total).toFixed(2)}</td>
+                <td className="px-6 py-4">{getStatusBadge(purchase.paymentStatus)}</td>
                 <td className="px-6 py-4">
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 justify-center">
                     <motion.button
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
+                      onClick={() => {
+                        setSelectedPurchase(purchase);
+                        setViewDetailsModal(true);
+                      }}
                       className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
-                      title="View Details"
+                      title="Purchase Details"
                     >
                       <Eye size={18} />
                     </motion.button>
-                    {purchase.paymentStatus !== 'Paid' && (
-                      <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                        onClick={() => openPaymentModal(purchase)}
-                        className="p-2 text-green-600 hover:bg-green-50 rounded-lg"
-                        title="Make Payment"
-                      >
-                        <DollarSign size={18} />
-                      </motion.button>
-                    )}
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => {
+                        setSelectedPurchase(purchase);
+                        setViewProductsModal(true);
+                      }}
+                      className="p-2 text-green-600 hover:bg-green-50 rounded-lg"
+                      title="Product Details"
+                    >
+                      <Package size={18} />
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => {
+                        setSelectedPurchase(purchase);
+                        setViewInvoicesModal(true);
+                      }}
+                      className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg"
+                      title="Invoice Suppliers"
+                    >
+                      <FileText size={18} />
+                    </motion.button>
                   </div>
                 </td>
               </motion.tr>
@@ -351,12 +374,12 @@ const Purchases = () => {
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-5xl max-h-[90vh] overflow-y-auto"
+              className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto"
             >
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold flex items-center gap-2">
                   <ShoppingCart className="text-blue-600" />
-                  New Purchase
+                  Create New Purchase
                 </h2>
                 <button onClick={closeModal} className="text-gray-400 hover:text-gray-600">
                   <X size={24} />
@@ -364,33 +387,8 @@ const Purchases = () => {
               </div>
               
               <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Header Info */}
-                <div className="grid grid-cols-4 gap-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Registration Number</label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.documentNumber}
-                      onChange={(e) => setFormData({ ...formData, documentNumber: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="RC0001"
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Registration Date *</label>
-                    <input
-                      type="date"
-                      required
-                      value={formData.date}
-                      onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                </div>
-
-                {/* Supplier Information */}
-                <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+                {/* Supplier Selection */}
+                <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Supplier *</label>
                     <select
@@ -414,14 +412,25 @@ const Purchases = () => {
                       ))}
                     </select>
                   </div>
+                  {formData.supplierRnc && (
+                    <div className="col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Supplier RNC</label>
+                      <input
+                        type="text"
+                        value={formData.supplierRnc}
+                        readOnly
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
+                      />
+                    </div>
+                  )}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">RNC Supplier</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Date *</label>
                     <input
-                      type="text"
-                      value={formData.supplierRnc}
-                      onChange={(e) => setFormData({ ...formData, supplierRnc: e.target.value })}
+                      type="date"
+                      required
+                      value={formData.date}
+                      onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="Supplier RNC"
                     />
                   </div>
                   <div>
@@ -434,26 +443,8 @@ const Purchases = () => {
                       placeholder="NCF Number"
                     />
                   </div>
-                </div>
-
-                {/* Payment Information */}
-                <div className="grid grid-cols-3 gap-4 p-4 bg-orange-50 rounded-lg border border-orange-200">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Purchase Type *</label>
-                    <select
-                      required
-                      value={formData.purchaseType}
-                      onChange={(e) => setFormData({ ...formData, purchaseType: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="Merchandise for sale or consumption">Merchandise for sale or consumption</option>
-                      <option value="Service">Service</option>
-                      <option value="Fixed Asset">Fixed Asset</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Payment Terms *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Payment Type *</label>
                     <select
                       required
                       value={formData.paymentType}
@@ -464,119 +455,55 @@ const Purchases = () => {
                       <option value="CREDIT">Credit</option>
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method *</label>
-                    <select
-                      required
-                      value={formData.paymentMethod}
-                      onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="Cash">Cash</option>
-                      <option value="Bank Transfer">Bank Transfer</option>
-                      <option value="Deposit">Deposit</option>
-                      <option value="Credit Card">Credit Card</option>
-                      <option value="Credit">Credit (Pay Later)</option>
-                    </select>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowProductModal(true)}
+                    className="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center gap-2"
+                  >
+                    <Package size={20} />
+                    Add Products
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowInvoiceModal(true)}
+                    className="flex-1 px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center justify-center gap-2"
+                  >
+                    <FileText size={20} />
+                    Add Invoices
+                  </button>
+                </div>
+
+                {/* Summary */}
+                <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>Products Added:</span>
+                    <span className="font-semibold">{purchaseItems.length} items</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Associated Invoices:</span>
+                    <span className="font-semibold">{associatedInvoices.length} invoices</span>
+                  </div>
+                  <div className="border-t pt-2 mt-2"></div>
+                  <div className="flex justify-between text-sm">
+                    <span>Product Total:</span>
+                    <span className="font-semibold">{totals.productTotal.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Associated Costs:</span>
+                    <span className="font-semibold">{totals.associatedTotal.toFixed(2)}</span>
+                  </div>
+                  <div className="border-t pt-2 mt-2"></div>
+                  <div className="flex justify-between text-lg">
+                    <span className="font-bold">GRAND TOTAL:</span>
+                    <span className="font-bold text-green-600">{totals.grandTotal.toFixed(2)}</span>
                   </div>
                 </div>
 
-                {/* Add Products */}
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
-                  <h3 className="font-semibold mb-3">Add Products</h3>
-                  <div className="flex gap-3">
-                    <select
-                      value={selectedProduct}
-                      onChange={(e) => {
-                        setSelectedProduct(e.target.value);
-                        const product = products.find(p => p.id === parseInt(e.target.value));
-                        if (product) setUnitCost(Number(product.costPrice));
-                      }}
-                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select product...</option>
-                      {products.filter(p => p.status === 'ACTIVE').map((product) => (
-                        <option key={product.id} value={product.id}>
-                          {product.name} (Current stock: {product.quantity})
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      type="number"
-                      min="1"
-                      value={quantity}
-                      onChange={(e) => setQuantity(parseInt(e.target.value))}
-                      placeholder="Qty"
-                      className="w-24 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0.01"
-                      value={unitCost}
-                      onChange={(e) => setUnitCost(parseFloat(e.target.value))}
-                      placeholder="Cost"
-                      className="w-32 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                    <motion.button
-                      type="button"
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={addProductToPurchase}
-                      className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                    >
-                      Add
-                    </motion.button>
-                  </div>
-                </div>
-
-                {/* Items Table */}
-                {purchaseItems.length > 0 && (
-                  <div className="border rounded-lg overflow-hidden">
-                    <table className="w-full">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-sm font-semibold">Product</th>
-                          <th className="px-4 py-3 text-right text-sm font-semibold">Qty</th>
-                          <th className="px-4 py-3 text-right text-sm font-semibold">Unit Cost</th>
-                          <th className="px-4 py-3 text-right text-sm font-semibold">Subtotal</th>
-                          <th className="px-4 py-3 text-right text-sm font-semibold">Tax</th>
-                          <th className="px-4 py-3 text-right text-sm font-semibold">Total</th>
-                          <th className="px-4 py-3"></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {purchaseItems.map((item, index) => (
-                          <tr key={index} className="border-t">
-                            <td className="px-4 py-3 text-sm">{item.productName}</td>
-                            <td className="px-4 py-3 text-sm text-right">{item.quantity}</td>
-                            <td className="px-4 py-3 text-sm text-right">${item.unitCost.toFixed(2)}</td>
-                            <td className="px-4 py-3 text-sm text-right">${item.subtotal.toFixed(2)}</td>
-                            <td className="px-4 py-3 text-sm text-right">${item.tax.toFixed(2)}</td>
-                            <td className="px-4 py-3 text-sm text-right font-semibold">${item.total.toFixed(2)}</td>
-                            <td className="px-4 py-3">
-                              <button
-                                type="button"
-                                onClick={() => removeItem(index)}
-                                className="text-red-600 hover:text-red-800"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot className="bg-gray-50 font-semibold">
-                        <tr>
-                          <td colSpan={5} className="px-4 py-3 text-right">Total:</td>
-                          <td className="px-4 py-3 text-right text-green-600 text-lg">${totals.total.toFixed(2)}</td>
-                          <td></td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                )}
-
+                {/* Submit Buttons */}
                 <div className="flex gap-3 pt-4">
                   <button
                     type="button"
@@ -590,7 +517,7 @@ const Purchases = () => {
                     disabled={purchaseItems.length === 0}
                     className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
                   >
-                    Create Purchase - ${totals.total.toFixed(2)}
+                    Create Purchase - {totals.grandTotal.toFixed(2)}
                   </button>
                 </div>
               </form>
@@ -599,102 +526,613 @@ const Purchases = () => {
         )}
       </AnimatePresence>
 
-      {/* Payment Collection Modal */}
+      {/* Add Product Modal */}
       <AnimatePresence>
-        {showPaymentModal && selectedPurchase && (
+        {showProductModal && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-            onClick={closePaymentModal}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4"
+            onClick={() => setShowProductModal(false)}
           >
             <motion.div
               initial={{ scale: 0.9, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md"
+              className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto"
             >
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold flex items-center gap-2">
-                  <DollarSign className="text-green-600" />
-                  Make Payment
+                  <Package className="text-green-600" />
+                  Add Products
                 </h2>
-                <button onClick={closePaymentModal} className="text-gray-400 hover:text-gray-600">
+                <button onClick={() => setShowProductModal(false)} className="text-gray-400 hover:text-gray-600">
                   <X size={24} />
                 </button>
               </div>
-              
-              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-                <div className="flex justify-between mb-2">
-                  <span className="text-gray-600">Purchase Number:</span>
-                  <span className="font-semibold">{selectedPurchase.registrationNumber}</span>
-                </div>
-                <div className="flex justify-between mb-2">
-                  <span className="text-gray-600">Supplier:</span>
-                  <span className="font-semibold">{selectedPurchase.supplier?.name}</span>
-                </div>
-                <div className="flex justify-between mb-2">
-                  <span className="text-gray-600">Total Amount:</span>
-                  <span className="font-semibold">${Number(selectedPurchase.total).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between mb-2">
-                  <span className="text-gray-600">Paid Amount:</span>
-                  <span className="font-semibold text-green-600">${Number(selectedPurchase.paidAmount).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-lg">
-                  <span className="text-gray-600">Balance Due:</span>
-                  <span className="font-bold text-red-600">${Number(selectedPurchase.balanceAmount).toFixed(2)}</span>
+
+              {/* Add Product Form */}
+              <div className="mb-6 p-4 bg-green-50 rounded-lg">
+                <div className="grid grid-cols-3 gap-3 mb-3">
+                  <div className="col-span-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Select Product *</label>
+                    <select
+                      value={selectedProduct}
+                      onChange={(e) => {
+                        setSelectedProduct(e.target.value);
+                        const product = products.find(p => p.id === parseInt(e.target.value));
+                        if (product) setUnitCost(Number(product.unitCost));
+                      }}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                    >
+                      <option value="">Select product...</option>
+                      {products.filter(p => p.status === 'ACTIVE').map((product) => (
+                        <option key={product.id} value={product.id}>
+                          {product.code} - {product.name} (Stock: {product.amount}, Price: {product.subtotal})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Quantity *</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={quantity}
+                      onChange={(e) => setQuantity(parseInt(e.target.value))}
+                      placeholder="Qty"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Unit Cost *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      value={unitCost}
+                      onChange={(e) => setUnitCost(parseFloat(e.target.value))}
+                      placeholder="Cost"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      onClick={addProductToPurchase}
+                      className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                    >
+                      Add Product
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              <form onSubmit={handleCollectPayment} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Payment Amount *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    max={Number(selectedPurchase.balanceAmount)}
-                    required
-                    value={paymentAmount}
-                    onChange={(e) => setPaymentAmount(parseFloat(e.target.value))}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-                  />
+              {/* Products Table */}
+              {purchaseItems.length > 0 && (
+                <div className="border rounded-lg overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-semibold">Code</th>
+                        <th className="px-3 py-2 text-left font-semibold">Product</th>
+                        <th className="px-3 py-2 text-left font-semibold">Unit</th>
+                        <th className="px-3 py-2 text-right font-semibold">Qty</th>
+                        <th className="px-3 py-2 text-right font-semibold">Unit Cost</th>
+                        <th className="px-3 py-2 text-right font-semibold">Subtotal</th>
+                        <th className="px-3 py-2 text-right font-semibold">Tax</th>
+                        <th className="px-3 py-2 text-right font-semibold">Total</th>
+                        <th className="px-3 py-2"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {purchaseItems.map((item, index) => (
+                        <tr key={index} className="border-t">
+                          <td className="px-3 py-2">{item.productCode}</td>
+                          <td className="px-3 py-2">{item.productName}</td>
+                          <td className="px-3 py-2">{item.unitOfMeasurement}</td>
+                          <td className="px-3 py-2 text-right">{item.quantity}</td>
+                          <td className="px-3 py-2 text-right">{Number(item.unitCost).toFixed(2)}</td>
+                          <td className="px-3 py-2 text-right">{Number(item.subtotal).toFixed(2)}</td>
+                          <td className="px-3 py-2 text-right">{Number(item.tax).toFixed(2)}</td>
+                          <td className="px-3 py-2 text-right font-semibold">{Number(item.total).toFixed(2)}</td>
+                          <td className="px-3 py-2">
+                            <button
+                              type="button"
+                              onClick={() => removeItem(index)}
+                              className="text-red-600 hover:text-red-800"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-gray-50 font-semibold">
+                      <tr>
+                        <td colSpan={7} className="px-3 py-2 text-right">Total:</td>
+                        <td className="px-3 py-2 text-right text-green-600">{totals.productTotal.toFixed(2)}</td>
+                        <td></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setShowProductModal(false)}
+                  className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                >
+                  Done
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Add Invoice Modal */}
+      <AnimatePresence>
+        {showInvoiceModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4"
+            onClick={() => setShowInvoiceModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-5xl max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold flex items-center gap-2">
+                  <FileText className="text-orange-600" />
+                  Other Invoices Associated with this Purchase
+                </h2>
+                <button onClick={() => setShowInvoiceModal(false)} className="text-gray-400 hover:text-gray-600">
+                  <X size={24} />
+                </button>
+              </div>
+
+              {/* Add Invoice Form */}
+              <div className="mb-6 p-4 bg-orange-50 rounded-lg">
+                <div className="grid grid-cols-4 gap-3 mb-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Supplier's RNC *</label>
+                    <input
+                      type="text"
+                      value={newAssociatedInvoice.supplierRnc}
+                      onChange={(e) => setNewAssociatedInvoice({...newAssociatedInvoice, supplierRnc: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                      placeholder="RNC"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Supplier Name *</label>
+                    <input
+                      type="text"
+                      value={newAssociatedInvoice.supplierName}
+                      onChange={(e) => setNewAssociatedInvoice({...newAssociatedInvoice, supplierName: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                      placeholder="Name"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">NCF</label>
+                    <input
+                      type="text"
+                      value={newAssociatedInvoice.ncf}
+                      onChange={(e) => setNewAssociatedInvoice({...newAssociatedInvoice, ncf: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                      placeholder="NCF"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                    <input
+                      type="date"
+                      value={newAssociatedInvoice.date}
+                      onChange={(e) => setNewAssociatedInvoice({...newAssociatedInvoice, date: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                    />
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-4 gap-3 mb-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Concept</label>
+                    <input
+                      type="text"
+                      value={newAssociatedInvoice.concept}
+                      onChange={(e) => setNewAssociatedInvoice({...newAssociatedInvoice, concept: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                      placeholder="Freight, Customs, etc."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Tax Amount (Base) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={newAssociatedInvoice.tax || ''}
+                      onChange={(e) => setNewAssociatedInvoice({...newAssociatedInvoice, tax: parseFloat(e.target.value) || 0})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Tax</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={newAssociatedInvoice.taxAmount || ''}
+                      onChange={(e) => setNewAssociatedInvoice({...newAssociatedInvoice, taxAmount: parseFloat(e.target.value) || 0})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Purchase of:</label>
+                    <input
+                      type="text"
+                      value={newAssociatedInvoice.purchaseType}
+                      onChange={(e) => setNewAssociatedInvoice({...newAssociatedInvoice, purchaseType: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                      placeholder="Description"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Payment Type:</label>
+                    <select
+                      value={newAssociatedInvoice.paymentType}
+                      onChange={(e) => setNewAssociatedInvoice({...newAssociatedInvoice, paymentType: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                    >
+                      <option value="">Select type</option>
+                      <option value="CASH">Cash</option>
+                      <option value="CREDIT">Credit</option>
+                    </select>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method *</label>
-                  <select
-                    required
-                    value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-                  >
-                    <option value="Cash">Cash</option>
-                    <option value="Paytm">Paytm</option>
-                    <option value="Bank Transfer">Bank Transfer</option>
-                    <option value="Card">Card</option>
-                  </select>
-                </div>
-
-                <div className="flex gap-3 pt-4">
+                <div className="flex justify-end">
                   <button
                     type="button"
-                    onClick={closePaymentModal}
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                    onClick={addAssociatedInvoice}
+                    className="px-6 py-2 bg-orange-600 text-white rounded hover:bg-orange-700"
                   >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                  >
-                    Pay ${paymentAmount.toFixed(2)}
+                    Add Invoice
                   </button>
                 </div>
-              </form>
+              </div>
+
+              {/* Invoices Table */}
+              {associatedInvoices.length > 0 && (
+                <div className="border rounded-lg overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-orange-100">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-semibold">Supplier's RNC</th>
+                        <th className="px-3 py-2 text-left font-semibold">Supplier Name</th>
+                        <th className="px-3 py-2 text-left font-semibold">NCF</th>
+                        <th className="px-3 py-2 text-left font-semibold">Date</th>
+                        <th className="px-3 py-2 text-left font-semibold">Concept</th>
+                        <th className="px-3 py-2 text-right font-semibold">Tax Amount</th>
+                        <th className="px-3 py-2 text-right font-semibold">Tax</th>
+                        <th className="px-3 py-2 text-right font-semibold">Amount</th>
+                        <th className="px-3 py-2 text-left font-semibold">Purchase of</th>
+                        <th className="px-3 py-2 text-left font-semibold">Payment Method</th>
+                        <th className="px-3 py-2"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {associatedInvoices.map((invoice, index) => (
+                        <tr key={index} className="border-t">
+                          <td className="px-3 py-2">{invoice.supplierRnc}</td>
+                          <td className="px-3 py-2">{invoice.supplierName}</td>
+                          <td className="px-3 py-2">{invoice.ncf || '-'}</td>
+                          <td className="px-3 py-2">{new Date(invoice.date).toLocaleDateString()}</td>
+                          <td className="px-3 py-2">{invoice.concept || '-'}</td>
+                          <td className="px-3 py-2 text-right">{Number(invoice.tax).toFixed(2)}</td>
+                          <td className="px-3 py-2 text-right">{Number(invoice.taxAmount).toFixed(2)}</td>
+                          <td className="px-3 py-2 text-right font-semibold">{Number(invoice.amount).toFixed(2)}</td>
+                          <td className="px-3 py-2">{invoice.purchaseType || '-'}</td>
+                          <td className="px-3 py-2">{invoice.paymentType || '-'}</td>
+                          <td className="px-3 py-2">
+                            <button
+                              type="button"
+                              onClick={() => removeAssociatedInvoice(index)}
+                              className="text-red-600 hover:text-red-800"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-orange-100 font-semibold">
+                      <tr>
+                        <td colSpan={5} className="px-3 py-2 text-right">Total</td>
+                        <td className="px-3 py-2 text-right">
+                          {associatedInvoices.reduce((sum, inv) => sum + inv.tax, 0).toFixed(2)}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {associatedInvoices.reduce((sum, inv) => sum + inv.taxAmount, 0).toFixed(2)}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {associatedInvoices.reduce((sum, inv) => sum + inv.amount, 0).toFixed(2)}
+                        </td>
+                        <td colSpan={2}></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setShowInvoiceModal(false)}
+                  className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                >
+                  Done
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* View Details Modal */}
+      <AnimatePresence>
+        {viewDetailsModal && selectedPurchase && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+            onClick={() => setViewDetailsModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-2xl"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold flex items-center gap-2">
+                  <Eye className="text-blue-600" />
+                  Purchase Details
+                </h2>
+                <button onClick={() => setViewDetailsModal(false)} className="text-gray-400 hover:text-gray-600">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm text-gray-600">Registration Number</label>
+                    <p className="font-semibold">{selectedPurchase.registrationNumber}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-600">Date</label>
+                    <p className="font-semibold">{new Date(selectedPurchase.date).toLocaleDateString()}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-600">Supplier</label>
+                    <p className="font-semibold">{selectedPurchase.supplier?.name || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-600">Supplier RNC</label>
+                    <p className="font-semibold">{selectedPurchase.supplierRnc || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-600">NCF</label>
+                    <p className="font-semibold">{selectedPurchase.ncf || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-600">Payment Type</label>
+                    <p className="font-semibold">{selectedPurchase.paymentType}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-600">Product Total</label>
+                    <p className="font-semibold">{Number(selectedPurchase.productTotal).toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-600">Additional Expenses</label>
+                    <p className="font-semibold">{Number(selectedPurchase.additionalExpenses).toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-600">Total</label>
+                    <p className="font-semibold text-lg text-green-600">{Number(selectedPurchase.total).toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-600">Status</label>
+                    <p>{getStatusBadge(selectedPurchase.paymentStatus)}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end mt-6">
+                <button
+                  onClick={() => setViewDetailsModal(false)}
+                  className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* View Products Modal */}
+      <AnimatePresence>
+        {viewProductsModal && selectedPurchase && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+            onClick={() => setViewProductsModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-5xl max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold flex items-center gap-2">
+                  <Package className="text-green-600" />
+                  Product Details - {selectedPurchase.registrationNumber}
+                </h2>
+                <button onClick={() => setViewProductsModal(false)} className="text-gray-400 hover:text-gray-600">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="border rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-semibold">Code</th>
+                      <th className="px-3 py-2 text-left font-semibold">Product</th>
+                      <th className="px-3 py-2 text-left font-semibold">Unit</th>
+                      <th className="px-3 py-2 text-right font-semibold">Qty</th>
+                      <th className="px-3 py-2 text-right font-semibold">Unit Cost</th>
+                      <th className="px-3 py-2 text-right font-semibold">Subtotal</th>
+                      <th className="px-3 py-2 text-right font-semibold">Tax</th>
+                      <th className="px-3 py-2 text-right font-semibold">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedPurchase.items && selectedPurchase.items.length > 0 ? (
+                      selectedPurchase.items.map((item: any, index: number) => (
+                        <tr key={index} className="border-t">
+                          <td className="px-3 py-2">{item.productCode}</td>
+                          <td className="px-3 py-2">{item.productName}</td>
+                          <td className="px-3 py-2">{item.unitOfMeasurement}</td>
+                          <td className="px-3 py-2 text-right">{item.quantity}</td>
+                          <td className="px-3 py-2 text-right">{Number(item.unitCost).toFixed(2)}</td>
+                          <td className="px-3 py-2 text-right">{Number(item.subtotal).toFixed(2)}</td>
+                          <td className="px-3 py-2 text-right">{Number(item.tax).toFixed(2)}</td>
+                          <td className="px-3 py-2 text-right font-semibold">{Number(item.total).toFixed(2)}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr className="border-t">
+                        <td colSpan={8} className="px-3 py-4 text-center text-gray-500">
+                          No products found
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex justify-end mt-6">
+                <button
+                  onClick={() => setViewProductsModal(false)}
+                  className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* View Invoices Modal */}
+      <AnimatePresence>
+        {viewInvoicesModal && selectedPurchase && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+            onClick={() => setViewInvoicesModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-5xl max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold flex items-center gap-2">
+                  <FileText className="text-orange-600" />
+                  Invoice Suppliers - {selectedPurchase.registrationNumber}
+                </h2>
+                <button onClick={() => setViewInvoicesModal(false)} className="text-gray-400 hover:text-gray-600">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="border rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-orange-100">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-semibold">Supplier's RNC</th>
+                      <th className="px-3 py-2 text-left font-semibold">Supplier Name</th>
+                      <th className="px-3 py-2 text-left font-semibold">NCF</th>
+                      <th className="px-3 py-2 text-left font-semibold">Date</th>
+                      <th className="px-3 py-2 text-left font-semibold">Concept</th>
+                      <th className="px-3 py-2 text-right font-semibold">Tax Amount</th>
+                      <th className="px-3 py-2 text-right font-semibold">Tax</th>
+                      <th className="px-3 py-2 text-right font-semibold">Amount</th>
+                      <th className="px-3 py-2 text-left font-semibold">Purchase of</th>
+                      <th className="px-3 py-2 text-left font-semibold">Payment Method</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedPurchase.associatedInvoices && selectedPurchase.associatedInvoices.length > 0 ? (
+                      selectedPurchase.associatedInvoices.map((invoice: any, index: number) => (
+                        <tr key={index} className="border-t">
+                          <td className="px-3 py-2">{invoice.supplierRnc}</td>
+                          <td className="px-3 py-2">{invoice.supplierName}</td>
+                          <td className="px-3 py-2">{invoice.ncf || '-'}</td>
+                          <td className="px-3 py-2">{new Date(invoice.date).toLocaleDateString()}</td>
+                          <td className="px-3 py-2">{invoice.concept || '-'}</td>
+                          <td className="px-3 py-2 text-right">{Number(invoice.tax).toFixed(2)}</td>
+                          <td className="px-3 py-2 text-right">{Number(invoice.taxAmount).toFixed(2)}</td>
+                          <td className="px-3 py-2 text-right font-semibold">{Number(invoice.amount).toFixed(2)}</td>
+                          <td className="px-3 py-2">{invoice.purchaseType || '-'}</td>
+                          <td className="px-3 py-2">{invoice.paymentMethod || '-'}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr className="border-t">
+                        <td colSpan={10} className="px-3 py-4 text-center text-gray-500">
+                          No associated invoices found
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex justify-end mt-6">
+                <button
+                  onClick={() => setViewInvoicesModal(false)}
+                  className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                >
+                  Close
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}

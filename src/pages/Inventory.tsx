@@ -130,7 +130,7 @@ const Inventory = () => {
                   operation: 'SALE',
                   product: product.name,
                   amount: item.quantity,
-                  unitPrice: parseFloat(item.salePrice.toString()),
+                  unitPrice: parseFloat(item.unitPrice.toString()),
                   totalAmount: parseFloat(item.total.toString()),
                   balanceInAmount: 0, // Will be calculated after sorting
                   balanceIn: 0, // Will be calculated after sorting

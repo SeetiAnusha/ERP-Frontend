@@ -13,6 +13,8 @@ import {
   Settings,
   BarChart3,
 } from 'lucide-react';
+import LanguageSwitcher from './LanguageSwitcher';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface LayoutProps {
   children: ReactNode;
@@ -20,22 +22,22 @@ interface LayoutProps {
 
 const Layout = ({ children }: LayoutProps) => {
   const location = useLocation();
+  const { t } = useLanguage();
 
   const menuItems = [
-    { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
-    { path: '/products', icon: Box, label: 'Products' },
-    { path: '/inventory', icon: Package, label: 'Inventory' },
-    { path: '/sales', icon: ShoppingCart, label: 'Sales' },
-    { path: '/clients', icon: Users, label: 'Clients' },
-    { path: '/purchases', icon: ShoppingBag, label: 'Purchases' },
-    { path: '/suppliers', icon: Package, label: 'Suppliers' },
-    { path: '/payments', icon: DollarSign, label: 'Payments' },
-    { path: '/cash-register', icon: Wallet, label: 'Cash Register' },
-    { path: '/adjustments', icon: Settings, label: 'Adjustments' },
-    { path: '/reports', icon: BarChart3, label: 'Reports' },
-    // { path: '/fixed-assets', icon: Package, label: 'Fixed Assets' },
-    { path: '/investments', icon: Package, label: 'Investments' },
-    { path: '/prepaid-expenses', icon: Package, label: 'Prepaid Expenses' },
+    { path: '/', icon: LayoutDashboard, label: t('dashboard') },
+    { path: '/products', icon: Box, label: t('products') },
+    { path: '/inventory', icon: Package, label: t('inventory') },
+    { path: '/sales', icon: ShoppingCart, label: t('sales') },
+    { path: '/clients', icon: Users, label: t('clients') },
+    { path: '/purchases', icon: ShoppingBag, label: t('purchases') },
+    { path: '/suppliers', icon: Package, label: t('suppliers') },
+    { path: '/payments', icon: DollarSign, label: t('payments') },
+    { path: '/cash-register', icon: Wallet, label: t('cashRegister') },
+    { path: '/adjustments', icon: Settings, label: t('adjustments') },
+    { path: '/reports', icon: BarChart3, label: t('reports') },
+    { path: '/investments', icon: Package, label: t('investments') },
+    { path: '/prepaid-expenses', icon: Package, label: t('prepaidExpenses') },
   ];
 
   return (
@@ -76,8 +78,9 @@ const Layout = ({ children }: LayoutProps) => {
         <header className="bg-white shadow-sm border-b border-gray-200 p-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-gray-800">
-              {menuItems.find((item) => item.path === location.pathname)?.label || 'Dashboard'}
+              {menuItems.find((item) => item.path === location.pathname)?.label || t('dashboard')}
             </h2>
+            <LanguageSwitcher />
           </div>
         </header>
 

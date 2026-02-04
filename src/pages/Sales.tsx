@@ -1,20 +1,24 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, Eye, CheckCircle, Clock, XCircle, X, Trash2, ShoppingCart, DollarSign } from 'lucide-react';
+import { Plus, Search, Eye, CheckCircle, Clock, XCircle, X, Trash2, ShoppingCart, DollarSign, Package } from 'lucide-react';
 import api from '../api/axios';
 import { Sale, Client, Product } from '../types';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface SaleItem {
   productId: number;
   productName: string;
+  productAmount: number;
   quantity: number;
-  salePrice: number;
+  productUnitCost: number;
+  unitPrice: number;
   subtotal: number;
   tax: number;
   total: number;
 }
 
 const Sales = () => {
+  const { t } = useLanguage();
   const [sales, setSales] = useState<Sale[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -28,7 +32,6 @@ const Sales = () => {
     ncf: '',
     saleType: 'Merchandise for sale',
     paymentType: 'CASH',
-    paymentMethod: 'Cash',
     paidAmount: 0,
     status: 'COMPLETED',
   });
@@ -39,6 +42,8 @@ const Sales = () => {
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [paymentAmount, setPaymentAmount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState('Cash');
+  const [viewDetailsModal, setViewDetailsModal] = useState(false);
+  const [viewProductsModal, setViewProductsModal] = useState(false);
 
   useEffect(() => {
     fetchSales();
@@ -85,21 +90,26 @@ const Sales = () => {
       // Update quantity
       const updated = [...saleItems];
       updated[existingIndex].quantity += quantity;
-      updated[existingIndex].subtotal = updated[existingIndex].quantity * Number(product.salePrice);
-      updated[existingIndex].tax = updated[existingIndex].subtotal * (Number(product.taxRate) / 100);
+      updated[existingIndex].subtotal = updated[existingIndex].quantity * Number(product.subtotal);
+      updated[existingIndex].tax = Number(product.taxRate);
       updated[existingIndex].total = updated[existingIndex].subtotal + updated[existingIndex].tax;
+      // Update product info (in case it changed)
+      updated[existingIndex].productAmount = Number(product.amount);
+      updated[existingIndex].productUnitCost = Number(product.unitCost);
       setSaleItems(updated);
     } else {
       // Add new item
-      const subtotal = quantity * Number(product.salePrice);
-      const tax = subtotal * (Number(product.taxRate) / 100);
+      const subtotal = quantity * Number(product.subtotal);
+      const tax = Number(product.taxRate);
       const total = subtotal + tax;
       
       setSaleItems([...saleItems, {
         productId: product.id,
         productName: product.name,
+        productAmount: Number(product.amount),
         quantity,
-        salePrice: Number(product.salePrice),
+        productUnitCost: Number(product.unitCost),
+        unitPrice: Number(product.subtotal),
         subtotal,
         tax,
         total,
@@ -131,7 +141,7 @@ const Sales = () => {
     
     try {
       const totals = calculateTotals();
-      const paidAmount = formData.paymentMethod === 'Credit' ? 0 : totals.total;
+      const paidAmount = formData.paymentType === 'CREDIT' ? 0 : totals.total;
       
       await api.post('/sales', {
         ...formData,
@@ -164,7 +174,6 @@ const Sales = () => {
       ncf: '',
       saleType: 'Merchandise for sale',
       paymentType: 'CASH',
-      paymentMethod: 'Cash',
       paidAmount: 0,
       status: 'COMPLETED',
     });
@@ -242,7 +251,7 @@ const Sales = () => {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
           <input
             type="text"
-            placeholder="Search sales..."
+            placeholder={t('search')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -255,7 +264,7 @@ const Sales = () => {
           className="ml-4 bg-blue-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 shadow-lg"
         >
           <Plus size={20} />
-          New Sale
+          {t('newSale')}
         </motion.button>
       </div>
 
@@ -267,16 +276,13 @@ const Sales = () => {
         <table className="w-full">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">REG. NUMBER</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">DATE</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">CLIENT</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">PAYMENT METHOD</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">PAYMENT STATUS</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">TOTAL</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">PAID</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">BALANCE</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">STATUS</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">ACTIONS</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('registrationNumber').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('client').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">CLIENT RNC</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('date').toUpperCase()}</th>
+              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">{t('total').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('status').toUpperCase()}</th>
+              <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">{t('actions').toUpperCase()}</th>
             </tr>
           </thead>
           <tbody>
@@ -289,42 +295,43 @@ const Sales = () => {
                 className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
               >
                 <td className="px-6 py-4 text-sm font-medium">{sale.registrationNumber}</td>
-                <td className="px-6 py-4 text-sm">{new Date(sale.date).toLocaleDateString()}</td>
                 <td className="px-6 py-4 text-sm">{sale.client?.name || 'N/A'}</td>
-                <td className="px-6 py-4 text-sm">
-                  <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
-                    {sale.paymentMethod}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-sm">
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${
-                    sale.paymentStatus === 'Paid' ? 'bg-green-100 text-green-800' :
-                    sale.paymentStatus === 'Partial' ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-red-100 text-red-800'
-                  }`}>
-                    {sale.paymentStatus}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-sm font-semibold">${Number(sale.total).toFixed(2)}</td>
-                <td className="px-6 py-4 text-sm text-green-600">${Number(sale.paidAmount).toFixed(2)}</td>
-                <td className="px-6 py-4 text-sm text-red-600">${Number(sale.balanceAmount).toFixed(2)}</td>
-                <td className="px-6 py-4">{getStatusBadge(sale.status)}</td>
+                <td className="px-6 py-4 text-sm">{sale.clientRnc || 'N/A'}</td>
+                <td className="px-6 py-4 text-sm">{new Date(sale.date).toLocaleDateString()}</td>
+                <td className="px-6 py-4 text-sm font-semibold text-right">{Number(sale.total).toFixed(2)}</td>
+                <td className="px-6 py-4">{getStatusBadge(sale.paymentStatus)}</td>
                 <td className="px-6 py-4">
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 justify-center">
                     <motion.button
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
+                      onClick={() => {
+                        setSelectedSale(sale);
+                        setViewDetailsModal(true);
+                      }}
                       className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
-                      title="View Details"
+                      title="Sale Details"
                     >
                       <Eye size={18} />
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => {
+                        setSelectedSale(sale);
+                        setViewProductsModal(true);
+                      }}
+                      className="p-2 text-green-600 hover:bg-green-50 rounded-lg"
+                      title="Product Details"
+                    >
+                      <Package size={18} />
                     </motion.button>
                     {sale.paymentStatus !== 'Paid' && (
                       <motion.button
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.9 }}
                         onClick={() => openPaymentModal(sale)}
-                        className="p-2 text-green-600 hover:bg-green-50 rounded-lg"
+                        className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg"
                         title="Collect Payment"
                       >
                         <DollarSign size={18} />
@@ -357,7 +364,7 @@ const Sales = () => {
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold flex items-center gap-2">
                   <ShoppingCart className="text-blue-600" />
-                  New Sale
+                  {t('newSale')}
                 </h2>
                 <button onClick={closeModal} className="text-gray-400 hover:text-gray-600">
                   <X size={24} />
@@ -368,7 +375,7 @@ const Sales = () => {
                 {/* Header Info */}
                 <div className="grid grid-cols-4 gap-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
                   <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Registration Number</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('registrationNumber')}</label>
                     <input
                       type="text"
                       required
@@ -379,7 +386,7 @@ const Sales = () => {
                     />
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Registration Date *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('registrationDate')} *</label>
                     <input
                       type="date"
                       required
@@ -393,7 +400,7 @@ const Sales = () => {
                 {/* Client Information */}
                 <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
                   <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Client *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('client')} *</label>
                     <select
                       required
                       value={formData.clientId}
@@ -407,7 +414,7 @@ const Sales = () => {
                       }}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value="">Select a client</option>
+                      <option value="">{t('selectClient')}</option>
                       {clients.map((client) => (
                         <option key={client.id} value={client.id}>
                           {client.name}
@@ -416,84 +423,69 @@ const Sales = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">RNC Client</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('clientRnc')}</label>
                     <input
                       type="text"
                       value={formData.clientRnc}
                       onChange={(e) => setFormData({ ...formData, clientRnc: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="Client RNC/Cedula"
+                      placeholder={t('clientRnc')}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">NCF</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('ncf')}</label>
                     <input
                       type="text"
                       value={formData.ncf}
                       onChange={(e) => setFormData({ ...formData, ncf: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="NCF Number"
+                      placeholder={t('ncf')}
                     />
                   </div>
                 </div>
 
                 {/* Payment Information */}
-                <div className="grid grid-cols-3 gap-4 p-4 bg-green-50 rounded-lg border border-green-200">
+                <div className="grid grid-cols-2 gap-4 p-4 bg-green-50 rounded-lg border border-green-200">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Sale Type *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('saleType')} *</label>
                     <select
                       required
                       value={formData.saleType}
                       onChange={(e) => setFormData({ ...formData, saleType: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value="Merchandise for sale">Merchandise for sale</option>
-                      <option value="Service">Service</option>
-                      <option value="Other">Other</option>
+                      <option value="Merchandise for sale">{t('merchandiseForSale')}</option>
+                      <option value="Service">{t('service')}</option>
+                      <option value="Other">{t('other')}</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Payment Type *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('paymentType')} *</label>
                     <select
                       required
                       value={formData.paymentType}
                       onChange={(e) => setFormData({ ...formData, paymentType: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value="CASH">Cash</option>
-                      <option value="CREDIT">Credit</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method *</label>
-                    <select
-                      required
-                      value={formData.paymentMethod}
-                      onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="Cash">Cash</option>
-                      <option value="Bank Transfer">Bank Transfer</option>
-                      <option value="Deposit">Deposit</option>
-                      <option value="Credit Card">Credit Card</option>
-                      <option value="Credit">Credit (Pay Later)</option>
+                      <option value="CASH">{t('cash')}</option>
+                      <option value="CREDIT">{t('credit')}</option>
                     </select>
                   </div>
                 </div>
 
                 {/* Add Products */}
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
-                  <h3 className="font-semibold mb-3">Add Products</h3>
+                  <h3 className="font-semibold mb-3">{t('addProducts')}</h3>
                   <div className="flex gap-3">
                     <select
                       value={selectedProduct}
                       onChange={(e) => setSelectedProduct(e.target.value)}
                       className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value="">Select product...</option>
-                      {products.filter(p => p.status === 'ACTIVE' && Number(p.quantity) > 0).map((product) => (
+                      <option value="">{t('selectOption')}...</option>
+                      {products.filter(p => p.status === 'ACTIVE').map((product) => (
                         <option key={product.id} value={product.id}>
-                          {product.name} - ${Number(product.salePrice).toFixed(2)} (Stock: {product.quantity})
+                          {product.name} - {Number(product.subtotal).toFixed(2)} ({t('stock')}: {product.amount})
                         </option>
                       ))}
                     </select>
@@ -502,7 +494,7 @@ const Sales = () => {
                       min="1"
                       value={quantity}
                       onChange={(e) => setQuantity(parseInt(e.target.value))}
-                      placeholder="Qty"
+                      placeholder={t('qty')}
                       className="w-24 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
                     <motion.button
@@ -512,7 +504,7 @@ const Sales = () => {
                       onClick={addProductToSale}
                       className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
                     >
-                      Add
+                      {t('add')}
                     </motion.button>
                   </div>
                 </div>
@@ -523,12 +515,13 @@ const Sales = () => {
                     <table className="w-full">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="px-4 py-3 text-left text-sm font-semibold">Product</th>
-                          <th className="px-4 py-3 text-right text-sm font-semibold">Qty</th>
-                          <th className="px-4 py-3 text-right text-sm font-semibold">Price</th>
-                          <th className="px-4 py-3 text-right text-sm font-semibold">Subtotal</th>
-                          <th className="px-4 py-3 text-right text-sm font-semibold">Tax</th>
-                          <th className="px-4 py-3 text-right text-sm font-semibold">Total</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold">{t('product')}</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold">Amount</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold">{t('qty')}</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold">Unit Cost</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold">{t('subtotal')}</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold">{t('tax')}</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold">{t('total')}</th>
                           <th className="px-4 py-3"></th>
                         </tr>
                       </thead>
@@ -536,11 +529,12 @@ const Sales = () => {
                         {saleItems.map((item, index) => (
                           <tr key={index} className="border-t">
                             <td className="px-4 py-3 text-sm">{item.productName}</td>
+                            <td className="px-4 py-3 text-sm text-right">{item.productAmount}</td>
                             <td className="px-4 py-3 text-sm text-right">{item.quantity}</td>
-                            <td className="px-4 py-3 text-sm text-right">${item.salePrice.toFixed(2)}</td>
-                            <td className="px-4 py-3 text-sm text-right">${item.subtotal.toFixed(2)}</td>
-                            <td className="px-4 py-3 text-sm text-right">${item.tax.toFixed(2)}</td>
-                            <td className="px-4 py-3 text-sm text-right font-semibold">${item.total.toFixed(2)}</td>
+                            <td className="px-4 py-3 text-sm text-right">{Number(item.productUnitCost).toFixed(2)}</td>
+                            <td className="px-4 py-3 text-sm text-right">{Number(item.subtotal).toFixed(2)}</td>
+                            <td className="px-4 py-3 text-sm text-right">{Number(item.tax).toFixed(2)}</td>
+                            <td className="px-4 py-3 text-sm text-right font-semibold">{Number(item.total).toFixed(2)}</td>
                             <td className="px-4 py-3">
                               <button
                                 type="button"
@@ -555,10 +549,10 @@ const Sales = () => {
                       </tbody>
                       <tfoot className="bg-gray-50 font-semibold">
                         <tr>
-                          <td colSpan={3} className="px-4 py-3 text-right">Subtotal:</td>
-                          <td className="px-4 py-3 text-right">${totals.subtotal.toFixed(2)}</td>
-                          <td className="px-4 py-3 text-right">${totals.tax.toFixed(2)}</td>
-                          <td className="px-4 py-3 text-right text-green-600 text-lg">${totals.total.toFixed(2)}</td>
+                          <td colSpan={4} className="px-4 py-3 text-right">{t('subtotal')}:</td>
+                          <td className="px-4 py-3 text-right">{totals.subtotal.toFixed(2)}</td>
+                          <td className="px-4 py-3 text-right">{totals.tax.toFixed(2)}</td>
+                          <td className="px-4 py-3 text-right text-green-600 text-lg">{totals.total.toFixed(2)}</td>
                           <td></td>
                         </tr>
                       </tfoot>
@@ -572,14 +566,14 @@ const Sales = () => {
                     onClick={closeModal}
                     className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
                   >
-                    Cancel
+                    {t('cancel')}
                   </button>
                   <button
                     type="submit"
                     disabled={saleItems.length === 0}
                     className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
                   >
-                    Create Sale - ${totals.total.toFixed(2)}
+                    {t('createSale')} - {totals.total.toFixed(2)}
                   </button>
                 </div>
               </form>
@@ -608,7 +602,7 @@ const Sales = () => {
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold flex items-center gap-2">
                   <DollarSign className="text-green-600" />
-                  Collect Payment
+                  {t('collectPayment')}
                 </h2>
                 <button onClick={closePaymentModal} className="text-gray-400 hover:text-gray-600">
                   <X size={24} />
@@ -617,30 +611,30 @@ const Sales = () => {
               
               <div className="mb-6 p-4 bg-gray-50 rounded-lg">
                 <div className="flex justify-between mb-2">
-                  <span className="text-gray-600">Sale Number:</span>
+                  <span className="text-gray-600">{t('saleNumber')}:</span>
                   <span className="font-semibold">{selectedSale.registrationNumber}</span>
                 </div>
                 <div className="flex justify-between mb-2">
-                  <span className="text-gray-600">Client:</span>
+                  <span className="text-gray-600">{t('client')}:</span>
                   <span className="font-semibold">{selectedSale.client?.name}</span>
                 </div>
                 <div className="flex justify-between mb-2">
-                  <span className="text-gray-600">Total Amount:</span>
-                  <span className="font-semibold">${Number(selectedSale.total).toFixed(2)}</span>
+                  <span className="text-gray-600">{t('totalAmount')}:</span>
+                  <span className="font-semibold">{Number(selectedSale.total).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between mb-2">
-                  <span className="text-gray-600">Paid Amount:</span>
-                  <span className="font-semibold text-green-600">${Number(selectedSale.paidAmount).toFixed(2)}</span>
+                  <span className="text-gray-600">{t('paidAmount')}:</span>
+                  <span className="font-semibold text-green-600">{Number(selectedSale.paidAmount).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-lg">
-                  <span className="text-gray-600">Balance Due:</span>
-                  <span className="font-bold text-red-600">${Number(selectedSale.balanceAmount).toFixed(2)}</span>
+                  <span className="text-gray-600">{t('balanceDue')}:</span>
+                  <span className="font-bold text-red-600">{Number(selectedSale.balanceAmount).toFixed(2)}</span>
                 </div>
               </div>
 
               <form onSubmit={handleCollectPayment} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Payment Amount *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('paymentAmount')} *</label>
                   <input
                     type="number"
                     step="0.01"
@@ -654,16 +648,16 @@ const Sales = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('paymentMethod')} *</label>
                   <select
                     required
                     value={paymentMethod}
                     onChange={(e) => setPaymentMethod(e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                   >
-                    <option value="Cash">Cash</option>
+                    <option value="Cash">{t('cash')}</option>
                     <option value="Paytm">Paytm</option>
-                    <option value="Bank Transfer">Bank Transfer</option>
+                    <option value="Bank Transfer">{t('bankTransfer')}</option>
                     <option value="Card">Card</option>
                   </select>
                 </div>
@@ -674,16 +668,180 @@ const Sales = () => {
                     onClick={closePaymentModal}
                     className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
                   >
-                    Cancel
+                    {t('cancel')}
                   </button>
                   <button
                     type="submit"
                     className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
                   >
-                    Collect ${paymentAmount.toFixed(2)}
+                    {t('collectPayment')} {paymentAmount.toFixed(2)}
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* View Details Modal */}
+      <AnimatePresence>
+        {viewDetailsModal && selectedSale && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+            onClick={() => setViewDetailsModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-2xl"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold flex items-center gap-2">
+                  <Eye className="text-blue-600" />
+                  Sale Details
+                </h2>
+                <button onClick={() => setViewDetailsModal(false)} className="text-gray-400 hover:text-gray-600">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm text-gray-600">Registration Number</label>
+                    <p className="font-semibold">{selectedSale.registrationNumber}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-600">Date</label>
+                    <p className="font-semibold">{new Date(selectedSale.date).toLocaleDateString()}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-600">Client</label>
+                    <p className="font-semibold">{selectedSale.client?.name || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-600">Client RNC</label>
+                    <p className="font-semibold">{selectedSale.clientRnc || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-600">NCF</label>
+                    <p className="font-semibold">{selectedSale.ncf || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-600">Payment Type</label>
+                    <p className="font-semibold">{selectedSale.paymentType}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-600">Subtotal</label>
+                    <p className="font-semibold">{Number(selectedSale.subtotal).toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-600">Tax</label>
+                    <p className="font-semibold">{Number(selectedSale.tax).toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-600">Total</label>
+                    <p className="font-semibold text-lg text-green-600">{Number(selectedSale.total).toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-600">Status</label>
+                    <p>{getStatusBadge(selectedSale.paymentStatus)}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end mt-6">
+                <button
+                  onClick={() => setViewDetailsModal(false)}
+                  className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* View Products Modal */}
+      <AnimatePresence>
+        {viewProductsModal && selectedSale && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+            onClick={() => setViewProductsModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-5xl max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold flex items-center gap-2">
+                  <Package className="text-green-600" />
+                  Product Details - {selectedSale.registrationNumber}
+                </h2>
+                <button onClick={() => setViewProductsModal(false)} className="text-gray-400 hover:text-gray-600">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="border rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-semibold">Code</th>
+                      <th className="px-3 py-2 text-left font-semibold">Product</th>
+                      <th className="px-3 py-2 text-left font-semibold">Unit</th>
+                      <th className="px-3 py-2 text-right font-semibold">Qty</th>
+                      <th className="px-3 py-2 text-right font-semibold">Unit Price</th>
+                      <th className="px-3 py-2 text-right font-semibold">Subtotal</th>
+                      <th className="px-3 py-2 text-right font-semibold">Tax</th>
+                      <th className="px-3 py-2 text-right font-semibold">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedSale.items && selectedSale.items.length > 0 ? (
+                      selectedSale.items.map((item: any, index: number) => (
+                        <tr key={index} className="border-t">
+                          <td className="px-3 py-2">{item.productCode}</td>
+                          <td className="px-3 py-2">{item.productName}</td>
+                          <td className="px-3 py-2">{item.unitOfMeasurement}</td>
+                          <td className="px-3 py-2 text-right">{item.quantity}</td>
+                          <td className="px-3 py-2 text-right">{Number(item.unitPrice).toFixed(2)}</td>
+                          <td className="px-3 py-2 text-right">{Number(item.subtotal).toFixed(2)}</td>
+                          <td className="px-3 py-2 text-right">{Number(item.tax).toFixed(2)}</td>
+                          <td className="px-3 py-2 text-right font-semibold">{Number(item.total).toFixed(2)}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr className="border-t">
+                        <td colSpan={8} className="px-3 py-4 text-center text-gray-500">
+                          No products found
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex justify-end mt-6">
+                <button
+                  onClick={() => setViewProductsModal(false)}
+                  className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                >
+                  Close
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}

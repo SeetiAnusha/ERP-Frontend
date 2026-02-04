@@ -3,8 +3,10 @@ import { motion } from 'framer-motion';
 import { TrendingUp, Users, ShoppingCart, Package, DollarSign, AlertTriangle } from 'lucide-react';
 import axios from '../api/axios';
 import { Sale, Purchase, Client, Product } from '../types';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const Dashboard = () => {
+  const { t } = useLanguage();
   const [sales, setSales] = useState<Sale[]>([]);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -39,7 +41,11 @@ const Dashboard = () => {
   const totalSalesAmount = sales.reduce((sum, sale) => sum + parseFloat(sale.total.toString()), 0);
   const totalPurchasesAmount = purchases.reduce((sum, purchase) => sum + parseFloat(purchase.total.toString()), 0);
   const totalRevenue = totalSalesAmount - totalPurchasesAmount;
-  const lowStockProducts = products.filter(p => parseFloat(p.quantity.toString()) <= parseFloat(p.minimumStock.toString()));
+  const lowStockProducts = products.filter(p => {
+    const amount = p.amount ? parseFloat(p.amount.toString()) : 0;
+    const minStock = p.minimumStock ? parseFloat(p.minimumStock.toString()) : 0;
+    return amount <= minStock;
+  });
 
   // Get recent sales (last 5)
   const recentSales = [...sales]
@@ -87,7 +93,7 @@ const Dashboard = () => {
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading dashboard...</p>
+          <p className="mt-4 text-gray-600">{t('loadingDashboard')}</p>
         </div>
       </div>
     );
@@ -133,9 +139,9 @@ const Dashboard = () => {
           <div className="flex items-center gap-3">
             <AlertTriangle className="text-yellow-600" size={24} />
             <div>
-              <h4 className="font-semibold text-yellow-800">Low Stock Alert</h4>
+              <h4 className="font-semibold text-yellow-800">{t('lowStockAlert')}</h4>
               <p className="text-sm text-yellow-700">
-                {lowStockProducts.length} product{lowStockProducts.length > 1 ? 's' : ''} running low on stock
+                {lowStockProducts.length} {t('product').toLowerCase()}{lowStockProducts.length > 1 ? 's' : ''} {t('stock').toLowerCase()}
               </p>
             </div>
           </div>
@@ -151,7 +157,7 @@ const Dashboard = () => {
           className="bg-white rounded-xl shadow-lg p-6"
         >
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold">Recent Sales</h3>
+            <h3 className="text-lg font-semibold">{t('recentSales')}</h3>
             <ShoppingCart className="text-blue-500" size={20} />
           </div>
           <div className="space-y-3">
@@ -179,7 +185,7 @@ const Dashboard = () => {
                 </div>
               ))
             ) : (
-              <p className="text-gray-500 text-center py-4">No sales yet</p>
+              <p className="text-gray-500 text-center py-4">{t('noSalesYet')}</p>
             )}
           </div>
         </motion.div>
@@ -191,7 +197,7 @@ const Dashboard = () => {
           className="bg-white rounded-xl shadow-lg p-6"
         >
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold">Recent Purchases</h3>
+            <h3 className="text-lg font-semibold">{t('recentPurchases')}</h3>
             <Package className="text-purple-500" size={20} />
           </div>
           <div className="space-y-3">
@@ -219,7 +225,7 @@ const Dashboard = () => {
                 </div>
               ))
             ) : (
-              <p className="text-gray-500 text-center py-4">No purchases yet</p>
+              <p className="text-gray-500 text-center py-4">{t('noPurchasesYet')}</p>
             )}
           </div>
         </motion.div>
@@ -238,7 +244,7 @@ const Dashboard = () => {
               <DollarSign className="text-blue-600" size={24} />
             </div>
             <div>
-              <p className="text-sm text-gray-600">Unpaid Sales</p>
+              <p className="text-sm text-gray-600">{t('unpaidSales')}</p>
               <p className="text-xl font-bold text-gray-800">
                 {sales.filter(s => s.paymentStatus === 'Unpaid' || s.paymentStatus === 'Partial').length}
               </p>
@@ -263,7 +269,7 @@ const Dashboard = () => {
               <DollarSign className="text-purple-600" size={24} />
             </div>
             <div>
-              <p className="text-sm text-gray-600">Unpaid Purchases</p>
+              <p className="text-sm text-gray-600">{t('unpaidPurchases')}</p>
               <p className="text-xl font-bold text-gray-800">
                 {purchases.filter(p => p.paymentStatus === 'Unpaid' || p.paymentStatus === 'Partial').length}
               </p>
@@ -288,12 +294,12 @@ const Dashboard = () => {
               <Package className="text-orange-600" size={24} />
             </div>
             <div>
-              <p className="text-sm text-gray-600">Total Products</p>
+              <p className="text-sm text-gray-600">{t('totalProducts')}</p>
               <p className="text-xl font-bold text-gray-800">{products.length}</p>
             </div>
           </div>
           <p className="text-sm text-gray-500">
-            {products.filter(p => p.status === 'ACTIVE').length} active products
+            {products.filter(p => p.status === 'ACTIVE').length} {t('activeProducts').toLowerCase()}
           </p>
         </motion.div>
       </div>

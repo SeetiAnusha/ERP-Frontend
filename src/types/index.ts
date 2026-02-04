@@ -4,9 +4,9 @@ export interface Product {
   name: string;
   category: string;
   unit: string;
-  quantity: number;
-  costPrice: number;
-  salePrice: number;
+  amount: number;
+  unitCost: number;
+  subtotal: number;
   supplierId?: number;
   minimumStock: number;
   taxRate: number;
@@ -59,7 +59,6 @@ export interface Sale {
   ncf?: string;
   saleType: string;
   paymentType: string;
-  paymentMethod: string;
   paymentStatus: string;
   subtotal: number;
   tax: number;
@@ -80,7 +79,7 @@ export interface SaleItem {
   productName: string;
   unitOfMeasurement: string;
   quantity: number;
-  salePrice: number;
+  unitPrice: number;
   subtotal: number;
   tax: number;
   total: number;
@@ -91,7 +90,6 @@ export interface SaleItem {
 export interface Purchase {
   id: number;
   registrationNumber: string;
-  documentNumber: string;
   registrationDate: string;
   date: string;
   supplierId: number;
@@ -99,7 +97,6 @@ export interface Purchase {
   ncf?: string;
   purchaseType: string;
   paymentType: string;
-  paymentMethod: string;
   paymentStatus: string;
   productTotal: number;
   additionalExpenses: number;
@@ -111,6 +108,7 @@ export interface Purchase {
   invoice?: string;
   supplier?: Supplier;
   items?: PurchaseItem[];
+  associatedInvoices?: AssociatedInvoice[];
 }
 
 export interface PurchaseItem {
@@ -127,6 +125,21 @@ export interface PurchaseItem {
   total: number;
   adjustedUnitCost?: number;
   adjustedTotal?: number;
+}
+
+export interface AssociatedInvoice {
+  id?: number;
+  purchaseId?: number;
+  supplierRnc: string;
+  supplierName: string;
+  concept: string;
+  ncf: string;
+  date: string;
+  taxAmount: number;
+  tax: number;
+  amount: number;
+  purchaseType: string;
+  paymentType?: string;
 }
 
 export interface FixedAsset {
