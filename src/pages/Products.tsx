@@ -46,7 +46,7 @@ const Products = () => {
         name: formData.name,
         description: formData.description,
         unit: formData.unit,
-        quantity: amount,
+        amount: amount,
         unitCost: unitPrice,
         subtotal: subtotal,
         category: 'General',
@@ -57,23 +57,28 @@ const Products = () => {
 
       if (editingProduct) {
         await api.put(`/products/${editingProduct.id}`, productData);
+        alert('Product updated successfully!');
       } else {
         await api.post('/products', productData);
+        alert('Product created successfully!');
       }
       fetchProducts();
       closeModal();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving product:', error);
+      alert('Error saving product: ' + (error.response?.data?.error || error.message));
     }
   };
 
   const handleDelete = async (id: number) => {
-    if (window.confirm(t('confirmDelete'))) {
+    if (window.confirm('Are you sure you want to delete this product?')) {
       try {
         await api.delete(`/products/${id}`);
+        alert('Product deleted successfully!');
         fetchProducts();
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error deleting product:', error);
+        alert('Error deleting product: ' + (error.response?.data?.error || error.message));
       }
     }
   };
@@ -311,7 +316,7 @@ const Products = () => {
                   <p className="text-xs text-gray-500 mt-1">{t('amount')} × {t('unitPrice')}</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('taxRate')} (%) *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('tax')} *</label>
                   <input
                     type="number"
                     step="0.01"
@@ -319,9 +324,9 @@ const Products = () => {
                     value={formData.taxRate}
                     onChange={(e) => setFormData({ ...formData, taxRate: parseFloat(e.target.value) || 0 })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="18"
+                    placeholder="18.00"
                   />
-                  <p className="text-xs text-gray-500 mt-1">Default: 18% (ITBIS)</p>
+                  <p className="text-xs text-gray-500 mt-1">Enter tax amount (not percentage)</p>
                 </div>
                 </div>
                 <div className="flex gap-3 p-6 pt-4 border-t border-gray-200 bg-gray-50">

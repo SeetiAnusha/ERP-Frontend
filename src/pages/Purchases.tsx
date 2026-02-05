@@ -28,6 +28,7 @@ const Purchases = () => {
   
   // Main modal
   const [showModal, setShowModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     supplierId: '',
@@ -103,26 +104,27 @@ const Purchases = () => {
 
   const addProductToPurchase = () => {
     if (!selectedProduct || quantity <= 0 || unitCost <= 0) {
-      alert('Please select a product and enter valid quantity and cost');
+      alert('Please select a product and enter valid quantity and unit cost');
       return;
     }
     
     const product: any = products.find(p => p.id === parseInt(selectedProduct));
     if (!product) return;
     
-    //const subtotal = product.quantity * unitCost;
-    const tax = product.taxRate;
-    const total =   Number(product.subtotal) + Number(tax);
+    // Calculate based on user-entered quantity and unitCost
+    const subtotal = quantity * unitCost;
+    const taxAmount = Number(product.taxRate);  // Use tax as direct number
+    const total = subtotal + taxAmount;
     
     const newItem: PurchaseItem = {
       productId: product.id,
       productCode: product.code,
       productName: product.name,
       unitOfMeasurement: product.unit,
-      quantity: product.quantity,
+      quantity: quantity,
       unitCost: unitCost,
-      subtotal: product.subtotal,
-      tax: tax,
+      subtotal: subtotal,
+      tax: taxAmount,
       total: total,
       adjustedUnitCost: unitCost,
       adjustedTotal: total,
@@ -137,6 +139,28 @@ const Purchases = () => {
 
   const removeItem = (index: number) => {
     setPurchaseItems(purchaseItems.filter((_, i) => i !== index));
+  };
+
+  const updateItem = (index: number, field: 'quantity' | 'unitCost', value: number) => {
+    const updatedItems = [...purchaseItems];
+    const item = updatedItems[index];
+    
+    if (field === 'quantity') {
+      item.quantity = value;
+    } else if (field === 'unitCost') {
+      item.unitCost = value;
+    }
+    
+    // Recalculate subtotal, tax, and total
+    item.subtotal = item.quantity * item.unitCost;
+    const product = products.find(p => p.id === item.productId);
+    const taxRate = product?.taxRate || 0;
+    item.tax = item.subtotal * (taxRate / 100);
+    item.total = item.subtotal + item.tax;
+    item.adjustedUnitCost = item.unitCost;
+    item.adjustedTotal = item.total;
+    
+    setPurchaseItems(updatedItems);
   };
 
   const addAssociatedInvoice = () => {
@@ -166,8 +190,8 @@ const Purchases = () => {
   };
 
   const calculateTotals = () => {
-    const productTotal = purchaseItems.reduce((sum, item) => sum + item.total, 0);
-    const associatedTotal = associatedInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+    const productTotal = purchaseItems.reduce((sum, item) => sum + (Number(item.total) || 0), 0);
+    const associatedTotal = associatedInvoices.reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
     const grandTotal = productTotal + associatedTotal;
     return { productTotal, associatedTotal, grandTotal };
   };
@@ -175,10 +199,14 @@ const Purchases = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (isSubmitting) return; // Prevent double submission
+    
     if (purchaseItems.length === 0) {
       alert('Please add at least one product');
       return;
     }
+    
+    setIsSubmitting(true);
     
     try {
       const totals = calculateTotals();
@@ -203,6 +231,8 @@ const Purchases = () => {
     } catch (error: any) {
       alert(error.response?.data?.error || 'Error creating purchase');
       console.error('Error creating purchase:', error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -293,8 +323,9 @@ const Purchases = () => {
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">SUPPLIER</th>
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">SUPPLIER RNC</th>
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">DATE</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">PURCHASE OF</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">PAYMENT TYPE</th>
               <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">TOTAL</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">STATUS</th>
               <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">ACTIONS</th>
             </tr>
           </thead>
@@ -311,8 +342,9 @@ const Purchases = () => {
                 <td className="px-6 py-4 text-sm">{purchase.supplier?.name || 'N/A'}</td>
                 <td className="px-6 py-4 text-sm">{purchase.supplierRnc || 'N/A'}</td>
                 <td className="px-6 py-4 text-sm">{new Date(purchase.date).toLocaleDateString()}</td>
+                <td className="px-6 py-4 text-sm">{purchase.purchaseType || 'N/A'}</td>
+                <td className="px-6 py-4 text-sm">{purchase.paymentType || 'N/A'}</td>
                 <td className="px-6 py-4 text-sm font-semibold text-right">{Number(purchase.total).toFixed(2)}</td>
-                <td className="px-6 py-4">{getStatusBadge(purchase.paymentStatus)}</td>
                 <td className="px-6 py-4">
                   <div className="flex gap-2 justify-center">
                     <motion.button
@@ -444,6 +476,22 @@ const Purchases = () => {
                     />
                   </div>
                   <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Purchase of *</label>
+                    <select
+                      required
+                      value={formData.purchaseType}
+                      onChange={(e) => setFormData({ ...formData, purchaseType: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="Merchandise for sale or consumption">Merchandise for sale or consumption</option>
+                      <option value="Goods for internal use (PPE)">Goods for internal use (PPE)</option>
+                      <option value="Investments or capital goods">Investments or capital goods</option>
+                      <option value="Services or other">Services or other</option>
+                      <option value="Prepaid expenses">Prepaid expenses</option>
+                      <option value="Policies and guarantee">Policies and guarantee</option>
+                    </select>
+                  </div>
+                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Payment Type *</label>
                     <select
                       required
@@ -452,6 +500,9 @@ const Purchases = () => {
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="CASH">Cash</option>
+                      <option value="BANK_TRANSFER">Bank Transfer</option>
+                      <option value="DEPOSIT">Deposit</option>
+                      <option value="CREDIT_CARD">Credit Card</option>
                       <option value="CREDIT">Credit</option>
                     </select>
                   </div>
@@ -514,10 +565,10 @@ const Purchases = () => {
                   </button>
                   <button
                     type="submit"
-                    disabled={purchaseItems.length === 0}
+                    disabled={purchaseItems.length === 0 || isSubmitting}
                     className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
                   >
-                    Create Purchase - {totals.grandTotal.toFixed(2)}
+                    {isSubmitting ? 'Creating...' : `Create Purchase - ${totals.grandTotal.toFixed(2)}`}
                   </button>
                 </div>
               </form>
@@ -570,7 +621,7 @@ const Purchases = () => {
                       <option value="">Select product...</option>
                       {products.filter(p => p.status === 'ACTIVE').map((product) => (
                         <option key={product.id} value={product.id}>
-                          {product.code} - {product.name} (Stock: {product.amount}, Price: {product.subtotal})
+                          {product.code} - {product.name} (Stock: {product.amount}, Unit Cost: {product.unitCost})
                         </option>
                       ))}
                     </select>
@@ -581,7 +632,7 @@ const Purchases = () => {
                       type="number"
                       min="1"
                       value={quantity}
-                      onChange={(e) => setQuantity(parseInt(e.target.value))}
+                      onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
                       placeholder="Qty"
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                     />
@@ -633,8 +684,25 @@ const Purchases = () => {
                           <td className="px-3 py-2">{item.productCode}</td>
                           <td className="px-3 py-2">{item.productName}</td>
                           <td className="px-3 py-2">{item.unitOfMeasurement}</td>
-                          <td className="px-3 py-2 text-right">{item.quantity}</td>
-                          <td className="px-3 py-2 text-right">{Number(item.unitCost).toFixed(2)}</td>
+                          <td className="px-3 py-2 text-right">
+                            <input
+                              type="number"
+                              min="1"
+                              value={item.quantity}
+                              onChange={(e) => updateItem(index, 'quantity', parseInt(e.target.value) || 1)}
+                              className="w-20 px-2 py-1 border border-gray-300 rounded text-right focus:ring-2 focus:ring-green-500"
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0.01"
+                              value={item.unitCost}
+                              onChange={(e) => updateItem(index, 'unitCost', parseFloat(e.target.value) || 0)}
+                              className="w-24 px-2 py-1 border border-gray-300 rounded text-right focus:ring-2 focus:ring-green-500"
+                            />
+                          </td>
                           <td className="px-3 py-2 text-right">{Number(item.subtotal).toFixed(2)}</td>
                           <td className="px-3 py-2 text-right">{Number(item.tax).toFixed(2)}</td>
                           <td className="px-3 py-2 text-right font-semibold">{Number(item.total).toFixed(2)}</td>
@@ -642,7 +710,8 @@ const Purchases = () => {
                             <button
                               type="button"
                               onClick={() => removeItem(index)}
-                              className="text-red-600 hover:text-red-800"
+                              className="text-red-600 hover:text-red-800 hover:bg-red-50 p-1 rounded"
+                              title="Delete"
                             >
                               <Trash2 size={16} />
                             </button>
@@ -780,17 +849,23 @@ const Purchases = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Purchase of:</label>
-                    <input
-                      type="text"
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Purchase of *</label>
+                    <select
                       value={newAssociatedInvoice.purchaseType}
                       onChange={(e) => setNewAssociatedInvoice({...newAssociatedInvoice, purchaseType: e.target.value})}
                       className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
-                      placeholder="Description"
-                    />
+                    >
+                      <option value="">Select type</option>
+                      <option value="Merchandise for sale or consumption">Merchandise for sale or consumption</option>
+                      <option value="Goods for internal use (PPE)">Goods for internal use (PPE)</option>
+                      <option value="Investments or capital goods">Investments or capital goods</option>
+                      <option value="Services or other">Services or other</option>
+                      <option value="Prepaid expenses">Prepaid expenses</option>
+                      <option value="Policies and guarantee">Policies and guarantee</option>
+                    </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Payment Type:</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Payment Type *</label>
                     <select
                       value={newAssociatedInvoice.paymentType}
                       onChange={(e) => setNewAssociatedInvoice({...newAssociatedInvoice, paymentType: e.target.value})}
@@ -798,6 +873,9 @@ const Purchases = () => {
                     >
                       <option value="">Select type</option>
                       <option value="CASH">Cash</option>
+                      <option value="BANK_TRANSFER">Bank Transfer</option>
+                      <option value="DEPOSIT">Deposit</option>
+                      <option value="CREDIT_CARD">Credit Card</option>
                       <option value="CREDIT">Credit</option>
                     </select>
                   </div>
@@ -829,7 +907,7 @@ const Purchases = () => {
                         <th className="px-3 py-2 text-right font-semibold">Tax</th>
                         <th className="px-3 py-2 text-right font-semibold">Amount</th>
                         <th className="px-3 py-2 text-left font-semibold">Purchase of</th>
-                        <th className="px-3 py-2 text-left font-semibold">Payment Method</th>
+                        <th className="px-3 py-2 text-left font-semibold">Payment Type</th>
                         <th className="px-3 py-2"></th>
                       </tr>
                     </thead>
@@ -1095,7 +1173,7 @@ const Purchases = () => {
                       <th className="px-3 py-2 text-right font-semibold">Tax</th>
                       <th className="px-3 py-2 text-right font-semibold">Amount</th>
                       <th className="px-3 py-2 text-left font-semibold">Purchase of</th>
-                      <th className="px-3 py-2 text-left font-semibold">Payment Method</th>
+                      <th className="px-3 py-2 text-left font-semibold">Payment Type</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1111,7 +1189,7 @@ const Purchases = () => {
                           <td className="px-3 py-2 text-right">{Number(invoice.taxAmount).toFixed(2)}</td>
                           <td className="px-3 py-2 text-right font-semibold">{Number(invoice.amount).toFixed(2)}</td>
                           <td className="px-3 py-2">{invoice.purchaseType || '-'}</td>
-                          <td className="px-3 py-2">{invoice.paymentMethod || '-'}</td>
+                          <td className="px-3 py-2">{invoice.paymentType || '-'}</td>
                         </tr>
                       ))
                     ) : (

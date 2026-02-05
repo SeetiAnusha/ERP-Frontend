@@ -79,42 +79,37 @@ const Sales = () => {
   };
 
   const addProductToSale = () => {
-    if (!selectedProduct || quantity <= 0) return;
+    if (!selectedProduct || quantity <= 0) {
+      alert('Please select a product and enter valid quantity');
+      return;
+    }
     
     const product = products.find(p => p.id === parseInt(selectedProduct));
     if (!product) return;
     
-    // Check if product already in list
-    const existingIndex = saleItems.findIndex(item => item.productId === product.id);
-    if (existingIndex >= 0) {
-      // Update quantity
-      const updated = [...saleItems];
-      updated[existingIndex].quantity += quantity;
-      updated[existingIndex].subtotal = updated[existingIndex].quantity * Number(product.subtotal);
-      updated[existingIndex].tax = Number(product.taxRate);
-      updated[existingIndex].total = updated[existingIndex].subtotal + updated[existingIndex].tax;
-      // Update product info (in case it changed)
-      updated[existingIndex].productAmount = Number(product.amount);
-      updated[existingIndex].productUnitCost = Number(product.unitCost);
-      setSaleItems(updated);
-    } else {
-      // Add new item
-      const subtotal = quantity * Number(product.subtotal);
-      const tax = Number(product.taxRate);
-      const total = subtotal + tax;
-      
-      setSaleItems([...saleItems, {
-        productId: product.id,
-        productName: product.name,
-        productAmount: Number(product.amount),
-        quantity,
-        productUnitCost: Number(product.unitCost),
-        unitPrice: Number(product.subtotal),
-        subtotal,
-        tax,
-        total,
-      }]);
+    // Check stock
+    if (Number(product.amount) < quantity) {
+      alert(`Insufficient stock! Available: ${product.amount}, Required: ${quantity}`);
+      return;
     }
+    
+    // Use product's unitCost as sale price
+    const unitCost = Number(product.unitCost);
+    const subtotal = quantity * unitCost;
+    const taxAmount = Number(product.taxRate);  // Tax as direct number
+    const total = subtotal + taxAmount;
+    
+    setSaleItems([...saleItems, {
+      productId: product.id,
+      productName: product.name,
+      productAmount: Number(product.amount),
+      quantity,
+      productUnitCost: unitCost,
+      unitPrice: unitCost,
+      subtotal,
+      tax: taxAmount,
+      total,
+    }]);
     
     setSelectedProduct('');
     setQuantity(1);
@@ -280,8 +275,9 @@ const Sales = () => {
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('client').toUpperCase()}</th>
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">CLIENT RNC</th>
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('date').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">SALE OF</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">PAYMENT TYPE</th>
               <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">{t('total').toUpperCase()}</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('status').toUpperCase()}</th>
               <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">{t('actions').toUpperCase()}</th>
             </tr>
           </thead>
@@ -298,8 +294,9 @@ const Sales = () => {
                 <td className="px-6 py-4 text-sm">{sale.client?.name || 'N/A'}</td>
                 <td className="px-6 py-4 text-sm">{sale.clientRnc || 'N/A'}</td>
                 <td className="px-6 py-4 text-sm">{new Date(sale.date).toLocaleDateString()}</td>
+                <td className="px-6 py-4 text-sm">{sale.saleType || 'N/A'}</td>
+                <td className="px-6 py-4 text-sm">{sale.paymentType || 'N/A'}</td>
                 <td className="px-6 py-4 text-sm font-semibold text-right">{Number(sale.total).toFixed(2)}</td>
-                <td className="px-6 py-4">{getStatusBadge(sale.paymentStatus)}</td>
                 <td className="px-6 py-4">
                   <div className="flex gap-2 justify-center">
                     <motion.button
@@ -447,28 +444,33 @@ const Sales = () => {
                 {/* Payment Information */}
                 <div className="grid grid-cols-2 gap-4 p-4 bg-green-50 rounded-lg border border-green-200">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('saleType')} *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Sale of *</label>
                     <select
                       required
                       value={formData.saleType}
                       onChange={(e) => setFormData({ ...formData, saleType: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value="Merchandise for sale">{t('merchandiseForSale')}</option>
-                      <option value="Service">{t('service')}</option>
-                      <option value="Other">{t('other')}</option>
+                      <option value="Merchandise for sale">Merchandise for sale</option>
+                      <option value="Service">Service</option>
+                      <option value="Good for internal use">Good for internal use</option>
+                      <option value="Investment good">Investment good</option>
+                      <option value="Other">Other</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('paymentType')} *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Payment Type *</label>
                     <select
                       required
                       value={formData.paymentType}
                       onChange={(e) => setFormData({ ...formData, paymentType: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value="CASH">{t('cash')}</option>
-                      <option value="CREDIT">{t('credit')}</option>
+                      <option value="CASH">Cash</option>
+                      <option value="BANK_TRANSFER">Bank Transfer</option>
+                      <option value="DEPOSIT">Deposit</option>
+                      <option value="CREDIT_CARD">Credit Card</option>
+                      <option value="CREDIT">Credit</option>
                     </select>
                   </div>
                 </div>
@@ -482,10 +484,10 @@ const Sales = () => {
                       onChange={(e) => setSelectedProduct(e.target.value)}
                       className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value="">{t('selectOption')}...</option>
+                      <option value="">Select product...</option>
                       {products.filter(p => p.status === 'ACTIVE').map((product) => (
                         <option key={product.id} value={product.id}>
-                          {product.name} - {Number(product.subtotal).toFixed(2)} ({t('stock')}: {product.amount})
+                          {product.name} - Unit Cost: {Number(product.unitCost).toFixed(2)} | Stock: {product.amount}
                         </option>
                       ))}
                     </select>
@@ -493,9 +495,9 @@ const Sales = () => {
                       type="number"
                       min="1"
                       value={quantity}
-                      onChange={(e) => setQuantity(parseInt(e.target.value))}
-                      placeholder={t('qty')}
-                      className="w-24 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
+                      placeholder="Quantity"
+                      className="w-32 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
                     <motion.button
                       type="button"
@@ -516,7 +518,7 @@ const Sales = () => {
                       <thead className="bg-gray-50">
                         <tr>
                           <th className="px-4 py-3 text-left text-sm font-semibold">{t('product')}</th>
-                          <th className="px-4 py-3 text-right text-sm font-semibold">Amount</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold">Stock</th>
                           <th className="px-4 py-3 text-right text-sm font-semibold">{t('qty')}</th>
                           <th className="px-4 py-3 text-right text-sm font-semibold">Unit Cost</th>
                           <th className="px-4 py-3 text-right text-sm font-semibold">{t('subtotal')}</th>
@@ -531,7 +533,7 @@ const Sales = () => {
                             <td className="px-4 py-3 text-sm">{item.productName}</td>
                             <td className="px-4 py-3 text-sm text-right">{item.productAmount}</td>
                             <td className="px-4 py-3 text-sm text-right">{item.quantity}</td>
-                            <td className="px-4 py-3 text-sm text-right">{Number(item.productUnitCost).toFixed(2)}</td>
+                            <td className="px-4 py-3 text-sm text-right">{Number(item.unitPrice).toFixed(2)}</td>
                             <td className="px-4 py-3 text-sm text-right">{Number(item.subtotal).toFixed(2)}</td>
                             <td className="px-4 py-3 text-sm text-right">{Number(item.tax).toFixed(2)}</td>
                             <td className="px-4 py-3 text-sm text-right font-semibold">{Number(item.total).toFixed(2)}</td>
@@ -803,7 +805,7 @@ const Sales = () => {
                       <th className="px-3 py-2 text-left font-semibold">Product</th>
                       <th className="px-3 py-2 text-left font-semibold">Unit</th>
                       <th className="px-3 py-2 text-right font-semibold">Qty</th>
-                      <th className="px-3 py-2 text-right font-semibold">Unit Price</th>
+                      <th className="px-3 py-2 text-right font-semibold">Sale Price</th>
                       <th className="px-3 py-2 text-right font-semibold">Subtotal</th>
                       <th className="px-3 py-2 text-right font-semibold">Tax</th>
                       <th className="px-3 py-2 text-right font-semibold">Total</th>
