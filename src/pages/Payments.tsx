@@ -3,8 +3,11 @@ import { motion } from 'framer-motion';
 import { FaPlus, FaEdit, FaTrash, FaDollarSign, FaSearch } from 'react-icons/fa';
 import axios from '../api/axios';
 import { Payment, Purchase, Sale, Client, Supplier } from '../types';
+import { useLanguage } from '../contexts/LanguageContext';
+
 
 const Payments = () => {
+    const { t } = useLanguage();
   const [payments, setPayments] = useState<Payment[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -76,7 +79,7 @@ const Payments = () => {
         setOutstandingDocuments(response.data);
         
         if (response.data.length === 0) {
-          alert('⚠️ No outstanding invoices found for this supplier.\n\nPossible reasons:\n1. All purchases are paid\n2. Purchases are Cash type (not Credit)\n3. No purchases exist for this supplier');
+          alert(t('noOutstandingInvoicesSupplier'));
         }
       } else if (entityType === 'Sale') {
         const response = await axios.get(`/payments/outstanding/sales/${entityId}`);
@@ -84,12 +87,12 @@ const Payments = () => {
         setOutstandingDocuments(response.data);
         
         if (response.data.length === 0) {
-          alert('⚠️ No outstanding invoices found for this client.\n\nPossible reasons:\n1. All sales are paid\n2. Sales are Cash type (not Credit)\n3. No sales exist for this client');
+          alert(t('noOutstandingInvoicesClient'));
         }
       }
     } catch (error) {
       console.error('Error fetching outstanding documents:', error);
-      alert('Error loading outstanding invoices. Check console for details.');
+      alert(t('errorLoadingInvoices'));
     }
   };
 
@@ -98,12 +101,12 @@ const Payments = () => {
     
     // Validation
     if (!formData.relatedEntityId) {
-      alert('Please select a supplier or client');
+      alert(t('pleaseSelectEntity'));
       return;
     }
     
     if (!formData.paymentAmount || parseFloat(formData.paymentAmount) <= 0) {
-      alert('Please enter a valid payment amount');
+      alert(t('enterValidAmount'));
       return;
     }
     
@@ -124,13 +127,7 @@ const Payments = () => {
 
       // Warning if no invoices selected
       if (invoiceApplications.length === 0 && outstandingDocuments.length > 0) {
-        const confirmNoInvoices = window.confirm(
-          '⚠️ WARNING: No invoices selected!\n\n' +
-          'This payment will be recorded but NOT applied to any invoices.\n' +
-          'The purchase/sale balances will NOT be updated.\n\n' +
-          'Do you want to continue anyway?\n\n' +
-          'Click "Cancel" to go back and select invoices.'
-        );
+        const confirmNoInvoices = window.confirm(t('warningNoInvoices'));
         
         if (!confirmNoInvoices) {
           return; // User cancelled, don't submit
@@ -154,9 +151,9 @@ const Payments = () => {
       }
       
       if (invoiceApplications.length > 0) {
-        alert(`✅ Payment saved successfully!\n\nApplied to ${invoiceApplications.length} invoice(s).`);
+        alert(t('paymentSavedSuccess').replace('{count}', invoiceApplications.length.toString()));
       } else {
-        alert('⚠️ Payment saved but NOT applied to any invoices.\n\nYou can delete and recreate it with invoice selection.');
+        alert(t('paymentSavedNoInvoices'));
       }
       
       fetchPayments();
@@ -336,7 +333,7 @@ const Payments = () => {
             <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="Search by registration number, supplier, or client..."
+              placeholder={t('search')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -348,9 +345,9 @@ const Payments = () => {
             onChange={(e) => setFilterType(e.target.value)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
-            <option value="All">All Payment Types</option>
-            <option value="Payment Out">Payment Out (To Suppliers)</option>
-            <option value="Payment In">Payment In (From Clients)</option>
+            <option value="All">{t('allPaymentTypes')}</option>
+            <option value="Payment Out">{t('paymentOut')} ({t('toSuppliers')})</option>
+            <option value="Payment In">{t('paymentIn')} ({t('fromClients')})</option>
           </select>
         </div>
       </div>
@@ -362,31 +359,31 @@ const Payments = () => {
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Payment Record #
+                  {t('registrationNumber')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Date
+                  {t('date')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Type
+                  {t('paymentType')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Supplier/Client
+                  {t('selectSupplierOrClient')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  RNC/Cedula
+                  {t('idTaxNumber')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Payment Method
+                  {t('paymentMethod')}
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Payment Amount
+                  {t('paymentAmount')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Applied to Invoices
+                  {t('invoicesToApply')}
                 </th>
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
+                  {t('actions')}
                 </th>
               </tr>
             </thead>
@@ -446,7 +443,7 @@ const Payments = () => {
                           ))}
                           {(payment as any).excessAmount && parseFloat(((payment as any).excessAmount).toString()) > 0 && (
                             <div className="flex justify-between items-center bg-yellow-50 px-2 py-1 rounded border border-yellow-200">
-                              <span className="text-xs text-yellow-700">Credit Balance</span>
+                              <span className="text-xs text-yellow-700">{t('balance')}</span>
                               <span className="text-yellow-700 font-semibold text-xs">
                                 {parseFloat(((payment as any).excessAmount).toString()).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </span>
@@ -549,7 +546,7 @@ const Payments = () => {
                         onChange={(e) => handleSupplierChange(e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       >
-                        <option value="">Select Supplier</option>
+                        <option value="">{t('selectSupplier')}</option>
                         {suppliers.map(supplier => (
                           <option key={supplier.id} value={supplier.id}>
                             {supplier.name} - {supplier.rnc}
@@ -568,7 +565,7 @@ const Payments = () => {
                         onChange={(e) => handleClientChange(e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       >
-                        <option value="">Select Client</option>
+                        <option value="">{t('selectClient')}</option>
                         {clients.map(client => (
                           <option key={client.id} value={client.id}>
                             {client.name} - {client.rncCedula}
@@ -643,7 +640,7 @@ const Payments = () => {
                       </div>
                       
                       <p className="text-sm font-medium text-gray-700 mb-3">
-                        Invoices to which this payment will be applied:
+                        {t('invoicesToApplyPayment')}:
                       </p>
                       
                       <div className="flex gap-6 mb-4">
@@ -793,10 +790,10 @@ const Payments = () => {
                                 <td colSpan={8} className="px-3 py-2">
                                   <div className="bg-yellow-50 border border-yellow-200 rounded p-3">
                                     <p className="text-sm text-yellow-800">
-                                      <strong>Overpayment Detected:</strong> Payment amount ({parseFloat(formData.paymentAmount || '0').toFixed(2)}) 
-                                      exceeds total applied amount ({Object.values(invoicePayments).reduce((sum, val) => sum + parseFloat(val?.toString() || '0'), 0).toFixed(2)}). 
-                                      The excess amount of {(parseFloat(formData.paymentAmount || '0') - Object.values(invoicePayments).reduce((sum, val) => sum + parseFloat(val?.toString() || '0'), 0)).toFixed(2)} 
-                                      will be recorded as a credit balance for future use.
+                                      <strong>{t('overpaymentDetected')}:</strong> {t('overpaymentMessage')
+                                        .replace('{payment}', parseFloat(formData.paymentAmount || '0').toFixed(2))
+                                        .replace('{applied}', Object.values(invoicePayments).reduce((sum, val) => sum + parseFloat(val?.toString() || '0'), 0).toFixed(2))
+                                        .replace('{excess}', (parseFloat(formData.paymentAmount || '0') - Object.values(invoicePayments).reduce((sum, val) => sum + parseFloat(val?.toString() || '0'), 0)).toFixed(2))}
                                     </p>
                                   </div>
                                 </td>

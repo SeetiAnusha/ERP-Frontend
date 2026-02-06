@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { FaFileExcel, FaCalendar, FaSearch, FaChartLine } from 'react-icons/fa';
 import axios from '../api/axios';
 import { Product, Purchase, Sale } from '../types';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface InventoryMovement {
   registrationNo: string;
@@ -39,6 +40,7 @@ interface InventorySheet {
 }
 
 const Inventory = () => {
+  const { t } = useLanguage();
   const [products, setProducts] = useState<Product[]>([]);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
@@ -256,15 +258,15 @@ const Inventory = () => {
       <div className="bg-white rounded-xl shadow-lg p-6">
         <div className="flex justify-between items-center flex-wrap gap-4">
           <div>
-            <h2 className="text-3xl font-bold text-gray-800">Inventory Sheet</h2>
-            <p className="text-gray-600 mt-1">Track purchases and sales of goods</p>
+            <h2 className="text-3xl font-bold text-gray-800">{t('inventorySheet')}</h2>
+            <p className="text-gray-600 mt-1">{t('trackPurchasesAndSales')}</p>
           </div>
           
           <button
             onClick={exportToExcel}
             className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition flex items-center gap-2"
           >
-            <FaFileExcel /> Export to Excel
+            <FaFileExcel /> {t('exportToExcel')}
           </button>
         </div>
 
@@ -273,7 +275,7 @@ const Inventory = () => {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               <FaCalendar className="inline mr-2" />
-              Start Date
+              {t('startDate')}
             </label>
             <input
               type="date"
@@ -286,7 +288,7 @@ const Inventory = () => {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               <FaCalendar className="inline mr-2" />
-              End Date
+              {t('endDate')}
             </label>
             <input
               type="date"
@@ -298,14 +300,14 @@ const Inventory = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Product Filter
+              {t('productFilter')}
             </label>
             <select
               value={selectedProduct}
               onChange={(e) => setSelectedProduct(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
             >
-              <option value="all">All Products</option>
+              <option value="all">{t('allProducts')}</option>
               {products.map(product => (
                 <option key={product.id} value={product.id}>
                   {product.name}
@@ -317,7 +319,7 @@ const Inventory = () => {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               <FaSearch className="inline mr-2" />
-              Search Product
+              {t('searchProduct')}
             </label>
             <input
               type="text"
@@ -345,22 +347,22 @@ const Inventory = () => {
             <table className="w-full text-sm">
               <thead className="bg-blue-900 text-white">
                 <tr>
-                  <th className="px-3 py-2 text-left">Registration No.</th>
-                  <th className="px-3 py-2 text-left">Registration Date</th>
-                  <th className="px-3 py-2 text-left">RNC Supplier</th>
-                  <th className="px-3 py-2 text-left">Supplier Name</th>
-                  <th className="px-3 py-2 text-left">NCF</th>
-                  <th className="px-3 py-2 text-left">Date</th>
-                  <th className="px-3 py-2 text-left">Operation</th>
-                  <th className="px-3 py-2 text-left">Product</th>
-                  <th className="px-3 py-2 text-right">Quantity</th>
-                  <th className="px-3 py-2 text-right">Unit Price</th>
-                  <th className="px-3 py-2 text-right">Amount</th>
-                  <th className="px-3 py-2 text-right">Balance in Quantity</th>
-                  <th className="px-3 py-2 text-right">Balance in Amount</th>
-                  <th className="px-3 py-2 text-right">Average Unit Cost</th>
-                  <th className="px-3 py-2 text-center">Year</th>
-                  <th className="px-3 py-2 text-center">Month</th>
+                  <th className="px-3 py-2 text-left">{t('registrationNumber')}</th>
+                  <th className="px-3 py-2 text-left">{t('registrationDate')}</th>
+                  <th className="px-3 py-2 text-left">{t('supplierRnc')}</th>
+                  <th className="px-3 py-2 text-left">{t('supplierName')}</th>
+                  <th className="px-3 py-2 text-left">{t('ncf')}</th>
+                  <th className="px-3 py-2 text-left">{t('date')}</th>
+                  <th className="px-3 py-2 text-left">{t('operation')}</th>
+                  <th className="px-3 py-2 text-left">{t('product')}</th>
+                  <th className="px-3 py-2 text-right">{t('quantity')}</th>
+                  <th className="px-3 py-2 text-right">{t('unitPrice')}</th>
+                  <th className="px-3 py-2 text-right">{t('amount')}</th>
+                  <th className="px-3 py-2 text-right">{t('balanceInQuantity')}</th>
+                  <th className="px-3 py-2 text-right">{t('balanceInAmount')}</th>
+                  <th className="px-3 py-2 text-right">{t('averageUnitCost')}</th>
+                  <th className="px-3 py-2 text-center">{t('year')}</th>
+                  <th className="px-3 py-2 text-center">{t('month')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -412,23 +414,23 @@ const Inventory = () => {
                 <p className="text-xl font-bold text-green-600">{sheet.totals.totalIncome.toFixed(2)}</p>
               </div>
               <div className="bg-white p-3 rounded-lg shadow">
-                <p className="text-xs text-gray-600">Total Cost</p>
+                <p className="text-xs text-gray-600">{t('totalCost')}</p>
                 <p className="text-xl font-bold text-red-600">{sheet.totals.totalCost.toFixed(2)}</p>
               </div>
               <div className="bg-white p-3 rounded-lg shadow">
-                <p className="text-xs text-gray-600">Gross Margin</p>
+                <p className="text-xs text-gray-600">{t('grossMargin')}</p>
                 <p className="text-xl font-bold text-orange-600">{sheet.totals.grossMargin.toFixed(2)}</p>
               </div>
               <div className="bg-white p-3 rounded-lg shadow">
-                <p className="text-xs text-gray-600">% Gross Margin on Revenue</p>
+                <p className="text-xs text-gray-600">{t('grossMarginOnRevenue')}</p>
                 <p className="text-xl font-bold text-teal-600">{sheet.totals.grossMarginPercent.toFixed(2)}%</p>
               </div>
               <div className="bg-white p-3 rounded-lg shadow">
-                <p className="text-xs text-gray-600">% Gross Margin on Cost</p>
+                <p className="text-xs text-gray-600">{t('grossMarginOnCost')}</p>
                 <p className="text-xl font-bold text-indigo-600">{sheet.totals.grossMarginOnCost.toFixed(2)}%</p>
               </div>
               <div className="bg-white p-3 rounded-lg shadow">
-                <p className="text-xs text-gray-600">Total Purchases</p>
+                <p className="text-xs text-gray-600">{t('purchases')}</p>
                 <p className="text-xl font-bold text-gray-600">{sheet.totals.totalPurchases}</p>
               </div>
             </div>
@@ -438,8 +440,8 @@ const Inventory = () => {
 
       {filteredSheets.length === 0 && (
         <div className="bg-white rounded-xl shadow-lg p-12 text-center">
-          <p className="text-gray-500 text-lg">No inventory movements found for the selected criteria</p>
-          <p className="text-gray-400 text-sm mt-2">Try adjusting your date range or product filter</p>
+          <p className="text-gray-500 text-lg">{t('noInventoryMovements')}</p>
+          <p className="text-gray-400 text-sm mt-2">{t('adjustDateRange')}</p>
         </div>
       )}
     </motion.div>

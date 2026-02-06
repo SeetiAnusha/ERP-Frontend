@@ -76,7 +76,10 @@ const translations = {
     amountInAmount: 'Amount in Amount',
     balanceInAmount: 'Balance in Amount',
     balanceIn: 'Balance in',
+    balanceInQuantity: 'Balance in Quantity',
     averageUnitCost: 'Average Unit Cost',
+    year: 'Year',
+    month: 'Month',
     currentBalance: 'Current Balance',
     averageCost: 'Average Cost',
     totalIncome: 'Total Income',
@@ -235,6 +238,22 @@ const translations = {
     addProducts: 'Add Products',
     product: 'Product',
     qty: 'Qty',
+    
+    // Payment Alerts and Messages
+    noOutstandingInvoicesSupplier: '⚠️ No outstanding invoices found for this supplier.\n\nPossible reasons:\n1. All purchases are paid\n2. Purchases are Cash type (not Credit)\n3. No purchases exist for this supplier',
+    noOutstandingInvoicesClient: '⚠️ No outstanding invoices found for this client.\n\nPossible reasons:\n1. All sales are paid\n2. Sales are Cash type (not Credit)\n3. No sales exist for this client',
+    errorLoadingInvoices: 'Error loading outstanding invoices. Check console for details.',
+    pleaseSelectEntity: 'Please select a supplier or client',
+    warningNoInvoices: '⚠️ WARNING: No invoices selected!\n\nThis payment will be recorded but NOT applied to any invoices.\nThe purchase/sale balances will NOT be updated.\n\nDo you want to continue anyway?\n\nClick "Cancel" to go back and select invoices.',
+    paymentSavedSuccess: '✅ Payment saved successfully!\n\nApplied to {count} invoice(s).',
+    paymentSavedNoInvoices: '⚠️ Payment saved but NOT applied to any invoices.\n\nYou can delete and recreate it with invoice selection.',
+    selectSupplierOrClient: 'Select Supplier/Client',
+    invoicesToApplyPayment: 'Invoices to which this payment will be applied',
+    checkToSelect: 'Check to select invoice',
+    totalToApply: 'Total Amount to Apply',
+    overpaymentDetected: 'Overpayment Detected',
+    overpaymentMessage: 'Payment amount ({payment}) exceeds total applied amount ({applied}). The excess amount of {excess} will be recorded as a credit balance for future use.',
+    enterValidAmount: 'Please enter a valid payment amount',
   },
   
   es: {
@@ -311,7 +330,10 @@ const translations = {
     amountInAmount: 'Cantidad en Monto',
     balanceInAmount: 'Saldo en Monto',
     balanceIn: 'Saldo en',
+    balanceInQuantity: 'Saldo en Cantidad',
     averageUnitCost: 'Costo Unitario Promedio',
+    year: 'Año',
+    month: 'Mes',
     currentBalance: 'Saldo Actual',
     averageCost: 'Costo Promedio',
     totalIncome: 'Ingresos Totales',
@@ -470,6 +492,22 @@ const translations = {
     addProducts: 'Agregar Productos',
     product: 'Producto',
     qty: 'Cant',
+    
+    // Alertas y Mensajes de Pago
+    noOutstandingInvoicesSupplier: '⚠️ No se encontraron facturas pendientes para este proveedor.\n\nPosibles razones:\n1. Todas las compras están pagadas\n2. Las compras son de tipo Efectivo (no Crédito)\n3. No existen compras para este proveedor',
+    noOutstandingInvoicesClient: '⚠️ No se encontraron facturas pendientes para este cliente.\n\nPosibles razones:\n1. Todas las ventas están pagadas\n2. Las ventas son de tipo Efectivo (no Crédito)\n3. No existen ventas para este cliente',
+    errorLoadingInvoices: 'Error al cargar facturas pendientes. Revise la consola para más detalles.',
+    pleaseSelectEntity: 'Por favor seleccione un proveedor o cliente',
+    warningNoInvoices: '⚠️ ADVERTENCIA: ¡No se seleccionaron facturas!\n\nEste pago se registrará pero NO se aplicará a ninguna factura.\nLos saldos de compra/venta NO se actualizarán.\n\n¿Desea continuar de todos modos?\n\nHaga clic en "Cancelar" para volver y seleccionar facturas.',
+    paymentSavedSuccess: '✅ ¡Pago guardado exitosamente!\n\nAplicado a {count} factura(s).',
+    paymentSavedNoInvoices: '⚠️ Pago guardado pero NO aplicado a ninguna factura.\n\nPuede eliminarlo y recrearlo con selección de facturas.',
+    selectSupplierOrClient: 'Seleccionar Proveedor/Cliente',
+    invoicesToApplyPayment: 'Facturas a las que se aplicará este pago',
+    checkToSelect: 'Marcar para seleccionar factura',
+    totalToApply: 'Monto Total a Aplicar',
+    overpaymentDetected: 'Sobrepago Detectado',
+    overpaymentMessage: 'El monto del pago ({payment}) excede el monto total aplicado ({applied}). El exceso de {excess} se registrará como saldo a crédito para uso futuro.',
+    enterValidAmount: 'Por favor ingrese un monto de pago válido',
   }
 };
 
