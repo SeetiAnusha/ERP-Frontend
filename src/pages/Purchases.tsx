@@ -314,19 +314,22 @@ const Purchases = () => {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="bg-white rounded-xl shadow-lg overflow-hidden"
+        className="bg-white rounded-xl shadow-lg overflow-x-auto"
       >
-        <table className="w-full">
+        <table className="w-full min-w-max">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">REG. NUMBER</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">SUPPLIER</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">SUPPLIER RNC</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">DATE</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">PURCHASE OF</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">PAYMENT TYPE</th>
-              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">TOTAL</th>
-              <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">ACTIONS</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('registrationNumber').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('supplier').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('supplierRnc').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('date').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('purchaseOf').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('paymentType').toUpperCase()}</th>
+              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">{t('total').toUpperCase()}</th>
+              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">PAID</th>
+              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">BALANCE</th>
+              <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">STATUS</th>
+              <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">{t('actions').toUpperCase()}</th>
             </tr>
           </thead>
           <tbody>
@@ -345,6 +348,17 @@ const Purchases = () => {
                 <td className="px-6 py-4 text-sm">{purchase.purchaseType || 'N/A'}</td>
                 <td className="px-6 py-4 text-sm">{purchase.paymentType || 'N/A'}</td>
                 <td className="px-6 py-4 text-sm font-semibold text-right">{Number(purchase.total).toFixed(2)}</td>
+                <td className="px-6 py-4 text-sm font-semibold text-right text-green-600">{Number(purchase.paidAmount || 0).toFixed(2)}</td>
+                <td className="px-6 py-4 text-sm font-semibold text-right text-orange-600">{Number(purchase.balanceAmount || 0).toFixed(2)}</td>
+                <td className="px-6 py-4 text-center">
+                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                    purchase.paymentStatus === 'Paid' ? 'bg-green-100 text-green-800' :
+                    purchase.paymentStatus === 'Partial' ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-red-100 text-red-800'
+                  }`}>
+                    {purchase.paymentStatus || 'Unpaid'}
+                  </span>
+                </td>
                 <td className="px-6 py-4">
                   <div className="flex gap-2 justify-center">
                     <motion.button
@@ -422,7 +436,7 @@ const Purchases = () => {
                 {/* Supplier Selection */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Supplier *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('supplier')} *</label>
                     <select
                       required
                       value={formData.supplierId}
@@ -436,7 +450,7 @@ const Purchases = () => {
                       }}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value="">Select a supplier</option>
+                      <option value="">{t('selectSupplier')}</option>
                       {suppliers.map((supplier) => (
                         <option key={supplier.id} value={supplier.id}>
                           {supplier.name}
@@ -446,7 +460,7 @@ const Purchases = () => {
                   </div>
                   {formData.supplierRnc && (
                     <div className="col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Supplier RNC</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{t('supplierRnc')}</label>
                       <input
                         type="text"
                         value={formData.supplierRnc}
@@ -456,7 +470,7 @@ const Purchases = () => {
                     </div>
                   )}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Date *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('date')} *</label>
                     <input
                       type="date"
                       required
@@ -466,44 +480,44 @@ const Purchases = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">NCF</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('ncf')}</label>
                     <input
                       type="text"
                       value={formData.ncf}
                       onChange={(e) => setFormData({ ...formData, ncf: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="NCF Number"
+                      placeholder="NCF"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Purchase of *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('purchaseOf')} *</label>
                     <select
                       required
                       value={formData.purchaseType}
                       onChange={(e) => setFormData({ ...formData, purchaseType: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value="Merchandise for sale or consumption">Merchandise for sale or consumption</option>
+                      <option value="Merchandise for sale or consumption">{t('merchandiseForSale')}</option>
                       <option value="Goods for internal use (PPE)">Goods for internal use (PPE)</option>
                       <option value="Investments or capital goods">Investments or capital goods</option>
                       <option value="Services or other">Services or other</option>
-                      <option value="Prepaid expenses">Prepaid expenses</option>
+                      <option value="Prepaid expenses">{t('prepaidExpenses')}</option>
                       <option value="Policies and guarantee">Policies and guarantee</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Payment Type *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('paymentType')} *</label>
                     <select
                       required
                       value={formData.paymentType}
                       onChange={(e) => setFormData({ ...formData, paymentType: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value="CASH">Cash</option>
-                      <option value="BANK_TRANSFER">Bank Transfer</option>
+                      <option value="CASH">{t('cash')}</option>
+                      <option value="BANK_TRANSFER">{t('bankTransfer')}</option>
                       <option value="DEPOSIT">Deposit</option>
-                      <option value="CREDIT_CARD">Credit Card</option>
-                      <option value="CREDIT">Credit</option>
+                      <option value="CREDIT_CARD">{t('creditCard')}</option>
+                      <option value="CREDIT">{t('credit')}</option>
                     </select>
                   </div>
                 </div>
@@ -516,7 +530,7 @@ const Purchases = () => {
                     className="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center gap-2"
                   >
                     <Package size={20} />
-                    Add Products
+                    {t('addProducts')}
                   </button>
                   <button
                     type="button"
@@ -561,7 +575,7 @@ const Purchases = () => {
                     onClick={closeModal}
                     className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
                   >
-                    Cancel
+                    {t('cancel')}
                   </button>
                   <button
                     type="submit"

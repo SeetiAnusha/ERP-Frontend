@@ -145,9 +145,44 @@ const Inventory = () => {
       // Sort movements by date first
       movements.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-      // Now calculate running balances in chronological order
-      let runningBalance = 0;
-      let runningBalanceAmount = 0;
+      // Calculate opening balance (stock before date range)
+      let openingBalance = 0;
+      let openingBalanceAmount = 0;
+
+      // Get all transactions BEFORE the start date to calculate opening balance
+      purchases.forEach(purchase => {
+        if (purchase.items) {
+          purchase.items.forEach(item => {
+            if (item.productId === product.id) {
+              const purchaseDate = new Date(purchase.date);
+              if (purchaseDate < new Date(dateRange.startDate)) {
+                openingBalance += item.quantity;
+                openingBalanceAmount += parseFloat(item.total.toString());
+              }
+            }
+          });
+        }
+      });
+
+      sales.forEach(sale => {
+        if (sale.items) {
+          sale.items.forEach(item => {
+            if (item.productId === product.id) {
+              const saleDate = new Date(sale.date);
+              if (saleDate < new Date(dateRange.startDate)) {
+                const avgCost = openingBalance > 0 ? openingBalanceAmount / openingBalance : 0;
+                const costOfSale = avgCost * item.quantity;
+                openingBalance -= item.quantity;
+                openingBalanceAmount -= costOfSale;
+              }
+            }
+          });
+        }
+      });
+
+      // Now calculate running balances starting from opening balance
+      let runningBalance = openingBalance;
+      let runningBalanceAmount = openingBalanceAmount;
 
       movements.forEach(movement => {
         if (movement.operation === 'BUYS') {
@@ -318,12 +353,14 @@ const Inventory = () => {
                   <th className="px-3 py-2 text-left">Date</th>
                   <th className="px-3 py-2 text-left">Operation</th>
                   <th className="px-3 py-2 text-left">Product</th>
-                  <th className="px-3 py-2 text-right">Amount</th>
+                  <th className="px-3 py-2 text-right">Quantity</th>
                   <th className="px-3 py-2 text-right">Unit Price</th>
-                  <th className="px-3 py-2 text-right">Amount in Amount</th>
+                  <th className="px-3 py-2 text-right">Amount</th>
+                  <th className="px-3 py-2 text-right">Balance in Quantity</th>
                   <th className="px-3 py-2 text-right">Balance in Amount</th>
-                  <th className="px-3 py-2 text-right">Balance in</th>
                   <th className="px-3 py-2 text-right">Average Unit Cost</th>
+                  <th className="px-3 py-2 text-center">Year</th>
+                  <th className="px-3 py-2 text-center">Month</th>
                 </tr>
               </thead>
               <tbody>
@@ -346,11 +383,13 @@ const Inventory = () => {
                     </td>
                     <td className="px-3 py-2">{movement.product}</td>
                     <td className="px-3 py-2 text-right">{movement.amount}</td>
-                    <td className="px-3 py-2 text-right">${movement.unitPrice.toFixed(2)}</td>
-                    <td className="px-3 py-2 text-right">${movement.totalAmount.toFixed(2)}</td>
-                    <td className="px-3 py-2 text-right">${movement.balanceInAmount.toFixed(2)}</td>
+                    <td className="px-3 py-2 text-right">{movement.unitPrice.toFixed(2)}</td>
+                    <td className="px-3 py-2 text-right">{movement.totalAmount.toFixed(2)}</td>
                     <td className="px-3 py-2 text-right font-semibold">{movement.balanceIn}</td>
-                    <td className="px-3 py-2 text-right">${movement.averageUnitCost.toFixed(2)}</td>
+                    <td className="px-3 py-2 text-right">{movement.balanceInAmount.toFixed(2)}</td>
+                    <td className="px-3 py-2 text-right">{movement.averageUnitCost.toFixed(2)}</td>
+                    <td className="px-3 py-2 text-center">{new Date(movement.date).getFullYear()}</td>
+                    <td className="px-3 py-2 text-center">{new Date(movement.date).toLocaleString('en-US', { month: 'long' })}</td>
                   </tr>
                 ))}
               </tbody>
@@ -366,19 +405,19 @@ const Inventory = () => {
               </div>
               <div className="bg-white p-3 rounded-lg shadow">
                 <p className="text-xs text-gray-600">Average Cost</p>
-                <p className="text-xl font-bold text-purple-600">${sheet.totals.averageCost.toFixed(2)}</p>
+                <p className="text-xl font-bold text-purple-600">{sheet.totals.averageCost.toFixed(2)}</p>
               </div>
               <div className="bg-white p-3 rounded-lg shadow">
                 <p className="text-xs text-gray-600">Total Income</p>
-                <p className="text-xl font-bold text-green-600">${sheet.totals.totalIncome.toFixed(2)}</p>
+                <p className="text-xl font-bold text-green-600">{sheet.totals.totalIncome.toFixed(2)}</p>
               </div>
               <div className="bg-white p-3 rounded-lg shadow">
                 <p className="text-xs text-gray-600">Total Cost</p>
-                <p className="text-xl font-bold text-red-600">${sheet.totals.totalCost.toFixed(2)}</p>
+                <p className="text-xl font-bold text-red-600">{sheet.totals.totalCost.toFixed(2)}</p>
               </div>
               <div className="bg-white p-3 rounded-lg shadow">
                 <p className="text-xs text-gray-600">Gross Margin</p>
-                <p className="text-xl font-bold text-orange-600">${sheet.totals.grossMargin.toFixed(2)}</p>
+                <p className="text-xl font-bold text-orange-600">{sheet.totals.grossMargin.toFixed(2)}</p>
               </div>
               <div className="bg-white p-3 rounded-lg shadow">
                 <p className="text-xs text-gray-600">% Gross Margin on Revenue</p>

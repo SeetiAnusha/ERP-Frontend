@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, Eye, CheckCircle, Clock, XCircle, X, Trash2, ShoppingCart, DollarSign, Package } from 'lucide-react';
+import { Plus, Search, Eye, CheckCircle, Clock, XCircle, X, Trash2, ShoppingCart, Package } from 'lucide-react';
 import api from '../api/axios';
 import { Sale, Client, Product } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -24,6 +24,7 @@ const Sales = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     documentNumber: '',
     date: new Date().toISOString().split('T')[0],
@@ -38,10 +39,7 @@ const Sales = () => {
   const [saleItems, setSaleItems] = useState<SaleItem[]>([]);
   const [selectedProduct, setSelectedProduct] = useState('');
   const [quantity, setQuantity] = useState(1);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
-  const [paymentAmount, setPaymentAmount] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [viewDetailsModal, setViewDetailsModal] = useState(false);
   const [viewProductsModal, setViewProductsModal] = useState(false);
 
@@ -129,10 +127,14 @@ const Sales = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (isSubmitting) return; // Prevent double submission
+    
     if (saleItems.length === 0) {
       alert('Please add at least one product');
       return;
     }
+    
+    setIsSubmitting(true);
     
     try {
       const totals = calculateTotals();
@@ -157,6 +159,8 @@ const Sales = () => {
     } catch (error: any) {
       alert(error.response?.data?.error || 'Error creating sale');
       console.error('Error creating sale:', error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -179,36 +183,6 @@ const Sales = () => {
   const closeModal = () => {
     setShowModal(false);
     setSaleItems([]);
-  };
-
-  const openPaymentModal = (sale: Sale) => {
-    setSelectedSale(sale);
-    setPaymentAmount(Number(sale.balanceAmount));
-    setPaymentMethod('Cash');
-    setShowPaymentModal(true);
-  };
-
-  const closePaymentModal = () => {
-    setShowPaymentModal(false);
-    setSelectedSale(null);
-    setPaymentAmount(0);
-  };
-
-  const handleCollectPayment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedSale) return;
-
-    try {
-      await api.post(`/sales/${selectedSale.id}/collect-payment`, {
-        amount: paymentAmount,
-        paymentMethod: paymentMethod,
-      });
-      fetchSales();
-      closePaymentModal();
-    } catch (error: any) {
-      alert(error.response?.data?.error || 'Error collecting payment');
-      console.error('Error collecting payment:', error);
-    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -266,9 +240,9 @@ const Sales = () => {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="bg-white rounded-xl shadow-lg overflow-hidden"
+        className="bg-white rounded-xl shadow-lg overflow-x-auto"
       >
-        <table className="w-full">
+        <table className="w-full min-w-max">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('registrationNumber').toUpperCase()}</th>
@@ -278,6 +252,9 @@ const Sales = () => {
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">SALE OF</th>
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">PAYMENT TYPE</th>
               <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">{t('total').toUpperCase()}</th>
+              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">PAID</th>
+              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">BALANCE</th>
+              <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">STATUS</th>
               <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">{t('actions').toUpperCase()}</th>
             </tr>
           </thead>
@@ -297,6 +274,17 @@ const Sales = () => {
                 <td className="px-6 py-4 text-sm">{sale.saleType || 'N/A'}</td>
                 <td className="px-6 py-4 text-sm">{sale.paymentType || 'N/A'}</td>
                 <td className="px-6 py-4 text-sm font-semibold text-right">{Number(sale.total).toFixed(2)}</td>
+                <td className="px-6 py-4 text-sm font-semibold text-right text-green-600">{Number(sale.paidAmount || 0).toFixed(2)}</td>
+                <td className="px-6 py-4 text-sm font-semibold text-right text-orange-600">{Number(sale.balanceAmount || 0).toFixed(2)}</td>
+                <td className="px-6 py-4 text-center">
+                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                    sale.paymentStatus === 'Paid' ? 'bg-green-100 text-green-800' :
+                    sale.paymentStatus === 'Partial' ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-red-100 text-red-800'
+                  }`}>
+                    {sale.paymentStatus || 'Unpaid'}
+                  </span>
+                </td>
                 <td className="px-6 py-4">
                   <div className="flex gap-2 justify-center">
                     <motion.button
@@ -323,17 +311,6 @@ const Sales = () => {
                     >
                       <Package size={18} />
                     </motion.button>
-                    {sale.paymentStatus !== 'Paid' && (
-                      <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                        onClick={() => openPaymentModal(sale)}
-                        className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg"
-                        title="Collect Payment"
-                      >
-                        <DollarSign size={18} />
-                      </motion.button>
-                    )}
                   </div>
                 </td>
               </motion.tr>
@@ -572,111 +549,10 @@ const Sales = () => {
                   </button>
                   <button
                     type="submit"
-                    disabled={saleItems.length === 0}
+                    disabled={saleItems.length === 0 || isSubmitting}
                     className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
                   >
-                    {t('createSale')} - {totals.total.toFixed(2)}
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Payment Collection Modal */}
-      <AnimatePresence>
-        {showPaymentModal && selectedSale && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-            onClick={closePaymentModal}
-          >
-            <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md"
-            >
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold flex items-center gap-2">
-                  <DollarSign className="text-green-600" />
-                  {t('collectPayment')}
-                </h2>
-                <button onClick={closePaymentModal} className="text-gray-400 hover:text-gray-600">
-                  <X size={24} />
-                </button>
-              </div>
-              
-              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-                <div className="flex justify-between mb-2">
-                  <span className="text-gray-600">{t('saleNumber')}:</span>
-                  <span className="font-semibold">{selectedSale.registrationNumber}</span>
-                </div>
-                <div className="flex justify-between mb-2">
-                  <span className="text-gray-600">{t('client')}:</span>
-                  <span className="font-semibold">{selectedSale.client?.name}</span>
-                </div>
-                <div className="flex justify-between mb-2">
-                  <span className="text-gray-600">{t('totalAmount')}:</span>
-                  <span className="font-semibold">{Number(selectedSale.total).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between mb-2">
-                  <span className="text-gray-600">{t('paidAmount')}:</span>
-                  <span className="font-semibold text-green-600">{Number(selectedSale.paidAmount).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-lg">
-                  <span className="text-gray-600">{t('balanceDue')}:</span>
-                  <span className="font-bold text-red-600">{Number(selectedSale.balanceAmount).toFixed(2)}</span>
-                </div>
-              </div>
-
-              <form onSubmit={handleCollectPayment} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('paymentAmount')} *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    max={Number(selectedSale.balanceAmount)}
-                    required
-                    value={paymentAmount}
-                    onChange={(e) => setPaymentAmount(parseFloat(e.target.value))}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('paymentMethod')} *</label>
-                  <select
-                    required
-                    value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-                  >
-                    <option value="Cash">{t('cash')}</option>
-                    <option value="Paytm">Paytm</option>
-                    <option value="Bank Transfer">{t('bankTransfer')}</option>
-                    <option value="Card">Card</option>
-                  </select>
-                </div>
-
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={closePaymentModal}
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                  >
-                    {t('cancel')}
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                  >
-                    {t('collectPayment')} {paymentAmount.toFixed(2)}
+                    {isSubmitting ? 'Creating...' : `${t('createSale')} - ${totals.total.toFixed(2)}`}
                   </button>
                 </div>
               </form>

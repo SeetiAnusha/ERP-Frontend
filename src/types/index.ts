@@ -207,6 +207,8 @@ export interface Payment {
   clientName?: string;
   outstandingCreditInvoices?: string;
   outstandingCashInvoices?: string;
+  invoiceApplications?: string;
+  excessAmount?: number;
   notes?: string;
 }
 

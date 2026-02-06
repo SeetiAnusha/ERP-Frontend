@@ -10,6 +10,7 @@ const Clients = () => {
   const [clients, setClients] = useState<Client[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [formData, setFormData] = useState({
     code: '',
@@ -34,6 +35,11 @@ const Clients = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (isSubmitting) return; // Prevent double submission
+    
+    setIsSubmitting(true);
+    
     try {
       if (editingClient) {
         await api.put(`/clients/${editingClient.id}`, formData);
@@ -44,6 +50,8 @@ const Clients = () => {
       closeModal();
     } catch (error) {
       console.error('Error saving client:', error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -245,9 +253,10 @@ const Clients = () => {
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    disabled={isSubmitting}
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
                   >
-                    {t('save')}
+                    {isSubmitting ? 'Saving...' : t('save')}
                   </button>
                 </div>
               </form>

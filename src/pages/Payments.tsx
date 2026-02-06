@@ -68,31 +68,103 @@ const Payments = () => {
 
   const fetchOutstandingDocuments = async (entityType: string, entityId: number) => {
     try {
+      console.log('Fetching outstanding documents:', { entityType, entityId });
+      
       if (entityType === 'Purchase') {
         const response = await axios.get(`/payments/outstanding/purchases/${entityId}`);
+        console.log('Outstanding purchases loaded:', response.data);
         setOutstandingDocuments(response.data);
+        
+        if (response.data.length === 0) {
+          alert('⚠️ No outstanding invoices found for this supplier.\n\nPossible reasons:\n1. All purchases are paid\n2. Purchases are Cash type (not Credit)\n3. No purchases exist for this supplier');
+        }
       } else if (entityType === 'Sale') {
         const response = await axios.get(`/payments/outstanding/sales/${entityId}`);
+        console.log('Outstanding sales loaded:', response.data);
         setOutstandingDocuments(response.data);
+        
+        if (response.data.length === 0) {
+          alert('⚠️ No outstanding invoices found for this client.\n\nPossible reasons:\n1. All sales are paid\n2. Sales are Cash type (not Credit)\n3. No sales exist for this client');
+        }
       }
     } catch (error) {
       console.error('Error fetching outstanding documents:', error);
+      alert('Error loading outstanding invoices. Check console for details.');
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validation
+    if (!formData.relatedEntityId) {
+      alert('Please select a supplier or client');
+      return;
+    }
+    
+    if (!formData.paymentAmount || parseFloat(formData.paymentAmount) <= 0) {
+      alert('Please enter a valid payment amount');
+      return;
+    }
+    
     try {
-      if (editingPayment) {
-        await axios.put(`/payments/${editingPayment.id}`, formData);
-      } else {
-        await axios.post('/payments', formData);
+      // Prepare invoice applications data
+      const invoiceApplications = selectedInvoices.map(invoiceId => ({
+        invoiceId,
+        invoiceNumber: outstandingDocuments.find(doc => doc.id === invoiceId)?.registrationNumber || '',
+        appliedAmount: parseFloat(invoicePayments[invoiceId]?.toString() || '0')
+      })).filter(app => app.appliedAmount > 0);
+
+      console.log('=== PAYMENT SUBMISSION DEBUG ===');
+      console.log('Selected invoices:', selectedInvoices);
+      console.log('Invoice payments:', invoicePayments);
+      console.log('Outstanding documents:', outstandingDocuments);
+      console.log('Invoice applications:', invoiceApplications);
+      console.log('================================');
+
+      // Warning if no invoices selected
+      if (invoiceApplications.length === 0 && outstandingDocuments.length > 0) {
+        const confirmNoInvoices = window.confirm(
+          '⚠️ WARNING: No invoices selected!\n\n' +
+          'This payment will be recorded but NOT applied to any invoices.\n' +
+          'The purchase/sale balances will NOT be updated.\n\n' +
+          'Do you want to continue anyway?\n\n' +
+          'Click "Cancel" to go back and select invoices.'
+        );
+        
+        if (!confirmNoInvoices) {
+          return; // User cancelled, don't submit
+        }
       }
+
+      const paymentData = {
+        ...formData,
+        invoiceApplications: JSON.stringify(invoiceApplications)
+      };
+
+      console.log('Submitting payment data:', paymentData);
+      console.log('Invoice applications:', invoiceApplications);
+
+      if (editingPayment) {
+        const response = await axios.put(`/payments/${editingPayment.id}`, paymentData);
+        console.log('Payment updated:', response.data);
+      } else {
+        const response = await axios.post('/payments', paymentData);
+        console.log('Payment created:', response.data);
+      }
+      
+      if (invoiceApplications.length > 0) {
+        alert(`✅ Payment saved successfully!\n\nApplied to ${invoiceApplications.length} invoice(s).`);
+      } else {
+        alert('⚠️ Payment saved but NOT applied to any invoices.\n\nYou can delete and recreate it with invoice selection.');
+      }
+      
       fetchPayments();
       resetForm();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving payment:', error);
-      alert('Error saving payment');
+      console.error('Error response:', error.response?.data);
+      alert(`Error saving payment: ${error.response?.data?.error || error.message}`);
     }
   };
 
@@ -156,7 +228,7 @@ const Payments = () => {
     if (supplier) {
       setFormData({
         ...formData,
-        relatedEntityId: '',
+        relatedEntityId: supplierId,
         supplierRnc: supplier.rnc,
         supplierName: supplier.name,
       });
@@ -169,7 +241,7 @@ const Payments = () => {
     if (client) {
       setFormData({
         ...formData,
-        relatedEntityId: '',
+        relatedEntityId: clientId,
         clientRnc: client.rncCedula,
         clientName: client.name,
       });
@@ -224,7 +296,7 @@ const Payments = () => {
               <div>
                 <p className="text-red-600 text-sm font-medium">Payments Out</p>
                 <p className="text-2xl font-bold text-red-700">
-                  ${totalPaymentsOut.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  {totalPaymentsOut.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
               </div>
               <FaDollarSign className="text-red-400 text-3xl" />
@@ -236,7 +308,7 @@ const Payments = () => {
               <div>
                 <p className="text-green-600 text-sm font-medium">Payments In</p>
                 <p className="text-2xl font-bold text-green-700">
-                  ${totalPaymentsIn.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  {totalPaymentsIn.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
               </div>
               <FaDollarSign className="text-green-400 text-3xl" />
@@ -248,7 +320,7 @@ const Payments = () => {
               <div>
                 <p className="text-blue-600 text-sm font-medium">Net Cash Flow</p>
                 <p className="text-2xl font-bold text-blue-700">
-                  ${(totalPaymentsIn - totalPaymentsOut).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  {(totalPaymentsIn - totalPaymentsOut).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
               </div>
               <FaDollarSign className="text-blue-400 text-3xl" />
@@ -290,7 +362,7 @@ const Payments = () => {
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Registration #
+                  Payment Record #
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Date
@@ -302,10 +374,16 @@ const Payments = () => {
                   Supplier/Client
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Method
+                  RNC/Cedula
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Payment Method
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Amount
+                  Payment Amount
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Applied to Invoices
                 </th>
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
@@ -313,48 +391,89 @@ const Payments = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredPayments.map((payment) => (
-                <tr key={payment.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {payment.registrationNumber}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(payment.registrationDate).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                      payment.type === 'Payment Out'
-                        ? 'bg-red-100 text-red-800'
-                        : 'bg-green-100 text-green-800'
-                    }`}>
-                      {payment.type}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900">
-                    {payment.supplierName || payment.clientName}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {payment.paymentMethod}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-gray-900">
-                    ${parseFloat(payment.paymentAmount.toString()).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                    <button
-                      onClick={() => handleEdit(payment)}
-                      className="text-blue-600 hover:text-blue-900 mr-3"
-                    >
-                      <FaEdit />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(payment.id)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      <FaTrash />
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {filteredPayments.map((payment) => {
+                // Parse invoice applications
+                let appliedInvoices: any[] = [];
+                try {
+                  if ((payment as any).invoiceApplications) {
+                    appliedInvoices = typeof (payment as any).invoiceApplications === 'string' 
+                      ? JSON.parse((payment as any).invoiceApplications) 
+                      : (payment as any).invoiceApplications;
+                  }
+                } catch (e) {
+                  console.error('Error parsing invoice applications:', e);
+                }
+
+                return (
+                  <tr key={payment.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {payment.registrationNumber}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {new Date(payment.registrationDate).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                        payment.type === 'Payment Out'
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-green-100 text-green-800'
+                      }`}>
+                        {payment.type}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900">
+                      {payment.supplierName || payment.clientName}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {payment.supplierRnc || payment.clientRnc}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {payment.paymentMethod}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-gray-900">
+                      {parseFloat(payment.paymentAmount.toString()).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-700">
+                      {appliedInvoices.length > 0 ? (
+                        <div className="space-y-1">
+                          {appliedInvoices.map((app, idx) => (
+                            <div key={idx} className="flex justify-between items-center bg-gray-50 px-2 py-1 rounded">
+                              <span className="font-medium text-blue-600">{app.invoiceNumber}</span>
+                              <span className="text-green-600 font-semibold">
+                                {parseFloat(app.appliedAmount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          ))}
+                          {(payment as any).excessAmount && parseFloat(((payment as any).excessAmount).toString()) > 0 && (
+                            <div className="flex justify-between items-center bg-yellow-50 px-2 py-1 rounded border border-yellow-200">
+                              <span className="text-xs text-yellow-700">Credit Balance</span>
+                              <span className="text-yellow-700 font-semibold text-xs">
+                                {parseFloat(((payment as any).excessAmount).toString()).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 italic">No invoices applied</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                      <button
+                        onClick={() => handleEdit(payment)}
+                        className="text-blue-600 hover:text-blue-900 mr-3"
+                      >
+                        <FaEdit />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(payment.id)}
+                        className="text-red-600 hover:text-red-900"
+                      >
+                        <FaTrash />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -426,6 +545,7 @@ const Payments = () => {
                       </label>
                       <select
                         required
+                        value={formData.relatedEntityId}
                         onChange={(e) => handleSupplierChange(e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       >
@@ -444,6 +564,7 @@ const Payments = () => {
                       </label>
                       <select
                         required
+                        value={formData.relatedEntityId}
                         onChange={(e) => handleClientChange(e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       >
@@ -482,11 +603,23 @@ const Payments = () => {
                       Payment Amount *
                     </label>
                     <input
-                      type="number"
-                      step="0.01"
+                      type="text"
+                      inputMode="decimal"
                       required
                       value={formData.paymentAmount}
-                      onChange={(e) => setFormData({ ...formData, paymentAmount: e.target.value })}
+                      onChange={(e) => {
+                        // Allow only numbers and decimal point
+                        const value = e.target.value.replace(/[^0-9.]/g, '');
+                        // Ensure only one decimal point
+                        const parts = value.split('.');
+                        const sanitized = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : value;
+                        setFormData({ ...formData, paymentAmount: sanitized });
+                      }}
+                      onBlur={(e) => {
+                        // Format to 2 decimal places on blur
+                        const value = parseFloat(e.target.value) || 0;
+                        setFormData({ ...formData, paymentAmount: value.toFixed(2) });
+                      }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       placeholder="0.00"
                     />
@@ -497,6 +630,18 @@ const Payments = () => {
                 {outstandingDocuments.length > 0 && (
                   <div className="space-y-4 mt-4">
                     <div className="border-t pt-4">
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                        <p className="text-sm font-semibold text-blue-800 mb-2">
+                          📋 Important: Select Invoices to Apply Payment
+                        </p>
+                        <p className="text-xs text-blue-700">
+                          1. Check the "List outstanding credit invoices" box below<br/>
+                          2. Check the checkbox next to each invoice you want to pay<br/>
+                          3. Enter the amount to pay for each selected invoice<br/>
+                          4. The purchase/sale balances will be updated automatically
+                        </p>
+                      </div>
+                      
                       <p className="text-sm font-medium text-gray-700 mb-3">
                         Invoices to which this payment will be applied:
                       </p>
@@ -549,14 +694,17 @@ const Payments = () => {
                           <tbody className="divide-y divide-gray-200">
                             {outstandingDocuments
                               .filter(doc => {
+                                // Case-insensitive payment type comparison
+                                const docPaymentType = (doc.paymentType || '').toUpperCase();
+                                
                                 if (formData.outstandingCreditInvoices === 'true' && formData.outstandingCashInvoices === 'true') {
-                                  return true;
+                                  return true; // Show all
                                 } else if (formData.outstandingCreditInvoices === 'true') {
-                                  return doc.paymentType === 'Credit';
+                                  return docPaymentType === 'CREDIT' || docPaymentType === 'CREDITO';
                                 } else if (formData.outstandingCashInvoices === 'true') {
-                                  return doc.paymentType === 'Cash';
+                                  return docPaymentType === 'CASH' || docPaymentType === 'EFECTIVO';
                                 }
-                                return true;
+                                return false; // Show nothing if no checkbox is checked
                               })
                               .map(doc => (
                                 <tr key={doc.id} className="hover:bg-gray-50">
@@ -597,24 +745,32 @@ const Payments = () => {
                                     </span>
                                   </td>
                                   <td className="px-3 py-2 text-right text-gray-900">
-                                    ${parseFloat(doc.total.toString()).toFixed(2)}
+                                    {parseFloat(doc.total.toString()).toFixed(2)}
                                   </td>
                                   <td className="px-3 py-2 text-right font-semibold text-red-600">
-                                    ${parseFloat(doc.balanceAmount.toString()).toFixed(2)}
+                                    {parseFloat(doc.balanceAmount.toString()).toFixed(2)}
                                   </td>
                                   <td className="px-3 py-2">
                                     <input
-                                      type="number"
-                                      step="0.01"
+                                      type="text"
+                                      inputMode="decimal"
                                       disabled={!selectedInvoices.includes(doc.id)}
-                                      value={invoicePayments[doc.id] || 0}
+                                      value={invoicePayments[doc.id] !== undefined ? invoicePayments[doc.id] : ''}
                                       onChange={(e) => {
-                                        const value = parseFloat(e.target.value) || 0;
-                                        const maxAmount = parseFloat(doc.balanceAmount.toString());
-                                        setInvoicePayments({ 
-                                          ...invoicePayments, 
-                                          [doc.id]: Math.min(value, maxAmount) 
-                                        });
+                                        const value = e.target.value.replace(/[^0-9.]/g, '');
+                                        const numValue = parseFloat(value);
+                                        if (!isNaN(numValue)) {
+                                          const maxAmount = parseFloat(doc.balanceAmount.toString());
+                                          setInvoicePayments({ 
+                                            ...invoicePayments, 
+                                            [doc.id]: Math.min(numValue, maxAmount)
+                                          });
+                                        } else if (value === '' || value === '.') {
+                                          setInvoicePayments({ 
+                                            ...invoicePayments, 
+                                            [doc.id]: 0
+                                          });
+                                        }
                                       }}
                                       className="w-24 px-2 py-1 text-right border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
                                       placeholder="0.00"
@@ -629,9 +785,23 @@ const Payments = () => {
                                 Total Amount to Apply:
                               </td>
                               <td className="px-3 py-2 text-right font-bold text-blue-600">
-                                ${Object.values(invoicePayments).reduce((sum, val) => sum + val, 0).toFixed(2)}
+                                {Object.values(invoicePayments).reduce((sum, val) => sum + parseFloat(val?.toString() || '0'), 0).toFixed(2)}
                               </td>
                             </tr>
+                            {parseFloat(formData.paymentAmount || '0') > Object.values(invoicePayments).reduce((sum, val) => sum + parseFloat(val?.toString() || '0'), 0) && (
+                              <tr>
+                                <td colSpan={8} className="px-3 py-2">
+                                  <div className="bg-yellow-50 border border-yellow-200 rounded p-3">
+                                    <p className="text-sm text-yellow-800">
+                                      <strong>Overpayment Detected:</strong> Payment amount ({parseFloat(formData.paymentAmount || '0').toFixed(2)}) 
+                                      exceeds total applied amount ({Object.values(invoicePayments).reduce((sum, val) => sum + parseFloat(val?.toString() || '0'), 0).toFixed(2)}). 
+                                      The excess amount of {(parseFloat(formData.paymentAmount || '0') - Object.values(invoicePayments).reduce((sum, val) => sum + parseFloat(val?.toString() || '0'), 0)).toFixed(2)} 
+                                      will be recorded as a credit balance for future use.
+                                    </p>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
                           </tfoot>
                         </table>
                       </div>

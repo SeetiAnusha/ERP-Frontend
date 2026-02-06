@@ -10,6 +10,7 @@ const Products = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [formData, setFormData] = useState({
     code: '',
@@ -36,6 +37,11 @@ const Products = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (isSubmitting) return; // Prevent double submission
+    
+    setIsSubmitting(true);
+    
     try {
       const amount = Number(formData.quantity) || 0;
       const unitPrice = Number(formData.unitCost) || 0;
@@ -67,6 +73,8 @@ const Products = () => {
     } catch (error: any) {
       console.error('Error saving product:', error);
       alert('Error saving product: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -339,9 +347,10 @@ const Products = () => {
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    disabled={isSubmitting}
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
                   >
-                    {t('save')}
+                    {isSubmitting ? 'Saving...' : t('save')}
                   </button>
                 </div>
               </form>

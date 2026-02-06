@@ -24,6 +24,7 @@ const Adjustments = () => {
   const [editingAdjustment, setEditingAdjustment] = useState<Adjustment | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('All');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
     registrationDate: new Date().toISOString().split('T')[0],
