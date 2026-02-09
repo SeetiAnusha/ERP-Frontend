@@ -11,13 +11,27 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
-    // Disable caching during development
-    headers: {
-      'Cache-Control': 'no-store',
-    },
   },
-  // Force rebuild on changes
-  optimizeDeps: {
-    force: true,
+  build: {
+    // Optimize bundle size
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Split vendor code into separate chunks
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'ui-vendor': ['framer-motion'],
+          'chart-vendor': ['recharts'],
+        },
+      },
+    },
+    // Increase chunk size warning limit
+    chunkSizeWarningLimit: 1000,
+    // Enable minification
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true, // Remove console.logs in production
+      },
+    },
   },
 })
