@@ -14,17 +14,6 @@ export default defineConfig({
   },
   build: {
     // Optimize bundle size
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          // Split vendor code into separate chunks
-          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'ui-vendor': ['framer-motion'],
-          'chart-vendor': ['recharts'],
-        },
-      },
-    },
-    // Increase chunk size warning limit
     chunkSizeWarningLimit: 1000,
     // Enable minification
     minify: 'terser',
