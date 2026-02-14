@@ -280,38 +280,43 @@ const Products = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('unitOfMeasurement')} *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('unitOfMeasurement')} <span className="text-gray-400 text-xs">({t('optional')})</span>
+                  </label>
                   <input
                     type="text"
-                    required
                     value={formData.unit}
                     onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     placeholder="UNIT, KG, LB, etc."
                   />
+                  <p className="text-xs text-gray-500 mt-1">Can be updated when making a purchase</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('amount')} *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('amount')} <span className="text-gray-400 text-xs">({t('optional')})</span>
+                  </label>
                   <input
-                    type="number"
-                    required
+                    type="text"
                     value={formData.quantity}
                     onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="0"
+                    placeholder="0 or 1,000"
                   />
+                  <p className="text-xs text-gray-500 mt-1">Stock will be updated from purchases. Format: 1,000.00</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('unitPrice')} *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('unitPrice')} <span className="text-gray-400 text-xs">({t('optional')})</span>
+                  </label>
                   <input
-                    type="number"
-                    step="0.01"
-                    required
+                    type="text"
                     value={formData.unitCost}
                     onChange={(e) => setFormData({ ...formData, unitCost: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="0.00"
+                    placeholder="0.00 or 10.99"
                   />
+                  <p className="text-xs text-gray-500 mt-1">Cost will be updated from purchases. Format: 1,000.00</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">{t('subtotal').toUpperCase()}</label>
@@ -324,17 +329,17 @@ const Products = () => {
                   <p className="text-xs text-gray-500 mt-1">{t('amount')} × {t('unitPrice')}</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('tax')} *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('tax')} <span className="text-gray-400 text-xs">({t('optional')})</span>
+                  </label>
                   <input
-                    type="number"
-                    step="0.01"
-                    required
+                    type="text"
                     value={formData.taxRate}
                     onChange={(e) => setFormData({ ...formData, taxRate: parseFloat(e.target.value) || 0 })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     placeholder="18.00"
                   />
-                  <p className="text-xs text-gray-500 mt-1">Enter tax amount (not percentage)</p>
+                  <p className="text-xs text-gray-500 mt-1">Tax amount (not %). Can be updated from purchases. Format: 10.99</p>
                 </div>
                 </div>
                 <div className="flex gap-3 p-6 pt-4 border-t border-gray-200 bg-gray-50">

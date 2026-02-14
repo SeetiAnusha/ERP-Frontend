@@ -103,8 +103,8 @@ const Inventory = () => {
                   operation: 'BUYS',
                   product: product.name,
                   amount: item.quantity,
-                  unitPrice: parseFloat(item.unitCost.toString()),
-                  totalAmount: parseFloat(item.total.toString()),
+                  unitPrice: parseFloat((item.adjustedUnitCost || item.unitCost).toString()),
+                  totalAmount: parseFloat((item.adjustedTotal || item.total).toString()),
                   balanceInAmount: 0, // Will be calculated after sorting
                   balanceIn: 0, // Will be calculated after sorting
                   averageUnitCost: 0, // Will be calculated after sorting
@@ -159,7 +159,7 @@ const Inventory = () => {
               const purchaseDate = new Date(purchase.date);
               if (purchaseDate < new Date(dateRange.startDate)) {
                 openingBalance += item.quantity;
-                openingBalanceAmount += parseFloat(item.total.toString());
+                openingBalanceAmount += parseFloat((item.adjustedTotal || item.total).toString());
               }
             }
           });

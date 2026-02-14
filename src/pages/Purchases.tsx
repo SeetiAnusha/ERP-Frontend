@@ -4,6 +4,7 @@ import { Plus, Search, Eye, CheckCircle, Clock, XCircle, X, Trash2, ShoppingCart
 import api from '../api/axios';
 import { Purchase, Supplier, Product, AssociatedInvoice } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import { formatNumber } from '../utils/formatNumber';
 
 interface PurchaseItem {
   productId: number;
@@ -46,6 +47,8 @@ const Purchases = () => {
   const [selectedProduct, setSelectedProduct] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [unitCost, setUnitCost] = useState(0);
+  const [unitOfMeasurement, setUnitOfMeasurement] = useState('');
+  const [taxAmount, setTaxAmount] = useState(0);
   
   // Associated Invoices
   const [associatedInvoices, setAssociatedInvoices] = useState<AssociatedInvoice[]>([]);
@@ -78,6 +81,7 @@ const Purchases = () => {
   const fetchPurchases = async () => {
     try {
       const response = await api.get('/purchases');
+      console.log("response",response);
       setPurchases(response.data);
     } catch (error) {
       console.error('Error fetching purchases:', error);
@@ -111,20 +115,20 @@ const Purchases = () => {
     const product: any = products.find(p => p.id === parseInt(selectedProduct));
     if (!product) return;
     
-    // Calculate based on user-entered quantity and unitCost
+    // Calculate based on user-entered values
     const subtotal = quantity * unitCost;
-    const taxAmount = Number(product.taxRate);  // Use tax as direct number
-    const total = subtotal + taxAmount;
+    const taxAmountToUse = taxAmount; // Use user-entered tax amount
+    const total = subtotal + taxAmountToUse;
     
     const newItem: PurchaseItem = {
       productId: product.id,
       productCode: product.code,
       productName: product.name,
-      unitOfMeasurement: product.unit,
+      unitOfMeasurement: unitOfMeasurement || product.unit, // Use entered unit or product's unit
       quantity: quantity,
       unitCost: unitCost,
       subtotal: subtotal,
-      tax: taxAmount,
+      tax: taxAmountToUse,
       total: total,
       adjustedUnitCost: unitCost,
       adjustedTotal: total,
@@ -134,6 +138,8 @@ const Purchases = () => {
     setSelectedProduct('');
     setQuantity(1);
     setUnitCost(0);
+    setUnitOfMeasurement('');
+    setTaxAmount(0);
     setShowProductModal(false);
   };
 
@@ -141,21 +147,26 @@ const Purchases = () => {
     setPurchaseItems(purchaseItems.filter((_, i) => i !== index));
   };
 
-  const updateItem = (index: number, field: 'quantity' | 'unitCost', value: number) => {
+  const updateItem = (index: number, field: 'quantity' | 'unitCost' | 'tax' | 'unit', value: number | string) => {
     const updatedItems = [...purchaseItems];
     const item = updatedItems[index];
     
     if (field === 'quantity') {
-      item.quantity = value;
+      item.quantity = value as number;
     } else if (field === 'unitCost') {
-      item.unitCost = value;
+      item.unitCost = value as number;
+    } else if (field === 'tax') {
+      item.tax = value as number;
+    } else if (field === 'unit') {
+      item.unitOfMeasurement = value as string;
     }
     
-    // Recalculate subtotal, tax, and total
+    // Recalculate subtotal and total
     item.subtotal = item.quantity * item.unitCost;
-    const product = products.find(p => p.id === item.productId);
-    const taxRate = product?.taxRate || 0;
-    item.tax = item.subtotal * (taxRate / 100);
+    // If tax field wasn't manually changed, keep the current tax
+    if (field !== 'tax') {
+      // Tax stays as is unless manually changed
+    }
     item.total = item.subtotal + item.tax;
     item.adjustedUnitCost = item.unitCost;
     item.adjustedTotal = item.total;
@@ -191,9 +202,28 @@ const Purchases = () => {
 
   const calculateTotals = () => {
     const productTotal = purchaseItems.reduce((sum, item) => sum + (Number(item.total) || 0), 0);
-    const associatedTotal = associatedInvoices.reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
-    const grandTotal = productTotal + associatedTotal;
+    const associatedTotal = associatedInvoices.reduce((sum, inv) => sum + (Number(inv.tax) || 0), 0); // Use tax field (base amount without tax)
+    const grandTotal = productTotal + associatedTotal + associatedInvoices.reduce((sum, inv) => sum + (Number(inv.taxAmount) || 0), 0); // Add taxAmount (the actual tax)
     return { productTotal, associatedTotal, grandTotal };
+  };
+
+  // Calculate adjusted unit cost with associated costs
+  const calculateAdjustedUnitCost = (item: PurchaseItem) => {
+    const productSubtotal = purchaseItems.reduce((sum, i) => sum + (Number(i.subtotal) || 0), 0);
+    const associatedCostsWithoutTax = associatedInvoices.reduce((sum, inv) => sum + (Number(inv.tax) || 0), 0); // Use tax field (base amount)
+    
+    // If no associated costs, return original unit cost
+    if (associatedCostsWithoutTax === 0 || productSubtotal === 0) {
+      return item.unitCost;
+    }
+
+    // Calculate this item's share of associated costs (without tax)
+    const itemWeight = Number(item.subtotal) / productSubtotal;
+    const itemAssociatedCost = associatedCostsWithoutTax * itemWeight;
+    const adjustedSubtotal = Number(item.subtotal) + itemAssociatedCost;
+    const adjustedUnitCost = item.quantity > 0 ? adjustedSubtotal / item.quantity : item.unitCost;
+    
+    return adjustedUnitCost;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -229,8 +259,9 @@ const Purchases = () => {
       fetchPurchases();
       closeModal();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Error creating purchase');
       console.error('Error creating purchase:', error);
+      console.error('Error response:', error.response?.data);
+      alert(error.response?.data?.error || 'Error creating purchase');
     } finally {
       setIsSubmitting(false);
     }
@@ -347,9 +378,9 @@ const Purchases = () => {
                 <td className="px-6 py-4 text-sm">{new Date(purchase.date).toLocaleDateString()}</td>
                 <td className="px-6 py-4 text-sm">{purchase.purchaseType || 'N/A'}</td>
                 <td className="px-6 py-4 text-sm">{purchase.paymentType || 'N/A'}</td>
-                <td className="px-6 py-4 text-sm font-semibold text-right">{Number(purchase.total).toFixed(2)}</td>
-                <td className="px-6 py-4 text-sm font-semibold text-right text-green-600">{Number(purchase.paidAmount || 0).toFixed(2)}</td>
-                <td className="px-6 py-4 text-sm font-semibold text-right text-orange-600">{Number(purchase.balanceAmount || 0).toFixed(2)}</td>
+                <td className="px-6 py-4 text-sm font-semibold text-right">{formatNumber(purchase.total)}</td>
+                <td className="px-6 py-4 text-sm font-semibold text-right text-green-600">{formatNumber(purchase.paidAmount || 0)}</td>
+                <td className="px-6 py-4 text-sm font-semibold text-right text-orange-600">{formatNumber(purchase.balanceAmount || 0)}</td>
                 <td className="px-6 py-4 text-center">
                   <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                     purchase.paymentStatus === 'Paid' ? 'bg-green-100 text-green-800' :
@@ -555,16 +586,16 @@ const Purchases = () => {
                   <div className="border-t pt-2 mt-2"></div>
                   <div className="flex justify-between text-sm">
                     <span>Product Total:</span>
-                    <span className="font-semibold">{totals.productTotal.toFixed(2)}</span>
+                    <span className="font-semibold">{formatNumber(totals.productTotal)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span>Associated Costs:</span>
-                    <span className="font-semibold">{totals.associatedTotal.toFixed(2)}</span>
+                    <span className="font-semibold">{formatNumber(totals.associatedTotal)}</span>
                   </div>
                   <div className="border-t pt-2 mt-2"></div>
                   <div className="flex justify-between text-lg">
                     <span className="font-bold">GRAND TOTAL:</span>
-                    <span className="font-bold text-green-600">{totals.grandTotal.toFixed(2)}</span>
+                    <span className="font-bold text-green-600">{formatNumber(totals.grandTotal)}</span>
                   </div>
                 </div>
 
@@ -582,7 +613,7 @@ const Purchases = () => {
                     disabled={purchaseItems.length === 0 || isSubmitting}
                     className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
                   >
-                    {isSubmitting ? 'Creating...' : `Create Purchase - ${totals.grandTotal.toFixed(2)}`}
+                    {isSubmitting ? 'Creating...' : `Create Purchase - ${formatNumber(totals.grandTotal)}`}
                   </button>
                 </div>
               </form>
@@ -620,15 +651,19 @@ const Purchases = () => {
 
               {/* Add Product Form */}
               <div className="mb-6 p-4 bg-green-50 rounded-lg">
-                <div className="grid grid-cols-3 gap-3 mb-3">
-                  <div className="col-span-3">
+                <div className="grid grid-cols-5 gap-3 mb-3">
+                  <div className="col-span-5">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Select Product *</label>
                     <select
                       value={selectedProduct}
                       onChange={(e) => {
                         setSelectedProduct(e.target.value);
                         const product = products.find(p => p.id === parseInt(e.target.value));
-                        if (product) setUnitCost(Number(product.unitCost));
+                        if (product) {
+                          setUnitCost(Number(product.unitCost));
+                          setUnitOfMeasurement(product.unit || '');
+                          setTaxAmount(Number(product.taxRate) || 0);
+                        }
                       }}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                     >
@@ -641,12 +676,30 @@ const Purchases = () => {
                     </select>
                   </div>
                   <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Unit *</label>
+                    <input
+                      type="text"
+                      value={unitOfMeasurement}
+                      onChange={(e) => setUnitOfMeasurement(e.target.value)}
+                      placeholder="KG, LB, UNIT"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Quantity *</label>
                     <input
                       type="number"
                       min="1"
                       value={quantity}
-                      onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setQuantity(val === '' ? '' as any : parseInt(val) || 1);
+                      }}
+                      onBlur={(e) => {
+                        if (e.target.value === '' || parseInt(e.target.value) < 1) {
+                          setQuantity(1);
+                        }
+                      }}
                       placeholder="Qty"
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                     />
@@ -658,8 +711,36 @@ const Purchases = () => {
                       step="0.01"
                       min="0.01"
                       value={unitCost}
-                      onChange={(e) => setUnitCost(parseFloat(e.target.value))}
-                      placeholder="Cost"
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setUnitCost(val === '' ? '' as any : parseFloat(val) || 0);
+                      }}
+                      onBlur={(e) => {
+                        if (e.target.value === '' || parseFloat(e.target.value) <= 0) {
+                          setUnitCost(0.01);
+                        }
+                      }}
+                      placeholder="0.00"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Tax *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={taxAmount}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setTaxAmount(val === '' ? '' as any : parseFloat(val) || 0);
+                      }}
+                      onBlur={(e) => {
+                        if (e.target.value === '' || parseFloat(e.target.value) < 0) {
+                          setTaxAmount(0);
+                        }
+                      }}
+                      placeholder="0.00"
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                     />
                   </div>
@@ -686,6 +767,7 @@ const Purchases = () => {
                         <th className="px-3 py-2 text-left font-semibold">Unit</th>
                         <th className="px-3 py-2 text-right font-semibold">Qty</th>
                         <th className="px-3 py-2 text-right font-semibold">Unit Cost</th>
+                        <th className="px-3 py-2 text-right font-semibold text-blue-600">Unit Cost with AI</th>
                         <th className="px-3 py-2 text-right font-semibold">Subtotal</th>
                         <th className="px-3 py-2 text-right font-semibold">Tax</th>
                         <th className="px-3 py-2 text-right font-semibold">Total</th>
@@ -697,7 +779,15 @@ const Purchases = () => {
                         <tr key={index} className="border-t">
                           <td className="px-3 py-2">{item.productCode}</td>
                           <td className="px-3 py-2">{item.productName}</td>
-                          <td className="px-3 py-2">{item.unitOfMeasurement}</td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="text"
+                              value={item.unitOfMeasurement}
+                              onChange={(e) => updateItem(index, 'unit', e.target.value)}
+                              className="w-20 px-2 py-1 border border-gray-300 rounded text-center focus:ring-2 focus:ring-green-500"
+                              placeholder="UNIT"
+                            />
+                          </td>
                           <td className="px-3 py-2 text-right">
                             <input
                               type="number"
@@ -717,9 +807,22 @@ const Purchases = () => {
                               className="w-24 px-2 py-1 border border-gray-300 rounded text-right focus:ring-2 focus:ring-green-500"
                             />
                           </td>
-                          <td className="px-3 py-2 text-right">{Number(item.subtotal).toFixed(2)}</td>
-                          <td className="px-3 py-2 text-right">{Number(item.tax).toFixed(2)}</td>
-                          <td className="px-3 py-2 text-right font-semibold">{Number(item.total).toFixed(2)}</td>
+                          <td className="px-3 py-2 text-right text-blue-600 font-medium" title="Includes proportional share of associated costs">
+                            {formatNumber(calculateAdjustedUnitCost(item))}
+                          </td>
+                          <td className="px-3 py-2 text-right">{formatNumber(item.subtotal)}</td>
+                          <td className="px-3 py-2 text-right">
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={item.tax}
+                              onChange={(e) => updateItem(index, 'tax', parseFloat(e.target.value) || 0)}
+                              className="w-20 px-2 py-1 border border-gray-300 rounded text-right focus:ring-2 focus:ring-green-500"
+                              title="Editable tax amount"
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-right font-semibold">{formatNumber(item.total)}</td>
                           <td className="px-3 py-2">
                             <button
                               type="button"
@@ -735,8 +838,8 @@ const Purchases = () => {
                     </tbody>
                     <tfoot className="bg-gray-50 font-semibold">
                       <tr>
-                        <td colSpan={7} className="px-3 py-2 text-right">Total:</td>
-                        <td className="px-3 py-2 text-right text-green-600">{totals.productTotal.toFixed(2)}</td>
+                        <td colSpan={8} className="px-3 py-2 text-right">Total:</td>
+                        <td className="px-3 py-2 text-right text-green-600">{formatNumber(totals.productTotal)}</td>
                         <td></td>
                       </tr>
                     </tfoot>
@@ -933,9 +1036,9 @@ const Purchases = () => {
                           <td className="px-3 py-2">{invoice.ncf || '-'}</td>
                           <td className="px-3 py-2">{new Date(invoice.date).toLocaleDateString()}</td>
                           <td className="px-3 py-2">{invoice.concept || '-'}</td>
-                          <td className="px-3 py-2 text-right">{Number(invoice.tax).toFixed(2)}</td>
-                          <td className="px-3 py-2 text-right">{Number(invoice.taxAmount).toFixed(2)}</td>
-                          <td className="px-3 py-2 text-right font-semibold">{Number(invoice.amount).toFixed(2)}</td>
+                          <td className="px-3 py-2 text-right">{formatNumber(invoice.tax)}</td>
+                          <td className="px-3 py-2 text-right">{formatNumber(invoice.taxAmount)}</td>
+                          <td className="px-3 py-2 text-right font-semibold">{formatNumber(invoice.amount)}</td>
                           <td className="px-3 py-2">{invoice.purchaseType || '-'}</td>
                           <td className="px-3 py-2">{invoice.paymentType || '-'}</td>
                           <td className="px-3 py-2">
@@ -954,13 +1057,13 @@ const Purchases = () => {
                       <tr>
                         <td colSpan={5} className="px-3 py-2 text-right">Total</td>
                         <td className="px-3 py-2 text-right">
-                          {associatedInvoices.reduce((sum, inv) => sum + inv.tax, 0).toFixed(2)}
+                          {formatNumber(associatedInvoices.reduce((sum, inv) => sum + inv.tax, 0))}
                         </td>
                         <td className="px-3 py-2 text-right">
-                          {associatedInvoices.reduce((sum, inv) => sum + inv.taxAmount, 0).toFixed(2)}
+                          {formatNumber(associatedInvoices.reduce((sum, inv) => sum + inv.taxAmount, 0))}
                         </td>
                         <td className="px-3 py-2 text-right">
-                          {associatedInvoices.reduce((sum, inv) => sum + inv.amount, 0).toFixed(2)}
+                          {formatNumber(associatedInvoices.reduce((sum, inv) => sum + inv.amount, 0))}
                         </td>
                         <td colSpan={2}></td>
                       </tr>
@@ -1038,15 +1141,15 @@ const Purchases = () => {
                   </div>
                   <div>
                     <label className="text-sm text-gray-600">Product Total</label>
-                    <p className="font-semibold">{Number(selectedPurchase.productTotal).toFixed(2)}</p>
+                    <p className="font-semibold">{formatNumber(selectedPurchase.productTotal)}</p>
                   </div>
                   <div>
                     <label className="text-sm text-gray-600">Additional Expenses</label>
-                    <p className="font-semibold">{Number(selectedPurchase.additionalExpenses).toFixed(2)}</p>
+                    <p className="font-semibold">{formatNumber(selectedPurchase.additionalExpenses)}</p>
                   </div>
                   <div>
                     <label className="text-sm text-gray-600">Total</label>
-                    <p className="font-semibold text-lg text-green-600">{Number(selectedPurchase.total).toFixed(2)}</p>
+                    <p className="font-semibold text-lg text-green-600">{formatNumber(selectedPurchase.total)}</p>
                   </div>
                   <div>
                     <label className="text-sm text-gray-600">Status</label>
@@ -1104,6 +1207,7 @@ const Purchases = () => {
                       <th className="px-3 py-2 text-left font-semibold">Unit</th>
                       <th className="px-3 py-2 text-right font-semibold">Qty</th>
                       <th className="px-3 py-2 text-right font-semibold">Unit Cost</th>
+                      <th className="px-3 py-2 text-right font-semibold text-blue-600">Unit Cost with AI</th>
                       <th className="px-3 py-2 text-right font-semibold">Subtotal</th>
                       <th className="px-3 py-2 text-right font-semibold">Tax</th>
                       <th className="px-3 py-2 text-right font-semibold">Total</th>
@@ -1117,15 +1221,18 @@ const Purchases = () => {
                           <td className="px-3 py-2">{item.productName}</td>
                           <td className="px-3 py-2">{item.unitOfMeasurement}</td>
                           <td className="px-3 py-2 text-right">{item.quantity}</td>
-                          <td className="px-3 py-2 text-right">{Number(item.unitCost).toFixed(2)}</td>
-                          <td className="px-3 py-2 text-right">{Number(item.subtotal).toFixed(2)}</td>
-                          <td className="px-3 py-2 text-right">{Number(item.tax).toFixed(2)}</td>
-                          <td className="px-3 py-2 text-right font-semibold">{Number(item.total).toFixed(2)}</td>
+                          <td className="px-3 py-2 text-right">{formatNumber(item.unitCost)}</td>
+                          <td className="px-3 py-2 text-right text-blue-600 font-medium" title="Adjusted unit cost with associated costs">
+                            {formatNumber(item.adjustedUnitCost || item.unitCost)}
+                          </td>
+                          <td className="px-3 py-2 text-right">{formatNumber(item.subtotal)}</td>
+                          <td className="px-3 py-2 text-right">{formatNumber(item.tax)}</td>
+                          <td className="px-3 py-2 text-right font-semibold">{formatNumber(item.total)}</td>
                         </tr>
                       ))
                     ) : (
                       <tr className="border-t">
-                        <td colSpan={8} className="px-3 py-4 text-center text-gray-500">
+                        <td colSpan={9} className="px-3 py-4 text-center text-gray-500">
                           No products found
                         </td>
                       </tr>
@@ -1199,9 +1306,9 @@ const Purchases = () => {
                           <td className="px-3 py-2">{invoice.ncf || '-'}</td>
                           <td className="px-3 py-2">{new Date(invoice.date).toLocaleDateString()}</td>
                           <td className="px-3 py-2">{invoice.concept || '-'}</td>
-                          <td className="px-3 py-2 text-right">{Number(invoice.tax).toFixed(2)}</td>
-                          <td className="px-3 py-2 text-right">{Number(invoice.taxAmount).toFixed(2)}</td>
-                          <td className="px-3 py-2 text-right font-semibold">{Number(invoice.amount).toFixed(2)}</td>
+                          <td className="px-3 py-2 text-right">{formatNumber(invoice.tax)}</td>
+                          <td className="px-3 py-2 text-right">{formatNumber(invoice.taxAmount)}</td>
+                          <td className="px-3 py-2 text-right font-semibold">{formatNumber(invoice.amount)}</td>
                           <td className="px-3 py-2">{invoice.purchaseType || '-'}</td>
                           <td className="px-3 py-2">{invoice.paymentType || '-'}</td>
                         </tr>
