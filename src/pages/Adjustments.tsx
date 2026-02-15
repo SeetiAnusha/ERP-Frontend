@@ -139,7 +139,7 @@ const Adjustments = () => {
       };
 
       if (editingAdjustment) {
-        await axios.put(`/adjustments/${editingAdjustment.id}`, adjustmentData);
+        await axios.put(`/adjustments/{editingAdjustment.id}`, adjustmentData);
       } else {
         await axios.post('/adjustments', adjustmentData);
       }
@@ -154,7 +154,7 @@ const Adjustments = () => {
   const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this adjustment?')) {
       try {
-        await axios.delete(`/adjustments/${id}`);
+        await axios.delete(`/adjustments/{id}`);
         fetchAdjustments();
       } catch (error) {
         console.error('Error deleting adjustment:', error);
@@ -335,7 +335,7 @@ const Adjustments = () => {
                     {new Date(adjustment.registrationDate).toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                    <span className={`px-2 py-1 text-xs font-semibold rounded-full {
                       adjustment.type === 'Debit Note'
                         ? 'bg-red-100 text-red-800'
                         : adjustment.type === 'Credit Note'
@@ -352,7 +352,7 @@ const Adjustments = () => {
                     {adjustment.supplierName || adjustment.clientName}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-gray-900">
-                    ${parseFloat(adjustment.adjustmentAmount.toString()).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    {parseFloat(adjustment.adjustmentAmount.toString()).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                     <button
@@ -460,12 +460,12 @@ const Adjustments = () => {
                       {formData.relatedDocumentType === 'Purchase' 
                         ? purchases.map(purchase => (
                             <option key={purchase.id} value={purchase.id}>
-                              {purchase.registrationNumber} - {purchase.supplier?.name} - ${parseFloat(purchase.total.toString()).toFixed(2)}
+                              {purchase.registrationNumber} - {purchase.supplier?.name} - {parseFloat(purchase.total.toString()).toFixed(2)}
                             </option>
                           ))
                         : sales.map(sale => (
                             <option key={sale.id} value={sale.id}>
-                              {sale.registrationNumber} - {sale.client?.name} - ${parseFloat(sale.total.toString()).toFixed(2)}
+                              {sale.registrationNumber} - {sale.client?.name} - {parseFloat(sale.total.toString()).toFixed(2)}
                             </option>
                           ))
                       }
@@ -572,10 +572,10 @@ const Adjustments = () => {
                             <td className="px-4 py-3 text-sm">{item.productName}</td>
                             <td className="px-4 py-3 text-sm">{item.unitOfMeasurement}</td>
                             <td className="px-4 py-3 text-sm text-right">{item.quantity}</td>
-                            <td className="px-4 py-3 text-sm text-right">${item.unitCost.toFixed(2)}</td>
-                            <td className="px-4 py-3 text-sm text-right">${item.subtotal.toFixed(2)}</td>
-                            <td className="px-4 py-3 text-sm text-right">${item.tax.toFixed(2)}</td>
-                            <td className="px-4 py-3 text-sm text-right font-semibold">${item.total.toFixed(2)}</td>
+                            <td className="px-4 py-3 text-sm text-right">{item.unitCost.toFixed(2)}</td>
+                            <td className="px-4 py-3 text-sm text-right">{item.subtotal.toFixed(2)}</td>
+                            <td className="px-4 py-3 text-sm text-right">{item.tax.toFixed(2)}</td>
+                            <td className="px-4 py-3 text-sm text-right font-semibold">{item.total.toFixed(2)}</td>
                             <td className="px-4 py-3">
                               <button
                                 type="button"
@@ -591,9 +591,9 @@ const Adjustments = () => {
                       <tfoot className="bg-gray-50 font-semibold">
                         <tr>
                           <td colSpan={5} className="px-4 py-3 text-right">Subtotal:</td>
-                          <td className="px-4 py-3 text-right">${totals.subtotal.toFixed(2)}</td>
-                          <td className="px-4 py-3 text-right">${totals.tax.toFixed(2)}</td>
-                          <td className="px-4 py-3 text-right text-green-600 text-lg">${totals.total.toFixed(2)}</td>
+                          <td className="px-4 py-3 text-right">{totals.subtotal.toFixed(2)}</td>
+                          <td className="px-4 py-3 text-right">{totals.tax.toFixed(2)}</td>
+                          <td className="px-4 py-3 text-right text-green-600 text-lg">{totals.total.toFixed(2)}</td>
                           <td></td>
                         </tr>
                       </tfoot>
@@ -656,3 +656,4 @@ const Adjustments = () => {
 };
 
 export default Adjustments;
+

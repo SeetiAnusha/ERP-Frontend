@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, Edit, Trash2, X } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, X, History } from 'lucide-react';
 import api from '../api/axios';
 import { Product } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import PriceHistoryModal from '../components/PriceHistoryModal';
 
 const Products = () => {
   const { t } = useLanguage();
@@ -12,6 +13,8 @@ const Products = () => {
   const [showModal, setShowModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [showPriceHistory, setShowPriceHistory] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<{ id: number; name: string } | null>(null);
   const [formData, setFormData] = useState({
     code: '',
     name: '',
@@ -19,7 +22,8 @@ const Products = () => {
     unit: '',
     quantity: '',
     unitCost: '',
-    taxRate: 18,
+    salesPrice: '',
+    taxRate: 0,
   });
 
   useEffect(() => {
@@ -45,6 +49,7 @@ const Products = () => {
     try {
       const amount = Number(formData.quantity) || 0;
       const unitPrice = Number(formData.unitCost) || 0;
+      const salesPrice = Number(formData.salesPrice) || 0;
       const subtotal = amount * unitPrice;
       
       const productData = {
@@ -54,6 +59,7 @@ const Products = () => {
         unit: formData.unit,
         amount: amount,
         unitCost: unitPrice,
+        salesPrice: salesPrice,
         subtotal: subtotal,
         category: 'General',
         minimumStock: 10,
@@ -101,11 +107,12 @@ const Products = () => {
         unit: product.unit,
         quantity: String(product.amount),
         unitCost: String(product.unitCost),
-        taxRate: Number(product.taxRate) || 18,
+        salesPrice: String(product.salesPrice || 0),
+        taxRate: Number(product.taxRate) || 0,
       });
     } else {
       setEditingProduct(null);
-      setFormData({ code: '', name: '', description: '', unit: '', quantity: '', unitCost: '', taxRate: 18 });
+      setFormData({ code: '', name: '', description: '', unit: '', quantity: '', unitCost: '', salesPrice: '', taxRate: 18 });
     }
     setShowModal(true);
   };
@@ -113,7 +120,7 @@ const Products = () => {
   const closeModal = () => {
     setShowModal(false);
     setEditingProduct(null);
-    setFormData({ code: '', name: '', description: '', unit: '', quantity: '', unitCost: '', taxRate: 18 });
+    setFormData({ code: '', name: '', description: '', unit: '', quantity: '', unitCost: '', salesPrice: '', taxRate: 18 });
   };
 
   const filteredProducts = products.filter((product) =>
@@ -160,9 +167,11 @@ const Products = () => {
               <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">{t('unitOfMeasurement').toUpperCase()}</th>
               <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">{t('amount').toUpperCase()}</th>
               <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">{t('unitPrice').toUpperCase()}</th>
-              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">{t('subtotal').toUpperCase()}</th>
+              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700 text-blue-600">SALES PRICE</th>
+              <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700 text-purple-600">SALES PRICE HISTORY</th>
+              {/* <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">{t('subtotal').toUpperCase()}</th>
               <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">{t('tax').toUpperCase()}</th>
-              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">{t('total').toUpperCase()}</th>
+              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">{t('total').toUpperCase()}</th> */}
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('actions').toUpperCase()}</th>
             </tr>
           </thead>
@@ -172,10 +181,10 @@ const Products = () => {
                 // Display stored database values directly
                 const amount = Number(product.amount);           // Amount from DB
                 const unitPrice = Number(product.unitCost);       // Unit Price from DB
-                const storedSubtotal = Number(product.subtotal);  // SUBTOTAL from DB
-                const taxRate = Number(product.taxRate);
-                const tax = taxRate;
-                const total = storedSubtotal + tax;
+                // const storedSubtotal = Number(product.subtotal);  // SUBTOTAL from DB
+                // const taxRate = Number(product.taxRate);
+                // const tax = taxRate;
+                // const total = storedSubtotal + tax;
                 
                 return (
                 <motion.tr
@@ -192,9 +201,25 @@ const Products = () => {
                   <td className="px-6 py-4 text-sm text-center">{product.unit}</td>
                   <td className="px-6 py-4 text-sm text-right">{amount.toFixed(2)}</td>
                   <td className="px-6 py-4 text-sm text-right">{unitPrice.toFixed(2)}</td>
-                  <td className="px-6 py-4 text-sm text-right">{storedSubtotal.toFixed(2)}</td>
+                  <td className="px-6 py-4 text-sm text-right text-blue-600 font-semibold">{Number(product.salesPrice || 0).toFixed(2)}</td>
+                  <td className="px-6 py-4 text-center">
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => {
+                        setSelectedProduct({ id: product.id, name: product.name });
+                        setShowPriceHistory(true);
+                      }}
+                      className="px-3 py-1.5 text-purple-600 hover:bg-purple-50 rounded-lg border border-purple-200 hover:border-purple-300 transition-all flex items-center gap-1 mx-auto"
+                      title="View Sales Price History"
+                    >
+                      <History size={16} />
+                      <span className="text-xs font-medium">History</span>
+                    </motion.button>
+                  </td>
+                  {/* <td className="px-6 py-4 text-sm text-right">{storedSubtotal.toFixed(2)}</td>
                   <td className="px-6 py-4 text-sm text-right">{tax.toFixed(2)}</td>
-                  <td className="px-6 py-4 text-sm font-semibold text-right text-green-600">{total.toFixed(2)}</td>
+                  <td className="px-6 py-4 text-sm font-semibold text-right text-green-600">{total.toFixed(2)}</td> */}
                   <td className="px-6 py-4">
                     <div className="flex gap-2">
                       <motion.button
@@ -202,6 +227,7 @@ const Products = () => {
                         whileTap={{ scale: 0.9 }}
                         onClick={() => openModal(product)}
                         className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                        title="Edit Product"
                       >
                         <Edit size={18} />
                       </motion.button>
@@ -210,6 +236,7 @@ const Products = () => {
                         whileTap={{ scale: 0.9 }}
                         onClick={() => handleDelete(product.id)}
                         className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                        title="Delete Product"
                       >
                         <Trash2 size={18} />
                       </motion.button>
@@ -319,6 +346,19 @@ const Products = () => {
                   <p className="text-xs text-gray-500 mt-1">Cost will be updated from purchases. Format: 1,000.00</p>
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    SALES PRICE <span className="text-gray-400 text-xs">({t('optional')})</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.salesPrice}
+                    onChange={(e) => setFormData({ ...formData, salesPrice: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="0.00 or 38.00"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Selling price for this product</p>
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">{t('subtotal').toUpperCase()}</label>
                   <input
                     type="text"
@@ -361,6 +401,20 @@ const Products = () => {
               </form>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showPriceHistory && selectedProduct && (
+          <PriceHistoryModal
+            productId={selectedProduct.id}
+            productName={selectedProduct.name}
+            onClose={() => {
+              setShowPriceHistory(false);
+              setSelectedProduct(null);
+            }}
+            onPriceUpdated={fetchProducts}
+          />
         )}
       </AnimatePresence>
     </div>

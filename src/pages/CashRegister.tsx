@@ -62,7 +62,7 @@ const CashRegister = () => {
   const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this transaction?')) {
       try {
-        await axios.delete(`/cash-register/${id}`);
+        await axios.delete(`/cash-register/{id}`);
         fetchTransactions();
         fetchBalance();
       } catch (error) {
@@ -134,7 +134,7 @@ const CashRegister = () => {
               <div>
                 <p className="text-blue-600 text-sm font-medium">Current Balance</p>
                 <p className="text-2xl font-bold text-blue-700">
-                  ${parseFloat(cashBalance.toString()).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  {parseFloat(cashBalance.toString()).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                 </p>
               </div>
               <FaWallet className="text-blue-400 text-3xl" />
@@ -146,7 +146,7 @@ const CashRegister = () => {
               <div>
                 <p className="text-green-600 text-sm font-medium">Total Inflow</p>
                 <p className="text-2xl font-bold text-green-700">
-                  ${totalInflow.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  {totalInflow.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                 </p>
               </div>
               <FaArrowUp className="text-green-400 text-3xl" />
@@ -158,7 +158,7 @@ const CashRegister = () => {
               <div>
                 <p className="text-red-600 text-sm font-medium">Total Outflow</p>
                 <p className="text-2xl font-bold text-red-700">
-                  ${totalOutflow.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  {totalOutflow.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                 </p>
               </div>
               <FaArrowDown className="text-red-400 text-3xl" />
@@ -235,7 +235,7 @@ const CashRegister = () => {
                     {new Date(transaction.registrationDate).toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                    <span className={`px-2 py-1 text-xs font-semibold rounded-full {
                       transaction.transactionType === 'INFLOW'
                         ? 'bg-green-100 text-green-800'
                         : 'bg-red-100 text-red-800'
@@ -252,11 +252,11 @@ const CashRegister = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold">
                     <span className={transaction.transactionType === 'INFLOW' ? 'text-green-600' : 'text-red-600'}>
                       {transaction.transactionType === 'INFLOW' ? '+' : '-'}
-                      ${parseFloat(transaction.amount.toString()).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      {parseFloat(transaction.amount.toString()).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-gray-900">
-                    ${parseFloat(transaction.balance.toString()).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    {parseFloat(transaction.balance.toString()).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                     <button
@@ -440,3 +440,4 @@ const CashRegister = () => {
 };
 
 export default CashRegister;
+

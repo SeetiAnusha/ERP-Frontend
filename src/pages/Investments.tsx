@@ -53,7 +53,7 @@ const Investments = () => {
       };
 
       if (editingInvestment) {
-        await axios.put(`/investments/${editingInvestment.id}`, data);
+        await axios.put(`/investments/{editingInvestment.id}`, data);
       } else {
         await axios.post('/investments', data);
       }
@@ -68,7 +68,7 @@ const Investments = () => {
   const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this investment?')) {
       try {
-        await axios.delete(`/investments/${id}`);
+        await axios.delete(`/investments/{id}`);
         fetchInvestments();
       } catch (error) {
         console.error('Error deleting investment:', error);
@@ -158,7 +158,7 @@ const Investments = () => {
               <div>
                 <p className="text-blue-600 text-sm font-medium">Total Acquisition Cost</p>
                 <p className="text-2xl font-bold text-blue-700">
-                  ${totalAcquisitionCost.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  {totalAcquisitionCost.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                 </p>
               </div>
               <FaChartLine className="text-blue-400 text-3xl" />
@@ -170,24 +170,24 @@ const Investments = () => {
               <div>
                 <p className="text-green-600 text-sm font-medium">Current Value</p>
                 <p className="text-2xl font-bold text-green-700">
-                  ${totalCurrentValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  {totalCurrentValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                 </p>
               </div>
               <FaChartLine className="text-green-400 text-3xl" />
             </div>
           </div>
 
-          <div className={`p-4 rounded-lg border ${totalGainLoss >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+          <div className={`p-4 rounded-lg border {totalGainLoss >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
             <div className="flex items-center justify-between">
               <div>
-                <p className={`text-sm font-medium ${totalGainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                <p className={`text-sm font-medium {totalGainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   Gain/Loss
                 </p>
-                <p className={`text-2xl font-bold ${totalGainLoss >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                  ${Math.abs(totalGainLoss).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                <p className={`text-2xl font-bold {totalGainLoss >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                  {Math.abs(totalGainLoss).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                 </p>
               </div>
-              <FaChartLine className={`text-3xl ${totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`} />
+              <FaChartLine className={`text-3xl {totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`} />
             </div>
           </div>
         </div>
@@ -247,16 +247,16 @@ const Investments = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{investment.type}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{investment.quantity}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
-                      ${parseFloat(investment.acquisitionCost.toString()).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      {parseFloat(investment.acquisitionCost.toString()).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-gray-900">
-                      ${parseFloat(investment.currentValue.toString()).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      {parseFloat(investment.currentValue.toString()).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                     </td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm text-right font-semibold ${gainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {gainLoss >= 0 ? '+' : ''}${gainLoss.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    <td className={`px-6 py-4 whitespace-nowrap text-sm text-right font-semibold {gainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {gainLoss >= 0 ? '+' : ''}{gainLoss.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                      <span className={`px-2 py-1 text-xs font-semibold rounded-full {
                         investment.status === 'ACTIVE' ? 'bg-green-100 text-green-800' :
                         investment.status === 'MATURED' ? 'bg-blue-100 text-blue-800' :
                         'bg-gray-100 text-gray-800'
@@ -471,3 +471,4 @@ const Investments = () => {
 };
 
 export default Investments;
+

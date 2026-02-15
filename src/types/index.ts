@@ -6,6 +6,7 @@ export interface Product {
   unit: string;
   amount: number;
   unitCost: number;
+  salesPrice: number;
   subtotal: number;
   supplierId?: number;
   minimumStock: number;
@@ -255,4 +256,15 @@ export interface Adjustment {
   reason: string;
   adjustmentAmount: number;
   notes?: string;
+}
+
+export interface ProductPrice {
+  id: number;
+  productId: number;
+  salesPrice: number;
+  effectiveDate: string;
+  endDate?: string;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }

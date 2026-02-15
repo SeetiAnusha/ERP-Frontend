@@ -165,7 +165,7 @@ const Reports = () => {
             <FaChartLine className="text-2xl opacity-75" />
           </div>
           <p className="text-3xl font-bold">
-            ${salesData.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {salesData.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </p>
           <p className="text-sm opacity-75 mt-2">{salesData.salesCount} sales</p>
         </motion.div>
@@ -181,7 +181,7 @@ const Reports = () => {
             <FaChartLine className="text-2xl opacity-75" />
           </div>
           <p className="text-3xl font-bold">
-            ${purchasesData.totalCost.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {purchasesData.totalCost.toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </p>
           <p className="text-sm opacity-75 mt-2">{purchasesData.purchasesCount} purchases</p>
         </motion.div>
@@ -197,7 +197,7 @@ const Reports = () => {
             <FaChartLine className="text-2xl opacity-75" />
           </div>
           <p className="text-3xl font-bold">
-            ${profitMargin.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {profitMargin.toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </p>
           <p className="text-sm opacity-75 mt-2">{profitMarginPercentage}% margin</p>
         </motion.div>
@@ -213,7 +213,7 @@ const Reports = () => {
             <FaChartLine className="text-2xl opacity-75" />
           </div>
           <p className="text-3xl font-bold">
-            ${paymentsData.netCashFlow.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {paymentsData.netCashFlow.toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </p>
           <p className="text-sm opacity-75 mt-2">In - Out</p>
         </motion.div>
@@ -268,7 +268,7 @@ const Reports = () => {
             <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
               <span className="text-gray-600">Total Revenue</span>
               <span className="font-semibold text-blue-600">
-                ${salesData.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                {salesData.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </span>
             </div>
             <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
@@ -282,7 +282,7 @@ const Reports = () => {
             <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
               <span className="text-gray-600">Average Sale Value</span>
               <span className="font-semibold">
-                ${salesData.salesCount > 0 
+                {salesData.salesCount > 0 
                   ? (salesData.totalRevenue / salesData.salesCount).toLocaleString('en-US', { minimumFractionDigits: 2 })
                   : '0.00'
                 }
@@ -305,7 +305,7 @@ const Reports = () => {
             <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
               <span className="text-gray-600">Total Cost</span>
               <span className="font-semibold text-purple-600">
-                ${purchasesData.totalCost.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                {purchasesData.totalCost.toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </span>
             </div>
             <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
@@ -319,7 +319,7 @@ const Reports = () => {
             <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
               <span className="text-gray-600">Average Purchase Value</span>
               <span className="font-semibold">
-                ${purchasesData.purchasesCount > 0 
+                {purchasesData.purchasesCount > 0 
                   ? (purchasesData.totalCost / purchasesData.purchasesCount).toLocaleString('en-US', { minimumFractionDigits: 2 })
                   : '0.00'
                 }
@@ -338,19 +338,19 @@ const Reports = () => {
             <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg border border-green-200">
               <span className="text-gray-600">Payments In (Received)</span>
               <span className="font-semibold text-green-600">
-                ${paymentsData.paymentsIn.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                {paymentsData.paymentsIn.toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </span>
             </div>
             <div className="flex justify-between items-center p-3 bg-red-50 rounded-lg border border-red-200">
               <span className="text-gray-600">Payments Out (Paid)</span>
               <span className="font-semibold text-red-600">
-                ${paymentsData.paymentsOut.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                {paymentsData.paymentsOut.toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </span>
             </div>
             <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg border border-blue-200">
               <span className="text-gray-600 font-medium">Net Cash Flow</span>
-              <span className={`font-bold text-lg ${paymentsData.netCashFlow >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                ${paymentsData.netCashFlow.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              <span className={`font-bold text-lg {paymentsData.netCashFlow >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {paymentsData.netCashFlow.toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </span>
             </div>
           </div>
@@ -374,7 +374,7 @@ const Reports = () => {
             <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
               <span className="text-gray-600">Total Inventory Value</span>
               <span className="font-semibold text-orange-600">
-                ${productsData.totalInventoryValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                {productsData.totalInventoryValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </span>
             </div>
           </div>
@@ -388,19 +388,19 @@ const Reports = () => {
           <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
             <p className="text-sm text-gray-600 mb-1">Revenue</p>
             <p className="text-2xl font-bold text-blue-600">
-              ${salesData.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              {salesData.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </p>
           </div>
           <div className="p-4 bg-red-50 rounded-lg border border-red-200">
             <p className="text-sm text-gray-600 mb-1">Cost of Goods</p>
             <p className="text-2xl font-bold text-red-600">
-              ${purchasesData.totalCost.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              {purchasesData.totalCost.toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </p>
           </div>
           <div className="p-4 bg-green-50 rounded-lg border border-green-200">
             <p className="text-sm text-gray-600 mb-1">Gross Profit</p>
             <p className="text-2xl font-bold text-green-600">
-              ${profitMargin.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              {profitMargin.toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </p>
             <p className="text-sm text-gray-600 mt-1">{profitMarginPercentage}% margin</p>
           </div>
@@ -411,3 +411,4 @@ const Reports = () => {
 };
 
 export default Reports;
+

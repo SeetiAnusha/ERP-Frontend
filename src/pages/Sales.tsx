@@ -39,6 +39,8 @@ const Sales = () => {
   const [saleItems, setSaleItems] = useState<SaleItem[]>([]);
   const [selectedProduct, setSelectedProduct] = useState('');
   const [quantity, setQuantity] = useState(1);
+  const [salesPrice, setSalesPrice] = useState(0);
+  const [taxAmount, setTaxAmount] = useState(0);
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [viewDetailsModal, setViewDetailsModal] = useState(false);
   const [viewProductsModal, setViewProductsModal] = useState(false);
@@ -77,8 +79,8 @@ const Sales = () => {
   };
 
   const addProductToSale = () => {
-    if (!selectedProduct || quantity <= 0) {
-      alert('Please select a product and enter valid quantity');
+    if (!selectedProduct || quantity <= 0 || salesPrice <= 0) {
+      alert('Please select a product and enter valid quantity and sales price');
       return;
     }
     
@@ -91,10 +93,8 @@ const Sales = () => {
       return;
     }
     
-    // Use product's unitCost as sale price
-    const unitCost = Number(product.unitCost);
-    const subtotal = quantity * unitCost;
-    const taxAmount = Number(product.taxRate);  // Tax as direct number
+    // Use entered sales price and tax
+    const subtotal = quantity * salesPrice;
     const total = subtotal + taxAmount;
     
     setSaleItems([...saleItems, {
@@ -102,8 +102,8 @@ const Sales = () => {
       productName: product.name,
       productAmount: Number(product.amount),
       quantity,
-      productUnitCost: unitCost,
-      unitPrice: unitCost,
+      productUnitCost: Number(product.unitCost),
+      unitPrice: salesPrice,
       subtotal,
       tax: taxAmount,
       total,
@@ -111,6 +111,8 @@ const Sales = () => {
     
     setSelectedProduct('');
     setQuantity(1);
+    setSalesPrice(0);
+    setTaxAmount(0);
   };
 
   const removeItem = (index: number) => {
@@ -455,36 +457,96 @@ const Sales = () => {
                 {/* Add Products */}
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
                   <h3 className="font-semibold mb-3">{t('addProducts')}</h3>
-                  <div className="flex gap-3">
+                  <div className="grid grid-cols-5 gap-3">
                     <select
                       value={selectedProduct}
-                      onChange={(e) => setSelectedProduct(e.target.value)}
-                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      onChange={(e) => {
+                        setSelectedProduct(e.target.value);
+                        const product = products.find(p => p.id === parseInt(e.target.value));
+                        if (product) {
+                          setSalesPrice(Number(product.salesPrice) || 0);
+                          setTaxAmount(0);
+                        }
+                      }}
+                      className="col-span-5 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="">Select product...</option>
                       {products.filter(p => p.status === 'ACTIVE').map((product) => (
                         <option key={product.id} value={product.id}>
-                          {product.name} - Unit Cost: {Number(product.unitCost).toFixed(2)} | Stock: {product.amount}
+                          {product.name} - Sales Price: {Number(product.salesPrice || 0).toFixed(2)} | Stock: {product.amount}
                         </option>
                       ))}
                     </select>
-                    <input
-                      type="number"
-                      min="1"
-                      value={quantity}
-                      onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
-                      placeholder="Quantity"
-                      className="w-32 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                    <motion.button
-                      type="button"
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={addProductToSale}
-                      className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                    >
-                      {t('add')}
-                    </motion.button>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Quantity *</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={quantity}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setQuantity(val === '' ? '' as any : parseInt(val) || 1);
+                        }}
+                        onBlur={(e) => {
+                          if (e.target.value === '' || parseInt(e.target.value) < 1) {
+                            setQuantity(1);
+                          }
+                        }}
+                        placeholder="Qty"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Sales Price *</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        value={salesPrice}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setSalesPrice(val === '' ? '' as any : parseFloat(val) || 1);
+                        }}
+                        onBlur={(e) => {
+                          if (e.target.value === '' || parseFloat(e.target.value) <= 0) {
+                            setSalesPrice(0.01);
+                          }
+                        }}
+                        placeholder="0.00"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Tax *</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={taxAmount}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setTaxAmount(val === '' ? '' as any : parseFloat(val) || 0);
+                        }}
+                        onBlur={(e) => {
+                          if (e.target.value === '' || parseFloat(e.target.value) < 0) {
+                            setTaxAmount(0);
+                          }
+                        }}
+                        placeholder="0.00"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div className="flex items-end">
+                      <motion.button
+                        type="button"
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={addProductToSale}
+                        className="w-full px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                      >
+                        {t('add')}
+                      </motion.button>
+                    </div>
                   </div>
                 </div>
 
@@ -497,7 +559,7 @@ const Sales = () => {
                           <th className="px-4 py-3 text-left text-sm font-semibold">{t('product')}</th>
                           <th className="px-4 py-3 text-right text-sm font-semibold">Stock</th>
                           <th className="px-4 py-3 text-right text-sm font-semibold">{t('qty')}</th>
-                          <th className="px-4 py-3 text-right text-sm font-semibold">Unit Cost</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold">Sales Price</th>
                           <th className="px-4 py-3 text-right text-sm font-semibold">{t('subtotal')}</th>
                           <th className="px-4 py-3 text-right text-sm font-semibold">{t('tax')}</th>
                           <th className="px-4 py-3 text-right text-sm font-semibold">{t('total')}</th>
