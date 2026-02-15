@@ -62,7 +62,7 @@ const CashRegister = () => {
   const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this transaction?')) {
       try {
-        await axios.delete(`/cash-register/{id}`);
+        await axios.delete(`/cash-register/${id}`);
         fetchTransactions();
         fetchBalance();
       } catch (error) {

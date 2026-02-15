@@ -53,7 +53,7 @@ const Investments = () => {
       };
 
       if (editingInvestment) {
-        await axios.put(`/investments/{editingInvestment.id}`, data);
+        await axios.put(`/investments/${editingInvestment.id}`, data);
       } else {
         await axios.post('/investments', data);
       }
@@ -68,7 +68,7 @@ const Investments = () => {
   const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this investment?')) {
       try {
-        await axios.delete(`/investments/{id}`);
+        await axios.delete(`/investments/${id}`);
         fetchInvestments();
       } catch (error) {
         console.error('Error deleting investment:', error);

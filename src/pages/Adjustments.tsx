@@ -139,7 +139,7 @@ const Adjustments = () => {
       };
 
       if (editingAdjustment) {
-        await axios.put(`/adjustments/{editingAdjustment.id}`, adjustmentData);
+        await axios.put(`/adjustments/${editingAdjustment.id}`, adjustmentData);
       } else {
         await axios.post('/adjustments', adjustmentData);
       }
@@ -154,7 +154,7 @@ const Adjustments = () => {
   const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this adjustment?')) {
       try {
-        await axios.delete(`/adjustments/{id}`);
+        await axios.delete(`/adjustments/${id}`);
         fetchAdjustments();
       } catch (error) {
         console.error('Error deleting adjustment:', error);
