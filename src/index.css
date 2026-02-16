@@ -15,3 +15,41 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* Custom Toast Notifications - Blue Success Theme */
+[data-sonner-toast][data-type="success"] {
+  background-color: #3b82f6 !important; /* Blue background */
+  border-color: #2563eb !important;
+  color: white !important;
+}
+
+[data-sonner-toast][data-type="success"] [data-icon] {
+  color: white !important;
+}
+
+[data-sonner-toast][data-type="success"] [data-title] {
+  color: white !important;
+  font-weight: 600;
+}
+
+[data-sonner-toast][data-type="success"] [data-description] {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+[data-sonner-toast][data-type="success"] [data-button] {
+  background-color: rgba(255, 255, 255, 0.2) !important;
+  color: white !important;
+}
+
+[data-sonner-toast][data-type="success"] [data-button]:hover {
+  background-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+/* Ensure toasts appear in top-right */
+[data-sonner-toaster][data-x-position="right"] {
+  right: 20px !important;
+}
+
+[data-sonner-toaster][data-y-position="top"] {
+  top: 20px !important;
+}

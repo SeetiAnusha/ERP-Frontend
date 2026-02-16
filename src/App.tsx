@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { Toaster } from 'sonner';
 import { LanguageProvider } from './contexts/LanguageContext';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
@@ -21,6 +22,18 @@ import InvestmentReport from './pages/InvestmentReport';
 function App() {
   return (
     <LanguageProvider>
+      <Toaster 
+        position="top-center" 
+        closeButton 
+        toastOptions={{
+          style: {
+            marginTop: '0px',
+          },
+          classNames: {
+            success: 'toast-success-blue',
+          },
+        }}
+      />
       <Router>
         <Layout>
           <Routes>

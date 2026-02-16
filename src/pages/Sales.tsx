@@ -4,6 +4,7 @@ import { Plus, Search, Eye, CheckCircle, Clock, XCircle, X, Trash2, ShoppingCart
 import api from '../api/axios';
 import { Sale, Client, Product } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import { notify, handleApiError } from '../utils/notifications';
 
 interface SaleItem {
   productId: number;
@@ -56,7 +57,7 @@ const Sales = () => {
       const response = await api.get('/sales');
       setSales(response.data);
     } catch (error) {
-      console.error('Error fetching sales:', error);
+      handleApiError(error, 'Loading sales');
     }
   };
 
@@ -65,7 +66,7 @@ const Sales = () => {
       const response = await api.get('/clients');
       setClients(response.data);
     } catch (error) {
-      console.error('Error fetching clients:', error);
+      handleApiError(error, 'Loading clients');
     }
   };
 
@@ -74,13 +75,13 @@ const Sales = () => {
       const response = await api.get('/products');
       setProducts(response.data);
     } catch (error) {
-      console.error('Error fetching products:', error);
+      handleApiError(error, 'Loading products');
     }
   };
 
   const addProductToSale = () => {
     if (!selectedProduct || quantity <= 0 || salesPrice <= 0) {
-      alert('Please select a product and enter valid quantity and sales price');
+      notify.warning('Invalid input', 'Please select a product and enter valid quantity and sales price');
       return;
     }
     
@@ -89,7 +90,7 @@ const Sales = () => {
     
     // Check stock
     if (Number(product.amount) < quantity) {
-      alert(`Insufficient stock! Available: ${product.amount}, Required: ${quantity}`);
+      notify.error('Insufficient stock', `Available: ${product.amount}, Required: ${quantity}`);
       return;
     }
     
@@ -132,7 +133,7 @@ const Sales = () => {
     if (isSubmitting) return; // Prevent double submission
     
     if (saleItems.length === 0) {
-      alert('Please add at least one product');
+      notify.warning('No products', 'Please add at least one product to the sale');
       return;
     }
     
@@ -156,11 +157,11 @@ const Sales = () => {
         saleType: formData.saleType,
         items: saleItems,
       });
+      notify.success('Sale created', `Invoice ${formData.documentNumber} created successfully`);
       fetchSales();
       closeModal();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Error creating sale');
-      console.error('Error creating sale:', error);
+      handleApiError(error, 'Creating sale');
     } finally {
       setIsSubmitting(false);
     }

@@ -5,6 +5,7 @@ import api from '../api/axios';
 import { Product } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import PriceHistoryModal from '../components/PriceHistoryModal';
+import { notify, handleApiError } from '../utils/notifications';
 
 const Products = () => {
   const { t } = useLanguage();
@@ -35,7 +36,7 @@ const Products = () => {
       const response = await api.get('/products');
       setProducts(response.data);
     } catch (error) {
-      console.error('Error fetching products:', error);
+      handleApiError(error, 'Loading products');
     }
   };
 
@@ -69,16 +70,15 @@ const Products = () => {
 
       if (editingProduct) {
         await api.put(`/products/${editingProduct.id}`, productData);
-        alert('Product updated successfully!');
+        notify.success('Product updated', 'Changes saved successfully');
       } else {
         await api.post('/products', productData);
-        alert('Product created successfully!');
+        notify.success('Product created', 'New product added to inventory');
       }
       fetchProducts();
       closeModal();
     } catch (error: any) {
-      console.error('Error saving product:', error);
-      alert('Error saving product: ' + (error.response?.data?.error || error.message));
+      handleApiError(error, 'Saving product');
     } finally {
       setIsSubmitting(false);
     }
@@ -88,11 +88,10 @@ const Products = () => {
     if (window.confirm('Are you sure you want to delete this product?')) {
       try {
         await api.delete(`/products/${id}`);
-        alert('Product deleted successfully!');
+        notify.success('Product deleted', 'Product removed from inventory');
         fetchProducts();
       } catch (error: any) {
-        console.error('Error deleting product:', error);
-        alert('Error deleting product: ' + (error.response?.data?.error || error.message));
+        handleApiError(error, 'Deleting product');
       }
     }
   };
