@@ -12,6 +12,8 @@ import {
   Wallet,
   Settings,
   BarChart3,
+  FileText,
+  CreditCard,
 } from 'lucide-react';
 import LanguageSwitcher from './LanguageSwitcher';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -33,6 +35,8 @@ const Layout = ({ children }: LayoutProps) => {
     { path: '/purchases', icon: ShoppingBag, label: t('purchases') },
     { path: '/suppliers', icon: Package, label: t('suppliers') },
     { path: '/payments', icon: DollarSign, label: t('payments') },
+    { path: '/accounts-receivable', icon: FileText, label: 'Accounts Receivable' },
+    { path: '/accounts-payable', icon: CreditCard, label: 'Accounts Payable' },
     { path: '/cash-register', icon: Wallet, label: t('cashRegister') },
     { path: '/adjustments', icon: Settings, label: t('adjustments') },
     { path: '/reports', icon: BarChart3, label: t('reports') },

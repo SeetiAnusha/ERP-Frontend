@@ -189,19 +189,46 @@ const Sales = () => {
   };
 
   const getStatusBadge = (status: string) => {
-    const styles = {
+    // Handle collection status (Cobrada, Parcial, No Cobrada)
+    const collectionStyles: Record<string, string> = {
+      'Collected': 'bg-green-100 text-green-800',
+      'Cobrada': 'bg-green-100 text-green-800',
+      'Partial': 'bg-yellow-100 text-yellow-800',
+      'Parcial': 'bg-yellow-100 text-yellow-800',
+      'Not Collected': 'bg-red-100 text-red-800',
+      'No Cobrada': 'bg-red-100 text-red-800',
+    };
+    const collectionIcons: Record<string, any> = {
+      'Collected': CheckCircle,
+      'Cobrada': CheckCircle,
+      'Partial': Clock,
+      'Parcial': Clock,
+      'Not Collected': XCircle,
+      'No Cobrada': XCircle,
+    };
+    
+    // Handle general status (COMPLETED, PENDING, CANCELLED)
+    const generalStyles: Record<string, string> = {
       COMPLETED: 'bg-green-100 text-green-800',
       PENDING: 'bg-yellow-100 text-yellow-800',
       CANCELLED: 'bg-red-100 text-red-800',
     };
-    const icons = {
+    const generalIcons: Record<string, any> = {
       COMPLETED: CheckCircle,
       PENDING: Clock,
       CANCELLED: XCircle,
     };
-    const Icon = icons[status as keyof typeof icons] || Clock;
+    
+    // Determine which set to use
+    const isCollectionStatus = status in collectionStyles;
+    const styles = isCollectionStatus ? collectionStyles : generalStyles;
+    const icons = isCollectionStatus ? collectionIcons : generalIcons;
+    
+    const Icon = icons[status] || Clock;
+    const styleClass = styles[status] || 'bg-gray-100 text-gray-800';
+    
     return (
-      <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${styles[status as keyof typeof styles]}`}>
+      <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${styleClass}`}>
         <Icon size={14} />
         {status}
       </span>
@@ -255,9 +282,9 @@ const Sales = () => {
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">SALE OF</th>
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">PAYMENT TYPE</th>
               <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">{t('total').toUpperCase()}</th>
-              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">PAID</th>
+              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">MONTO COBRADO</th>
               <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">BALANCE</th>
-              <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">STATUS</th>
+              <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">ESTADO DE COBRO</th>
               <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">{t('actions').toUpperCase()}</th>
             </tr>
           </thead>
@@ -277,15 +304,18 @@ const Sales = () => {
                 <td className="px-6 py-4 text-sm">{sale.saleType || 'N/A'}</td>
                 <td className="px-6 py-4 text-sm">{sale.paymentType || 'N/A'}</td>
                 <td className="px-6 py-4 text-sm font-semibold text-right">{Number(sale.total).toFixed(2)}</td>
-                <td className="px-6 py-4 text-sm font-semibold text-right text-green-600">{Number(sale.paidAmount || 0).toFixed(2)}</td>
+                <td className="px-6 py-4 text-sm font-semibold text-right text-green-600">{Number(sale.collectedAmount || 0).toFixed(2)}</td>
                 <td className="px-6 py-4 text-sm font-semibold text-right text-orange-600">{Number(sale.balanceAmount || 0).toFixed(2)}</td>
                 <td className="px-6 py-4 text-center">
                   <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                    sale.paymentStatus === 'Paid' ? 'bg-green-100 text-green-800' :
-                    sale.paymentStatus === 'Partial' ? 'bg-yellow-100 text-yellow-800' :
+                    sale.collectionStatus === 'Collected' || sale.collectionStatus === 'Cobrada' ? 'bg-green-100 text-green-800' :
+                    sale.collectionStatus === 'Partial' || sale.collectionStatus === 'Parcial' ? 'bg-yellow-100 text-yellow-800' :
                     'bg-red-100 text-red-800'
                   }`}>
-                    {sale.paymentStatus || 'Unpaid'}
+                    {sale.collectionStatus === 'Collected' ? 'Cobrada' : 
+                     sale.collectionStatus === 'Not Collected' ? 'No Cobrada' :
+                     sale.collectionStatus === 'Partial' ? 'Parcial' :
+                     sale.collectionStatus || 'No Cobrada'}
                   </span>
                 </td>
                 <td className="px-6 py-4">
@@ -690,8 +720,8 @@ const Sales = () => {
                     <p className="font-semibold text-lg text-green-600">{Number(selectedSale.total).toFixed(2)}</p>
                   </div>
                   <div>
-                    <label className="text-sm text-gray-600">Status</label>
-                    <p>{getStatusBadge(selectedSale.paymentStatus)}</p>
+                    <label className="text-sm text-gray-600">Estado de Cobro</label>
+                    <p>{getStatusBadge(selectedSale.collectionStatus)}</p>
                   </div>
                 </div>
               </div>

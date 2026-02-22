@@ -18,6 +18,8 @@ import Adjustments from './pages/Adjustments';
 import Reports from './pages/Reports';
 import PPEReport from './pages/PPEReport';
 import InvestmentReport from './pages/InvestmentReport';
+import AccountsReceivable from './pages/AccountsReceivable';
+import AccountsPayable from './pages/AccountsPayable';
 
 function App() {
   return (
@@ -53,6 +55,8 @@ function App() {
             <Route path="/reports" element={<Reports />} />
             <Route path="/reports/ppe" element={<PPEReport />} />
             <Route path="/reports/investments" element={<InvestmentReport />} />
+            <Route path="/accounts-receivable" element={<AccountsReceivable />} />
+            <Route path="/accounts-payable" element={<AccountsPayable />} />
           </Routes>
         </Layout>
       </Router>

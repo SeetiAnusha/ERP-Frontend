@@ -2,29 +2,29 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Search, DollarSign, CheckCircle, Clock, XCircle, Plus } from 'lucide-react';
 import api from '../api/axios';
-import { AccountsPayable } from '../types/accountsTypes';
+import { AccountsReceivable } from '../types/accountsTypes';
 import { notify, handleApiError } from '../utils/notifications';
 
-const AccountsPayablePage = () => {
-  const [accountsPayable, setAccountsPayable] = useState<AccountsPayable[]>([]);
+const AccountsReceivablePage = () => {
+  const [accountsReceivable, setAccountsReceivable] = useState<AccountsReceivable[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('All');
   const [isLoading, setIsLoading] = useState(true);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [selectedAP, setSelectedAP] = useState<AccountsPayable | null>(null);
+  const [selectedAR, setSelectedAR] = useState<AccountsReceivable | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
 
   useEffect(() => {
-    fetchAccountsPayable();
+    fetchAccountsReceivable();
   }, []);
 
-  const fetchAccountsPayable = async () => {
+  const fetchAccountsReceivable = async () => {
     setIsLoading(true);
     try {
-      const response = await api.get('/accounts-payable');
-      setAccountsPayable(response.data);
+      const response = await api.get('/accounts-receivable');
+      setAccountsReceivable(response.data);
     } catch (error) {
-      handleApiError(error, 'Loading accounts payable');
+      handleApiError(error, 'Loading accounts receivable');
     } finally {
       setIsLoading(false);
     }
@@ -32,12 +32,12 @@ const AccountsPayablePage = () => {
 
   const getStatusBadge = (status: string) => {
     const styles: Record<string, string> = {
-      'Paid': 'bg-green-100 text-green-800',
+      'Received': 'bg-green-100 text-green-800',
       'Partial': 'bg-yellow-100 text-yellow-800',
       'Pending': 'bg-red-100 text-red-800',
     };
     const icons: Record<string, any> = {
-      'Paid': CheckCircle,
+      'Received': CheckCircle,
       'Partial': Clock,
       'Pending': XCircle,
     };
@@ -53,41 +53,41 @@ const AccountsPayablePage = () => {
     );
   };
 
-  const handleRecordPayment = (ap: AccountsPayable) => {
-    setSelectedAP(ap);
-    setPaymentAmount(ap.balanceAmount.toString());
+  const handleRecordPayment = (ar: AccountsReceivable) => {
+    setSelectedAR(ar);
+    setPaymentAmount(ar.balanceAmount.toString());
     setShowPaymentModal(true);
   };
 
   const submitPayment = async () => {
-    if (!selectedAP || !paymentAmount) return;
+    if (!selectedAR || !paymentAmount) return;
     
     try {
-      await api.post(`/accounts-payable/${selectedAP.id}/record-payment`, {
+      await api.post(`/accounts-receivable/${selectedAR.id}/record-payment`, {
         amount: parseFloat(paymentAmount),
-        paidDate: new Date(),
+        receivedDate: new Date(),
       });
       notify.success('Payment recorded successfully');
       setShowPaymentModal(false);
-      setSelectedAP(null);
+      setSelectedAR(null);
       setPaymentAmount('');
-      fetchAccountsPayable();
+      fetchAccountsReceivable();
     } catch (error) {
       handleApiError(error, 'Recording payment');
     }
   };
 
-  const filteredAP = accountsPayable.filter((ap) => {
-    const matchesSearch = Object.values(ap).some((value) =>
+  const filteredAR = accountsReceivable.filter((ar) => {
+    const matchesSearch = Object.values(ar).some((value) =>
       value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
     );
-    const matchesStatus = filterStatus === 'All' || ap.status === filterStatus;
+    const matchesStatus = filterStatus === 'All' || ar.status === filterStatus;
     return matchesSearch && matchesStatus;
   });
 
-  const totalAmount = filteredAP.reduce((sum, ap) => sum + Number(ap.amount), 0);
-  const totalPaid = filteredAP.reduce((sum, ap) => sum + Number(ap.paidAmount), 0);
-  const totalBalance = filteredAP.reduce((sum, ap) => sum + Number(ap.balanceAmount), 0);
+  const totalAmount = filteredAR.reduce((sum, ar) => sum + Number(ar.amount), 0);
+  const totalReceived = filteredAR.reduce((sum, ar) => sum + Number(ar.receivedAmount), 0);
+  const totalBalance = filteredAR.reduce((sum, ar) => sum + Number(ar.balanceAmount), 0);
 
   if (isLoading) {
     return (
@@ -100,8 +100,8 @@ const AccountsPayablePage = () => {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Accounts Payable</h1>
-        <p className="text-gray-600">Money you owe (to credit card companies, suppliers on credit, etc.)</p>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Accounts Receivable</h1>
+        <p className="text-gray-600">Money owed to you (from credit card sales, client credits, etc.)</p>
       </div>
 
       {/* Summary Cards */}
@@ -128,8 +128,8 @@ const AccountsPayablePage = () => {
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-green-600 font-medium">Paid</p>
-              <p className="text-2xl font-bold text-green-900">${totalPaid.toFixed(2)}</p>
+              <p className="text-sm text-green-600 font-medium">Received</p>
+              <p className="text-2xl font-bold text-green-900">${totalReceived.toFixed(2)}</p>
             </div>
             <CheckCircle className="text-green-600" size={32} />
           </div>
@@ -139,14 +139,14 @@ const AccountsPayablePage = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="bg-red-50 rounded-xl p-6 border border-red-200"
+          className="bg-orange-50 rounded-xl p-6 border border-orange-200"
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-red-600 font-medium">Balance (You Owe)</p>
-              <p className="text-2xl font-bold text-red-900">${totalBalance.toFixed(2)}</p>
+              <p className="text-sm text-orange-600 font-medium">Balance (Pending)</p>
+              <p className="text-2xl font-bold text-orange-900">${totalBalance.toFixed(2)}</p>
             </div>
-            <Clock className="text-red-600" size={32} />
+            <Clock className="text-orange-600" size={32} />
           </div>
         </motion.div>
       </div>
@@ -171,7 +171,7 @@ const AccountsPayablePage = () => {
           <option value="All">All Status</option>
           <option value="Pending">Pending</option>
           <option value="Partial">Partial</option>
-          <option value="Paid">Paid</option>
+          <option value="Received">Received</option>
         </select>
       </div>
 
@@ -188,49 +188,49 @@ const AccountsPayablePage = () => {
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">DATE</th>
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">TYPE</th>
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">RELATED DOC</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">SUPPLIER/CARD</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">CLIENT/CARD</th>
               <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">AMOUNT</th>
-              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">PAID</th>
+              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">RECEIVED</th>
               <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">BALANCE</th>
               <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">STATUS</th>
               <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">ACTION</th>
             </tr>
           </thead>
           <tbody>
-            {filteredAP.length === 0 ? (
+            {filteredAR.length === 0 ? (
               <tr>
                 <td colSpan={10} className="px-6 py-12 text-center text-gray-500">
-                  No accounts payable found
+                  No accounts receivable found
                 </td>
               </tr>
             ) : (
-              filteredAP.map((ap, index) => (
+              filteredAR.map((ar, index) => (
                 <motion.tr
-                  key={ap.id}
+                  key={ar.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
                   className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
                 >
-                  <td className="px-6 py-4 text-sm font-medium">{ap.registrationNumber}</td>
-                  <td className="px-6 py-4 text-sm">{new Date(ap.registrationDate).toLocaleDateString()}</td>
-                  <td className="px-6 py-4 text-sm">{ap.type}</td>
+                  <td className="px-6 py-4 text-sm font-medium">{ar.registrationNumber}</td>
+                  <td className="px-6 py-4 text-sm">{new Date(ar.registrationDate).toLocaleDateString()}</td>
+                  <td className="px-6 py-4 text-sm">{ar.type}</td>
                   <td className="px-6 py-4 text-sm">
-                    {ap.relatedDocumentType} - {ap.relatedDocumentNumber}
+                    {ar.relatedDocumentType} - {ar.relatedDocumentNumber}
                   </td>
-                  <td className="px-6 py-4 text-sm">{ap.supplierName || ap.cardIssuer || 'N/A'}</td>
-                  <td className="px-6 py-4 text-sm font-semibold text-right">${Number(ap.amount).toFixed(2)}</td>
+                  <td className="px-6 py-4 text-sm">{ar.clientName || ar.cardNetwork || 'N/A'}</td>
+                  <td className="px-6 py-4 text-sm font-semibold text-right">${Number(ar.amount).toFixed(2)}</td>
                   <td className="px-6 py-4 text-sm font-semibold text-right text-green-600">
-                    ${Number(ap.paidAmount).toFixed(2)}
+                    ${Number(ar.receivedAmount).toFixed(2)}
                   </td>
-                  <td className="px-6 py-4 text-sm font-semibold text-right text-red-600">
-                    ${Number(ap.balanceAmount).toFixed(2)}
+                  <td className="px-6 py-4 text-sm font-semibold text-right text-orange-600">
+                    ${Number(ar.balanceAmount).toFixed(2)}
                   </td>
-                  <td className="px-6 py-4 text-center">{getStatusBadge(ap.status)}</td>
+                  <td className="px-6 py-4 text-center">{getStatusBadge(ar.status)}</td>
                   <td className="px-6 py-4 text-center">
-                    {ap.status !== 'Paid' && (
+                    {ar.status !== 'Received' && (
                       <button
-                        onClick={() => handleRecordPayment(ap)}
+                        onClick={() => handleRecordPayment(ar)}
                         className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
                       >
                         <Plus size={16} />
@@ -246,7 +246,7 @@ const AccountsPayablePage = () => {
       </motion.div>
 
       {/* Payment Modal */}
-      {showPaymentModal && selectedAP && (
+      {showPaymentModal && selectedAR && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
@@ -256,11 +256,11 @@ const AccountsPayablePage = () => {
             <h3 className="text-xl font-bold mb-4">Record Payment</h3>
             <div className="space-y-4">
               <div>
-                <p className="text-sm text-gray-600">Document: {selectedAP.relatedDocumentNumber}</p>
-                <p className="text-sm text-gray-600">Supplier: {selectedAP.supplierName || selectedAP.cardIssuer}</p>
-                <p className="text-sm text-gray-600">Total Amount: ${Number(selectedAP.amount).toFixed(2)}</p>
-                <p className="text-sm text-gray-600">Already Paid: ${Number(selectedAP.paidAmount).toFixed(2)}</p>
-                <p className="text-sm font-semibold text-red-600">Balance: ${Number(selectedAP.balanceAmount).toFixed(2)}</p>
+                <p className="text-sm text-gray-600">Document: {selectedAR.relatedDocumentNumber}</p>
+                <p className="text-sm text-gray-600">Client: {selectedAR.clientName || selectedAR.cardNetwork}</p>
+                <p className="text-sm text-gray-600">Total Amount: ${Number(selectedAR.amount).toFixed(2)}</p>
+                <p className="text-sm text-gray-600">Already Received: ${Number(selectedAR.receivedAmount).toFixed(2)}</p>
+                <p className="text-sm font-semibold text-orange-600">Balance: ${Number(selectedAR.balanceAmount).toFixed(2)}</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -285,7 +285,7 @@ const AccountsPayablePage = () => {
                 <button
                   onClick={() => {
                     setShowPaymentModal(false);
-                    setSelectedAP(null);
+                    setSelectedAR(null);
                     setPaymentAmount('');
                   }}
                   className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300 transition-colors"
@@ -301,4 +301,4 @@ const AccountsPayablePage = () => {
   );
 };
 
-export default AccountsPayablePage;
+export default AccountsReceivablePage;

@@ -60,12 +60,12 @@ export interface Sale {
   ncf?: string;
   saleType: string;
   paymentType: string;
-  paymentStatus: string;
+  collectionStatus: string;  // Changed from paymentStatus
   subtotal: number;
   tax: number;
   discount: number;
   total: number;
-  paidAmount: number;
+  collectedAmount: number;  // Changed from paidAmount
   balanceAmount: number;
   status: string;
   client?: Client;

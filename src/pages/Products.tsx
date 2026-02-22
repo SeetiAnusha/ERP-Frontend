@@ -53,11 +53,18 @@ const Products = () => {
       const salesPrice = Number(formData.salesPrice) || 0;
       const subtotal = amount * unitPrice;
       
+      // Validate required fields
+      if (!formData.unit || formData.unit.trim() === '') {
+        notify.warning('Missing unit', 'Please enter a unit of measurement (e.g., UNIT, KG, LB)');
+        setIsSubmitting(false);
+        return;
+      }
+      
       const productData = {
         code: formData.code,
         name: formData.name,
         description: formData.description,
-        unit: formData.unit,
+        unit: formData.unit.trim(),
         amount: amount,
         unitCost: unitPrice,
         salesPrice: salesPrice,
@@ -307,16 +314,17 @@ const Products = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('unitOfMeasurement')} <span className="text-gray-400 text-xs">({t('optional')})</span>
+                    {t('unitOfMeasurement')} *
                   </label>
                   <input
                     type="text"
+                    required
                     value={formData.unit}
                     onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     placeholder="UNIT, KG, LB, etc."
                   />
-                  <p className="text-xs text-gray-500 mt-1">Can be updated when making a purchase</p>
+                  <p className="text-xs text-gray-500 mt-1">Required. Can be updated when making a purchase</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -355,7 +363,9 @@ const Products = () => {
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     placeholder="0.00 or 38.00"
                   />
-                  <p className="text-xs text-gray-500 mt-1">Selling price for this product</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    <span className="font-medium text-blue-600">✓ Can be updated at any time.</span> Selling price for this product.
+                  </p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">{t('subtotal').toUpperCase()}</label>

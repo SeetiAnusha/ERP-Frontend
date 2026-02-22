@@ -102,7 +102,7 @@ const Inventory = () => {
                   date: purchase.date,
                   operation: 'BUYS',
                   product: product.name,
-                  amount: item.quantity,
+                  amount: Number(item.quantity) || 0,
                   unitPrice: parseFloat((item.adjustedUnitCost || item.unitCost).toString()),
                   totalAmount: parseFloat((item.adjustedTotal || item.total).toString()),
                   balanceInAmount: 0, // Will be calculated after sorting
@@ -131,7 +131,7 @@ const Inventory = () => {
                   date: sale.date,
                   operation: 'SALE',
                   product: product.name,
-                  amount: item.quantity,
+                  amount: Number(item.quantity) || 0,
                   unitPrice: parseFloat(item.unitPrice.toString()),
                   totalAmount: parseFloat(item.total.toString()),
                   balanceInAmount: 0, // Will be calculated after sorting
@@ -144,8 +144,13 @@ const Inventory = () => {
         }
       });
 
-      // Sort movements by date first
-      movements.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      // Sort movements by date first, then by registration number
+      movements.sort((a, b) => {
+        const dateCompare = new Date(a.date).getTime() - new Date(b.date).getTime();
+        if (dateCompare !== 0) return dateCompare;
+        // If same date, sort by registration number
+        return a.registrationNo.localeCompare(b.registrationNo);
+      });
 
       // Calculate opening balance (stock before date range)
       let openingBalance = 0;
@@ -158,7 +163,7 @@ const Inventory = () => {
             if (item.productId === product.id) {
               const purchaseDate = new Date(purchase.date);
               if (purchaseDate < new Date(dateRange.startDate)) {
-                openingBalance += item.quantity;
+                openingBalance += Number(item.quantity) || 0;
                 openingBalanceAmount += parseFloat((item.adjustedTotal || item.total).toString());
               }
             }
@@ -173,8 +178,8 @@ const Inventory = () => {
               const saleDate = new Date(sale.date);
               if (saleDate < new Date(dateRange.startDate)) {
                 const avgCost = openingBalance > 0 ? openingBalanceAmount / openingBalance : 0;
-                const costOfSale = avgCost * item.quantity;
-                openingBalance -= item.quantity;
+                const costOfSale = avgCost * (Number(item.quantity) || 0);
+                openingBalance -= Number(item.quantity) || 0;
                 openingBalanceAmount -= costOfSale;
               }
             }
@@ -384,12 +389,12 @@ const Inventory = () => {
                       </span>
                     </td>
                     <td className="px-3 py-2">{movement.product}</td>
-                    <td className="px-3 py-2 text-right">{movement.amount}</td>
-                    <td className="px-3 py-2 text-right">{movement.unitPrice.toFixed(2)}</td>
-                    <td className="px-3 py-2 text-right">{movement.totalAmount.toFixed(2)}</td>
-                    <td className="px-3 py-2 text-right font-semibold">{movement.balanceIn}</td>
-                    <td className="px-3 py-2 text-right">{movement.balanceInAmount.toFixed(2)}</td>
-                    <td className="px-3 py-2 text-right">{movement.averageUnitCost.toFixed(2)}</td>
+                    <td className="px-3 py-2 text-right">{Number(movement.amount || 0).toFixed(2)}</td>
+                    <td className="px-3 py-2 text-right">{Number(movement.unitPrice || 0).toFixed(2)}</td>
+                    <td className="px-3 py-2 text-right">{Number(movement.totalAmount || 0).toFixed(2)}</td>
+                    <td className="px-3 py-2 text-right font-semibold">{Number(movement.balanceIn || 0).toFixed(2)}</td>
+                    <td className="px-3 py-2 text-right">{Number(movement.balanceInAmount || 0).toFixed(2)}</td>
+                    <td className="px-3 py-2 text-right">{Number(movement.averageUnitCost || 0).toFixed(2)}</td>
                     <td className="px-3 py-2 text-center">{new Date(movement.date).getFullYear()}</td>
                     <td className="px-3 py-2 text-center">{new Date(movement.date).toLocaleString('en-US', { month: 'long' })}</td>
                   </tr>
@@ -403,35 +408,35 @@ const Inventory = () => {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="bg-white p-3 rounded-lg shadow">
                 <p className="text-xs text-gray-600">Current Balance</p>
-                <p className="text-xl font-bold text-blue-600">{sheet.totals.currentBalance}</p>
+                <p className="text-xl font-bold text-blue-600">{Number(sheet.totals.currentBalance || 0).toFixed(2)}</p>
               </div>
               <div className="bg-white p-3 rounded-lg shadow">
                 <p className="text-xs text-gray-600">Average Cost</p>
-                <p className="text-xl font-bold text-purple-600">{sheet.totals.averageCost.toFixed(2)}</p>
+                <p className="text-xl font-bold text-purple-600">{Number(sheet.totals.averageCost || 0).toFixed(2)}</p>
               </div>
               <div className="bg-white p-3 rounded-lg shadow">
                 <p className="text-xs text-gray-600">Total Income</p>
-                <p className="text-xl font-bold text-green-600">{sheet.totals.totalIncome.toFixed(2)}</p>
+                <p className="text-xl font-bold text-green-600">{Number(sheet.totals.totalIncome || 0).toFixed(2)}</p>
               </div>
               <div className="bg-white p-3 rounded-lg shadow">
                 <p className="text-xs text-gray-600">{t('totalCost')}</p>
-                <p className="text-xl font-bold text-red-600">{sheet.totals.totalCost.toFixed(2)}</p>
+                <p className="text-xl font-bold text-red-600">{Number(sheet.totals.totalCost || 0).toFixed(2)}</p>
               </div>
               <div className="bg-white p-3 rounded-lg shadow">
                 <p className="text-xs text-gray-600">{t('grossMargin')}</p>
-                <p className="text-xl font-bold text-orange-600">{sheet.totals.grossMargin.toFixed(2)}</p>
+                <p className="text-xl font-bold text-orange-600">{Number(sheet.totals.grossMargin || 0).toFixed(2)}</p>
               </div>
               <div className="bg-white p-3 rounded-lg shadow">
                 <p className="text-xs text-gray-600">{t('grossMarginOnRevenue')}</p>
-                <p className="text-xl font-bold text-teal-600">{sheet.totals.grossMarginPercent.toFixed(2)}%</p>
+                <p className="text-xl font-bold text-teal-600">{Number(sheet.totals.grossMarginPercent || 0).toFixed(2)}%</p>
               </div>
               <div className="bg-white p-3 rounded-lg shadow">
                 <p className="text-xs text-gray-600">{t('grossMarginOnCost')}</p>
-                <p className="text-xl font-bold text-indigo-600">{sheet.totals.grossMarginOnCost.toFixed(2)}%</p>
+                <p className="text-xl font-bold text-indigo-600">{Number(sheet.totals.grossMarginOnCost || 0).toFixed(2)}%</p>
               </div>
               <div className="bg-white p-3 rounded-lg shadow">
                 <p className="text-xs text-gray-600">{t('purchases')}</p>
-                <p className="text-xl font-bold text-gray-600">{sheet.totals.totalPurchases}</p>
+                <p className="text-xl font-bold text-gray-600">{Number(sheet.totals.totalPurchases || 0).toFixed(2)}</p>
               </div>
             </div>
           </div>
