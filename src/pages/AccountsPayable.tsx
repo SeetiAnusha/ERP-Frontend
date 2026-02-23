@@ -4,8 +4,10 @@ import { Search, DollarSign, CheckCircle, Clock, XCircle, Plus } from 'lucide-re
 import api from '../api/axios';
 import { AccountsPayable } from '../types/accountsTypes';
 import { notify, handleApiError } from '../utils/notifications';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const AccountsPayablePage = () => {
+  const { t } = useLanguage();
   const [accountsPayable, setAccountsPayable] = useState<AccountsPayable[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('All');
@@ -86,7 +88,7 @@ const AccountsPayablePage = () => {
 
   const handleSaveDeadline = async (apId: number) => {
     if (!newDeadline) {
-      notify.warning('Invalid date', 'Please select a valid deadline');
+      notify.warning(t('invalidDate'), t('pleaseSelectValidDeadline'));
       return;
     }
 
@@ -94,7 +96,7 @@ const AccountsPayablePage = () => {
       await api.put(`/accounts-payable/${apId}`, {
         dueDate: newDeadline,
       });
-      notify.success('Deadline updated', 'Payment deadline has been updated');
+      notify.success(t('deadlineUpdated'), t('paymentDeadlineHasBeenUpdated'));
       setEditingDeadline(null);
       setNewDeadline('');
       fetchAccountsPayable();
@@ -131,8 +133,8 @@ const AccountsPayablePage = () => {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Accounts Payable</h1>
-        <p className="text-gray-600">Money you owe (to credit card companies, suppliers on credit, etc.)</p>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">{t('accountsPayable')}</h1>
+        <p className="text-gray-600">{t('moneyYouOwe')}</p>
       </div>
 
       {/* Summary Cards */}
@@ -144,7 +146,7 @@ const AccountsPayablePage = () => {
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-blue-600 font-medium">Total Amount</p>
+              <p className="text-sm text-blue-600 font-medium">{t('totalAmount')}</p>
               <p className="text-2xl font-bold text-blue-900">{totalAmount.toFixed(2)}</p>
             </div>
             <DollarSign className="text-blue-600" size={32} />
@@ -159,7 +161,7 @@ const AccountsPayablePage = () => {
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-green-600 font-medium">Paid</p>
+              <p className="text-sm text-green-600 font-medium">{t('paid')}</p>
               <p className="text-2xl font-bold text-green-900">{totalPaid.toFixed(2)}</p>
             </div>
             <CheckCircle className="text-green-600" size={32} />
@@ -174,7 +176,7 @@ const AccountsPayablePage = () => {
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-red-600 font-medium">Balance (You Owe)</p>
+              <p className="text-sm text-red-600 font-medium">{t('balanceYouOwe')}</p>
               <p className="text-2xl font-bold text-red-900">{totalBalance.toFixed(2)}</p>
             </div>
             <Clock className="text-red-600" size={32} />
@@ -188,7 +190,7 @@ const AccountsPayablePage = () => {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
           <input
             type="text"
-            placeholder="Search..."
+            placeholder={t('search') + '...'}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -199,10 +201,10 @@ const AccountsPayablePage = () => {
           onChange={(e) => setFilterStatus(e.target.value)}
           className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
         >
-          <option value="All">All Status</option>
-          <option value="Pending">Pending</option>
-          <option value="Partial">Partial</option>
-          <option value="Paid">Paid</option>
+          <option value="All">{t('allStatus')}</option>
+          <option value="Pending">{t('pending')}</option>
+          <option value="Partial">{t('partial')}</option>
+          <option value="Paid">{t('paid')}</option>
         </select>
       </div>
 
@@ -215,35 +217,35 @@ const AccountsPayablePage = () => {
         <table className="w-full min-w-max table-auto">
           <thead className="bg-gray-50 border-b-2 border-gray-200">
             <tr>
-              <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">TYPE</th>
-              <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">REGISTRATION NO.</th>
-              <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">REGISTRATION DATE</th>
-              <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">RNC SUPPLIER</th>
-              <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">SUPPLIER CODE AND NAME</th>
-              <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">NCF</th>
-              <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">DATE</th>
-              <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">PURCHASE OF</th>
-              <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">PAYMENT TERMS</th>
+              <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">{t('type').toUpperCase()}</th>
+              <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">{t('registrationNo').toUpperCase()}</th>
+              <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">{t('registrationDate').toUpperCase()}</th>
+              <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">{t('rncSupplier').toUpperCase()}</th>
+              <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">{t('supplierCodeAndName').toUpperCase()}</th>
+              <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">{t('ncf').toUpperCase()}</th>
+              <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">{t('date').toUpperCase()}</th>
+              <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">{t('purchaseOf').toUpperCase()}</th>
+              <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">{t('paymentTerms').toUpperCase()}</th>
               <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">
                 <div className="flex items-center gap-2">
-                  PAYMENT DEADLINE
+                  {t('paymentDeadline').toUpperCase()}
                   <span className="text-xs font-normal text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
-                    ✎ Editable
+                    ✎ {t('editable')}
                   </span>
                 </div>
               </th>
-              <th className="px-4 py-4 text-right text-sm font-bold text-gray-800 whitespace-nowrap">AMOUNT</th>
-              <th className="px-4 py-4 text-right text-sm font-bold text-gray-800 whitespace-nowrap">PAID</th>
-              <th className="px-4 py-4 text-right text-sm font-bold text-gray-800 whitespace-nowrap">BALANCE</th>
-              <th className="px-4 py-4 text-center text-sm font-bold text-gray-800 whitespace-nowrap">STATUS</th>
-              <th className="px-4 py-4 text-center text-sm font-bold text-gray-800 whitespace-nowrap">ACTION</th>
+              <th className="px-4 py-4 text-right text-sm font-bold text-gray-800 whitespace-nowrap">{t('amount').toUpperCase()}</th>
+              <th className="px-4 py-4 text-right text-sm font-bold text-gray-800 whitespace-nowrap">{t('paid').toUpperCase()}</th>
+              <th className="px-4 py-4 text-right text-sm font-bold text-gray-800 whitespace-nowrap">{t('balance').toUpperCase()}</th>
+              <th className="px-4 py-4 text-center text-sm font-bold text-gray-800 whitespace-nowrap">{t('status').toUpperCase()}</th>
+              <th className="px-4 py-4 text-center text-sm font-bold text-gray-800 whitespace-nowrap">{t('action').toUpperCase()}</th>
             </tr>
           </thead>
           <tbody>
             {filteredAP.length === 0 ? (
               <tr>
                 <td colSpan={15} className="px-6 py-12 text-center text-gray-500">
-                  No accounts payable found
+                  {t('noAccountsPayableFound')}
                 </td>
               </tr>
             ) : (
@@ -277,14 +279,14 @@ const AccountsPayablePage = () => {
                         <button
                           onClick={() => handleSaveDeadline(ap.id)}
                           className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 font-medium"
-                          title="Save"
+                          title={t('save')}
                         >
                           ✓
                         </button>
                         <button
                           onClick={handleCancelEditDeadline}
                           className="px-2 py-1 bg-gray-400 text-white rounded text-xs hover:bg-gray-500 font-medium"
-                          title="Cancel"
+                          title={t('cancel')}
                         >
                           ✕
                         </button>
@@ -293,7 +295,7 @@ const AccountsPayablePage = () => {
                       <div 
                         onClick={() => handleEditDeadline(ap)}
                         className="cursor-pointer hover:bg-blue-100 px-3 py-1.5 rounded border border-dashed border-blue-300 hover:border-blue-500 inline-flex items-center gap-2 transition-all"
-                        title="Click to edit deadline"
+                        title={t('clickToEditDeadline')}
                       >
                         <span>{ap.dueDate ? new Date(ap.dueDate).toLocaleDateString() : 'N/A'}</span>
                         <span className="text-blue-600 text-xs">✎</span>
@@ -315,7 +317,7 @@ const AccountsPayablePage = () => {
                         className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
                       >
                         <Plus size={14} />
-                        Pay
+                        {t('pay')}
                       </button>
                     )}
                   </td>
@@ -334,18 +336,18 @@ const AccountsPayablePage = () => {
             animate={{ opacity: 1, scale: 1 }}
             className="bg-white rounded-xl p-6 max-w-md w-full mx-4"
           >
-            <h3 className="text-xl font-bold mb-4">Record Payment</h3>
+            <h3 className="text-xl font-bold mb-4">{t('recordPayment')}</h3>
             <div className="space-y-4">
               <div>
-                <p className="text-sm text-gray-600">Document: {selectedAP.relatedDocumentNumber}</p>
-                <p className="text-sm text-gray-600">Supplier: {selectedAP.supplierName || selectedAP.cardIssuer}</p>
-                <p className="text-sm text-gray-600">Total Amount: {Number(selectedAP.amount).toFixed(2)}</p>
-                <p className="text-sm text-gray-600">Already Paid: {Number(selectedAP.paidAmount).toFixed(2)}</p>
-                <p className="text-sm font-semibold text-red-600">Balance: {Number(selectedAP.balanceAmount).toFixed(2)}</p>
+                <p className="text-sm text-gray-600">{t('document')}: {selectedAP.relatedDocumentNumber}</p>
+                <p className="text-sm text-gray-600">{t('supplier')}: {selectedAP.supplierName || selectedAP.cardIssuer}</p>
+                <p className="text-sm text-gray-600">{t('totalAmount')}: {Number(selectedAP.amount).toFixed(2)}</p>
+                <p className="text-sm text-gray-600">{t('alreadyPaid')}: {Number(selectedAP.paidAmount).toFixed(2)}</p>
+                <p className="text-sm font-semibold text-red-600">{t('balance')}: {Number(selectedAP.balanceAmount).toFixed(2)}</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Payment Amount
+                  {t('paymentAmount')}
                 </label>
                 <input
                   type="number"
@@ -353,7 +355,7 @@ const AccountsPayablePage = () => {
                   value={paymentAmount}
                   onChange={(e) => setPaymentAmount(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="Enter amount"
+                  placeholder={t('enterAmount')}
                 />
               </div>
               <div className="flex gap-3">
@@ -361,7 +363,7 @@ const AccountsPayablePage = () => {
                   onClick={submitPayment}
                   className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors"
                 >
-                  Confirm Payment
+                  {t('confirmPayment')}
                 </button>
                 <button
                   onClick={() => {
@@ -371,7 +373,7 @@ const AccountsPayablePage = () => {
                   }}
                   className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300 transition-colors"
                 >
-                  Cancel
+                  {t('cancel')}
                 </button>
               </div>
             </div>

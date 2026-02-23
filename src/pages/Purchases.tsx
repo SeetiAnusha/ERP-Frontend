@@ -357,9 +357,9 @@ const Purchases = () => {
               <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('purchaseOf').toUpperCase()}</th>
               <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('paymentType').toUpperCase()}</th>
               <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('total').toUpperCase()}</th>
-              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">PAID</th>
-              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">BALANCE</th>
-              <th className="px-6 py-4 text-center text-sm font-bold text-gray-800">STATUS</th>
+              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('paid').toUpperCase()}</th>
+              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('balance').toUpperCase()}</th>
+              <th className="px-6 py-4 text-center text-sm font-bold text-gray-800">{t('status').toUpperCase()}</th>
               <th className="px-6 py-4 text-center text-sm font-bold text-gray-800">{t('actions').toUpperCase()}</th>
             </tr>
           </thead>
@@ -400,7 +400,7 @@ const Purchases = () => {
                         setViewDetailsModal(true);
                       }}
                       className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
-                      title="Purchase Details"
+                      title={t('purchaseDetails')}
                     >
                       <Eye size={18} />
                     </motion.button>
@@ -412,7 +412,7 @@ const Purchases = () => {
                         setViewProductsModal(true);
                       }}
                       className="p-2 text-green-600 hover:bg-green-50 rounded-lg"
-                      title="Product Details"
+                      title={t('productDetails')}
                     >
                       <Package size={18} />
                     </motion.button>
@@ -424,7 +424,7 @@ const Purchases = () => {
                         setViewInvoicesModal(true);
                       }}
                       className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg"
-                      title="Invoice Suppliers"
+                      title={t('invoiceSuppliers')}
                     >
                       <FileText size={18} />
                     </motion.button>
@@ -456,7 +456,7 @@ const Purchases = () => {
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold flex items-center gap-2">
                   <ShoppingCart className="text-blue-600" />
-                  Create New Purchase
+                  {t('createNewPurchase')}
                 </h2>
                 <button onClick={closeModal} className="text-gray-400 hover:text-gray-600">
                   <X size={24} />
@@ -529,11 +529,11 @@ const Purchases = () => {
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="Merchandise for sale or consumption">{t('merchandiseForSale')}</option>
-                      <option value="Goods for internal use (PPE)">Goods for internal use (PPE)</option>
-                      <option value="Investments or capital goods">Investments or capital goods</option>
-                      <option value="Services or other">Services or other</option>
+                      <option value="Goods for internal use (PPE)">{t('goodsForInternalUse')}</option>
+                      <option value="Investments or capital goods">{t('investmentsOrCapitalGoods')}</option>
+                      <option value="Services or other">{t('servicesOrOther')}</option>
                       <option value="Prepaid expenses">{t('prepaidExpenses')}</option>
-                      <option value="Policies and guarantee">Policies and guarantee</option>
+                      <option value="Policies and guarantee">{t('policiesAndGuarantee')}</option>
                     </select>
                   </div>
                   <div>
@@ -546,7 +546,7 @@ const Purchases = () => {
                     >
                       <option value="CASH">{t('cash')}</option>
                       <option value="BANK_TRANSFER">{t('bankTransfer')}</option>
-                      <option value="DEPOSIT">Deposit</option>
+                      <option value="DEPOSIT">{t('deposit')}</option>
                       <option value="CREDIT_CARD">{t('creditCard')}</option>
                       <option value="CREDIT">{t('credit')}</option>
                     </select>
@@ -569,32 +569,32 @@ const Purchases = () => {
                     className="flex-1 px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center justify-center gap-2"
                   >
                     <FileText size={20} />
-                    Add Invoices
+                    {t('addInvoice')}
                   </button>
                 </div>
 
                 {/* Summary */}
                 <div className="bg-gray-50 rounded-lg p-4 space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span>Products Added:</span>
-                    <span className="font-semibold">{purchaseItems.length} items</span>
+                    <span>{t('productsAdded')}:</span>
+                    <span className="font-semibold">{purchaseItems.length} {t('items')}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span>Associated Invoices:</span>
-                    <span className="font-semibold">{associatedInvoices.length} invoices</span>
+                    <span>{t('associatedInvoicesCount')}:</span>
+                    <span className="font-semibold">{associatedInvoices.length} {t('invoices')}</span>
                   </div>
                   <div className="border-t pt-2 mt-2"></div>
                   <div className="flex justify-between text-sm">
-                    <span>Product Total:</span>
+                    <span>{t('productTotal')}:</span>
                     <span className="font-semibold">{formatNumber(totals.productTotal)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span>Associated Costs:</span>
+                    <span>{t('associatedCosts')}:</span>
                     <span className="font-semibold">{formatNumber(totals.associatedTotal)}</span>
                   </div>
                   <div className="border-t pt-2 mt-2"></div>
                   <div className="flex justify-between text-lg">
-                    <span className="font-bold">GRAND TOTAL:</span>
+                    <span className="font-bold">{t('grandTotal')}:</span>
                     <span className="font-bold text-green-600">{formatNumber(totals.grandTotal)}</span>
                   </div>
                 </div>
@@ -613,7 +613,7 @@ const Purchases = () => {
                     disabled={purchaseItems.length === 0 || isSubmitting}
                     className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
                   >
-                    {isSubmitting ? 'Creating...' : `Create Purchase - ${formatNumber(totals.grandTotal)}`}
+                    {isSubmitting ? t('creating') : `${t('createPurchase')} - ${formatNumber(totals.grandTotal)}`}
                   </button>
                 </div>
               </form>
@@ -642,7 +642,7 @@ const Purchases = () => {
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold flex items-center gap-2">
                   <Package className="text-green-600" />
-                  Add Products
+                  {t('addProducts')}
                 </h2>
                 <button onClick={() => setShowProductModal(false)} className="text-gray-400 hover:text-gray-600">
                   <X size={24} />
@@ -653,7 +653,7 @@ const Purchases = () => {
               <div className="mb-6 p-4 bg-green-50 rounded-lg">
                 <div className="grid grid-cols-5 gap-3 mb-3">
                   <div className="col-span-5">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Select Product *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('selectProduct')} *</label>
                     <select
                       value={selectedProduct}
                       onChange={(e) => {
@@ -667,7 +667,7 @@ const Purchases = () => {
                       }}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                     >
-                      <option value="">Select product...</option>
+                      <option value="">{t('selectProduct')}</option>
                       {products.filter(p => p.status === 'ACTIVE').map((product) => (
                         <option key={product.id} value={product.id}>
                           {product.code} - {product.name} (Stock: {product.amount}, Unit Cost: {product.unitCost})
@@ -676,7 +676,7 @@ const Purchases = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Unit *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('unit')} *</label>
                     <input
                       type="text"
                       value={unitOfMeasurement}
@@ -686,7 +686,7 @@ const Purchases = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Quantity *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('quantity')} *</label>
                     <input
                       type="number"
                       min="1"
@@ -700,12 +700,12 @@ const Purchases = () => {
                           setQuantity(1);
                         }
                       }}
-                      placeholder="Qty"
+                      placeholder={t('qty')}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Unit Cost *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('unitCost')} *</label>
                     <input
                       type="number"
                       step="0.01"
@@ -725,7 +725,7 @@ const Purchases = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tax *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('tax')} *</label>
                     <input
                       type="number"
                       step="0.01"
@@ -750,7 +750,7 @@ const Purchases = () => {
                       onClick={addProductToPurchase}
                       className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
                     >
-                      Add Product
+                      {t('addProduct')}
                     </button>
                   </div>
                 </div>
@@ -762,15 +762,15 @@ const Purchases = () => {
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-3 py-2 text-left font-semibold">Code</th>
-                        <th className="px-3 py-2 text-left font-semibold">Product</th>
-                        <th className="px-3 py-2 text-left font-semibold">Unit</th>
-                        <th className="px-3 py-2 text-right font-semibold">Qty</th>
-                        <th className="px-3 py-2 text-right font-semibold">Unit Cost</th>
-                        <th className="px-3 py-2 text-right font-semibold text-blue-600">Unit Cost with AI</th>
-                        <th className="px-3 py-2 text-right font-semibold">Subtotal</th>
-                        <th className="px-3 py-2 text-right font-semibold">Tax</th>
-                        <th className="px-3 py-2 text-right font-semibold">Total</th>
+                        <th className="px-3 py-2 text-left font-semibold">{t('code')}</th>
+                        <th className="px-3 py-2 text-left font-semibold">{t('product')}</th>
+                        <th className="px-3 py-2 text-left font-semibold">{t('unit')}</th>
+                        <th className="px-3 py-2 text-right font-semibold">{t('qty')}</th>
+                        <th className="px-3 py-2 text-right font-semibold">{t('unitCost')}</th>
+                        <th className="px-3 py-2 text-right font-semibold text-blue-600">{t('unitCostWithAI')}</th>
+                        <th className="px-3 py-2 text-right font-semibold">{t('subtotal')}</th>
+                        <th className="px-3 py-2 text-right font-semibold">{t('tax')}</th>
+                        <th className="px-3 py-2 text-right font-semibold">{t('total')}</th>
                         <th className="px-3 py-2"></th>
                       </tr>
                     </thead>
@@ -807,7 +807,7 @@ const Purchases = () => {
                               className="w-24 px-2 py-1 border border-gray-300 rounded text-right focus:ring-2 focus:ring-green-500"
                             />
                           </td>
-                          <td className="px-3 py-2 text-right text-blue-600 font-medium" title="Includes proportional share of associated costs">
+                          <td className="px-3 py-2 text-right text-blue-600 font-medium" title={t('includesProportionalShare')}>
                             {formatNumber(calculateAdjustedUnitCost(item))}
                           </td>
                           <td className="px-3 py-2 text-right">{formatNumber(item.subtotal)}</td>
@@ -819,7 +819,7 @@ const Purchases = () => {
                               value={item.tax}
                               onChange={(e) => updateItem(index, 'tax', parseFloat(e.target.value) || 0)}
                               className="w-20 px-2 py-1 border border-gray-300 rounded text-right focus:ring-2 focus:ring-green-500"
-                              title="Editable tax amount"
+                              title={t('editableTaxAmount')}
                             />
                           </td>
                           <td className="px-3 py-2 text-right font-semibold">{formatNumber(item.total)}</td>
@@ -828,7 +828,7 @@ const Purchases = () => {
                               type="button"
                               onClick={() => removeItem(index)}
                               className="text-red-600 hover:text-red-800 hover:bg-red-50 p-1 rounded"
-                              title="Delete"
+                              title={t('delete')}
                             >
                               <Trash2 size={16} />
                             </button>
@@ -838,7 +838,7 @@ const Purchases = () => {
                     </tbody>
                     <tfoot className="bg-gray-50 font-semibold">
                       <tr>
-                        <td colSpan={8} className="px-3 py-2 text-right">Total:</td>
+                        <td colSpan={8} className="px-3 py-2 text-right">{t('total')}:</td>
                         <td className="px-3 py-2 text-right text-green-600">{formatNumber(totals.productTotal)}</td>
                         <td></td>
                       </tr>
@@ -853,7 +853,7 @@ const Purchases = () => {
                   onClick={() => setShowProductModal(false)}
                   className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
                 >
-                  Done
+                  {t('done')}
                 </button>
               </div>
             </motion.div>
@@ -881,7 +881,7 @@ const Purchases = () => {
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold flex items-center gap-2">
                   <FileText className="text-orange-600" />
-                  Other Invoices Associated with this Purchase
+                  {t('otherInvoicesAssociated')}
                 </h2>
                 <button onClick={() => setShowInvoiceModal(false)} className="text-gray-400 hover:text-gray-600">
                   <X size={24} />
@@ -892,7 +892,7 @@ const Purchases = () => {
               <div className="mb-6 p-4 bg-orange-50 rounded-lg">
                 <div className="grid grid-cols-4 gap-3 mb-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Supplier's RNC *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('supplierRncShort')} *</label>
                     <input
                       type="text"
                       value={newAssociatedInvoice.supplierRnc}
@@ -902,17 +902,17 @@ const Purchases = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Supplier Name *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('supplierName')} *</label>
                     <input
                       type="text"
                       value={newAssociatedInvoice.supplierName}
                       onChange={(e) => setNewAssociatedInvoice({...newAssociatedInvoice, supplierName: e.target.value})}
                       className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
-                      placeholder="Name"
+                      placeholder={t('name')}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">NCF</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('ncf')}</label>
                     <input
                       type="text"
                       value={newAssociatedInvoice.ncf}
@@ -922,7 +922,7 @@ const Purchases = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('date')}</label>
                     <input
                       type="date"
                       value={newAssociatedInvoice.date}
@@ -934,17 +934,17 @@ const Purchases = () => {
                 
                 <div className="grid grid-cols-4 gap-3 mb-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Concept</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('concept')}</label>
                     <input
                       type="text"
                       value={newAssociatedInvoice.concept}
                       onChange={(e) => setNewAssociatedInvoice({...newAssociatedInvoice, concept: e.target.value})}
                       className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
-                      placeholder="Freight, Customs, etc."
+                      placeholder={t('freight') + ', ' + t('customs') + ', etc.'}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tax Amount (Base) *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('taxAmountBase')} *</label>
                     <input
                       type="number"
                       step="0.01"
@@ -955,7 +955,7 @@ const Purchases = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tax</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('tax')}</label>
                     <input
                       type="number"
                       step="0.01"
@@ -966,34 +966,34 @@ const Purchases = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Purchase of *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('purchaseOf')} *</label>
                     <select
                       value={newAssociatedInvoice.purchaseType}
                       onChange={(e) => setNewAssociatedInvoice({...newAssociatedInvoice, purchaseType: e.target.value})}
                       className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
                     >
-                      <option value="">Select type</option>
-                      <option value="Merchandise for sale or consumption">Merchandise for sale or consumption</option>
-                      <option value="Goods for internal use (PPE)">Goods for internal use (PPE)</option>
-                      <option value="Investments or capital goods">Investments or capital goods</option>
-                      <option value="Services or other">Services or other</option>
-                      <option value="Prepaid expenses">Prepaid expenses</option>
-                      <option value="Policies and guarantee">Policies and guarantee</option>
+                      <option value="">{t('selectType')}</option>
+                      <option value="Merchandise for sale or consumption">{t('merchandiseForSale')}</option>
+                      <option value="Goods for internal use (PPE)">{t('goodsForInternalUse')}</option>
+                      <option value="Investments or capital goods">{t('investmentsOrCapitalGoods')}</option>
+                      <option value="Services or other">{t('servicesOrOther')}</option>
+                      <option value="Prepaid expenses">{t('prepaidExpenses')}</option>
+                      <option value="Policies and guarantee">{t('policiesAndGuarantee')}</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Payment Type *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('paymentType')} *</label>
                     <select
                       value={newAssociatedInvoice.paymentType}
                       onChange={(e) => setNewAssociatedInvoice({...newAssociatedInvoice, paymentType: e.target.value})}
                       className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
                     >
-                      <option value="">Select type</option>
-                      <option value="CASH">Cash</option>
-                      <option value="BANK_TRANSFER">Bank Transfer</option>
-                      <option value="DEPOSIT">Deposit</option>
-                      <option value="CREDIT_CARD">Credit Card</option>
-                      <option value="CREDIT">Credit</option>
+                      <option value="">{t('selectType')}</option>
+                      <option value="CASH">{t('cash')}</option>
+                      <option value="BANK_TRANSFER">{t('bankTransfer')}</option>
+                      <option value="DEPOSIT">{t('deposit')}</option>
+                      <option value="CREDIT_CARD">{t('creditCard')}</option>
+                      <option value="CREDIT">{t('credit')}</option>
                     </select>
                   </div>
                 </div>
@@ -1004,7 +1004,7 @@ const Purchases = () => {
                     onClick={addAssociatedInvoice}
                     className="px-6 py-2 bg-orange-600 text-white rounded hover:bg-orange-700"
                   >
-                    Add Invoice
+                    {t('addInvoice')}
                   </button>
                 </div>
               </div>
@@ -1015,16 +1015,16 @@ const Purchases = () => {
                   <table className="w-full text-sm">
                     <thead className="bg-orange-100">
                       <tr>
-                        <th className="px-3 py-2 text-left font-semibold">Supplier's RNC</th>
-                        <th className="px-3 py-2 text-left font-semibold">Supplier Name</th>
-                        <th className="px-3 py-2 text-left font-semibold">NCF</th>
-                        <th className="px-3 py-2 text-left font-semibold">Date</th>
-                        <th className="px-3 py-2 text-left font-semibold">Concept</th>
-                        <th className="px-3 py-2 text-right font-semibold">Tax Amount</th>
-                        <th className="px-3 py-2 text-right font-semibold">Tax</th>
-                        <th className="px-3 py-2 text-right font-semibold">Amount</th>
-                        <th className="px-3 py-2 text-left font-semibold">Purchase of</th>
-                        <th className="px-3 py-2 text-left font-semibold">Payment Type</th>
+                        <th className="px-3 py-2 text-left font-semibold">{t('supplierRncShort')}</th>
+                        <th className="px-3 py-2 text-left font-semibold">{t('supplierName')}</th>
+                        <th className="px-3 py-2 text-left font-semibold">{t('ncf')}</th>
+                        <th className="px-3 py-2 text-left font-semibold">{t('date')}</th>
+                        <th className="px-3 py-2 text-left font-semibold">{t('concept')}</th>
+                        <th className="px-3 py-2 text-right font-semibold">{t('taxAmountBase')}</th>
+                        <th className="px-3 py-2 text-right font-semibold">{t('tax')}</th>
+                        <th className="px-3 py-2 text-right font-semibold">{t('totalAmount')}</th>
+                        <th className="px-3 py-2 text-left font-semibold">{t('purchaseOf')}</th>
+                        <th className="px-3 py-2 text-left font-semibold">{t('paymentType')}</th>
                         <th className="px-3 py-2"></th>
                       </tr>
                     </thead>
@@ -1055,7 +1055,7 @@ const Purchases = () => {
                     </tbody>
                     <tfoot className="bg-orange-100 font-semibold">
                       <tr>
-                        <td colSpan={5} className="px-3 py-2 text-right">Total</td>
+                        <td colSpan={5} className="px-3 py-2 text-right">{t('total')}</td>
                         <td className="px-3 py-2 text-right">
                           {formatNumber(associatedInvoices.reduce((sum, inv) => sum + inv.tax, 0))}
                         </td>
@@ -1078,7 +1078,7 @@ const Purchases = () => {
                   onClick={() => setShowInvoiceModal(false)}
                   className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
                 >
-                  Done
+                  {t('done')}
                 </button>
               </div>
             </motion.div>
@@ -1106,7 +1106,7 @@ const Purchases = () => {
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold flex items-center gap-2">
                   <Eye className="text-blue-600" />
-                  Purchase Details
+                  {t('purchaseDetails')}
                 </h2>
                 <button onClick={() => setViewDetailsModal(false)} className="text-gray-400 hover:text-gray-600">
                   <X size={24} />
@@ -1116,43 +1116,43 @@ const Purchases = () => {
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-sm text-gray-600">Registration Number</label>
+                    <label className="text-sm text-gray-600">{t('registrationNumber')}</label>
                     <p className="font-semibold">{selectedPurchase.registrationNumber}</p>
                   </div>
                   <div>
-                    <label className="text-sm text-gray-600">Date</label>
+                    <label className="text-sm text-gray-600">{t('date')}</label>
                     <p className="font-semibold">{new Date(selectedPurchase.date).toLocaleDateString()}</p>
                   </div>
                   <div>
-                    <label className="text-sm text-gray-600">Supplier</label>
+                    <label className="text-sm text-gray-600">{t('supplier')}</label>
                     <p className="font-semibold">{selectedPurchase.supplier?.name || 'N/A'}</p>
                   </div>
                   <div>
-                    <label className="text-sm text-gray-600">Supplier RNC</label>
+                    <label className="text-sm text-gray-600">{t('supplierRnc')}</label>
                     <p className="font-semibold">{selectedPurchase.supplierRnc || 'N/A'}</p>
                   </div>
                   <div>
-                    <label className="text-sm text-gray-600">NCF</label>
+                    <label className="text-sm text-gray-600">{t('ncf')}</label>
                     <p className="font-semibold">{selectedPurchase.ncf || 'N/A'}</p>
                   </div>
                   <div>
-                    <label className="text-sm text-gray-600">Payment Type</label>
+                    <label className="text-sm text-gray-600">{t('paymentType')}</label>
                     <p className="font-semibold">{selectedPurchase.paymentType}</p>
                   </div>
                   <div>
-                    <label className="text-sm text-gray-600">Product Total</label>
+                    <label className="text-sm text-gray-600">{t('productTotal')}</label>
                     <p className="font-semibold">{formatNumber(selectedPurchase.productTotal)}</p>
                   </div>
                   <div>
-                    <label className="text-sm text-gray-600">Additional Expenses</label>
+                    <label className="text-sm text-gray-600">{t('associatedCosts')}</label>
                     <p className="font-semibold">{formatNumber(selectedPurchase.additionalExpenses)}</p>
                   </div>
                   <div>
-                    <label className="text-sm text-gray-600">Total</label>
+                    <label className="text-sm text-gray-600">{t('total')}</label>
                     <p className="font-semibold text-lg text-green-600">{formatNumber(selectedPurchase.total)}</p>
                   </div>
                   <div>
-                    <label className="text-sm text-gray-600">Status</label>
+                    <label className="text-sm text-gray-600">{t('status')}</label>
                     <p>{getStatusBadge(selectedPurchase.paymentStatus)}</p>
                   </div>
                 </div>
@@ -1163,7 +1163,7 @@ const Purchases = () => {
                   onClick={() => setViewDetailsModal(false)}
                   className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
                 >
-                  Close
+                  {t('close')}
                 </button>
               </div>
             </motion.div>
@@ -1191,7 +1191,7 @@ const Purchases = () => {
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold flex items-center gap-2">
                   <Package className="text-green-600" />
-                  Product Details - {selectedPurchase.registrationNumber}
+                  {t('productDetails')} - {selectedPurchase.registrationNumber}
                 </h2>
                 <button onClick={() => setViewProductsModal(false)} className="text-gray-400 hover:text-gray-600">
                   <X size={24} />
@@ -1202,15 +1202,15 @@ const Purchases = () => {
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-3 py-2 text-left font-semibold">Code</th>
-                      <th className="px-3 py-2 text-left font-semibold">Product</th>
-                      <th className="px-3 py-2 text-left font-semibold">Unit</th>
-                      <th className="px-3 py-2 text-right font-semibold">Qty</th>
-                      <th className="px-3 py-2 text-right font-semibold">Unit Cost</th>
-                      <th className="px-3 py-2 text-right font-semibold text-blue-600">Unit Cost with AI</th>
-                      <th className="px-3 py-2 text-right font-semibold">Subtotal</th>
-                      <th className="px-3 py-2 text-right font-semibold">Tax</th>
-                      <th className="px-3 py-2 text-right font-semibold">Total</th>
+                      <th className="px-3 py-2 text-left font-semibold">{t('code')}</th>
+                      <th className="px-3 py-2 text-left font-semibold">{t('product')}</th>
+                      <th className="px-3 py-2 text-left font-semibold">{t('unit')}</th>
+                      <th className="px-3 py-2 text-right font-semibold">{t('qty')}</th>
+                      <th className="px-3 py-2 text-right font-semibold">{t('unitCost')}</th>
+                      <th className="px-3 py-2 text-right font-semibold text-blue-600">{t('unitCostWithAI')}</th>
+                      <th className="px-3 py-2 text-right font-semibold">{t('subtotal')}</th>
+                      <th className="px-3 py-2 text-right font-semibold">{t('tax')}</th>
+                      <th className="px-3 py-2 text-right font-semibold">{t('total')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1222,7 +1222,7 @@ const Purchases = () => {
                           <td className="px-3 py-2">{item.unitOfMeasurement}</td>
                           <td className="px-3 py-2 text-right">{item.quantity}</td>
                           <td className="px-3 py-2 text-right">{formatNumber(item.unitCost)}</td>
-                          <td className="px-3 py-2 text-right text-blue-600 font-medium" title="Adjusted unit cost with associated costs">
+                          <td className="px-3 py-2 text-right text-blue-600 font-medium" title={t('adjustedUnitCostWithAssociatedCosts')}>
                             {formatNumber(item.adjustedUnitCost || item.unitCost)}
                           </td>
                           <td className="px-3 py-2 text-right">{formatNumber(item.subtotal)}</td>
@@ -1233,7 +1233,7 @@ const Purchases = () => {
                     ) : (
                       <tr className="border-t">
                         <td colSpan={9} className="px-3 py-4 text-center text-gray-500">
-                          No products found
+                          {t('noProductsFound')}
                         </td>
                       </tr>
                     )}
@@ -1246,7 +1246,7 @@ const Purchases = () => {
                   onClick={() => setViewProductsModal(false)}
                   className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
                 >
-                  Close
+                  {t('close')}
                 </button>
               </div>
             </motion.div>
@@ -1274,7 +1274,7 @@ const Purchases = () => {
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold flex items-center gap-2">
                   <FileText className="text-orange-600" />
-                  Invoice Suppliers - {selectedPurchase.registrationNumber}
+                  {t('invoiceSuppliers')} - {selectedPurchase.registrationNumber}
                 </h2>
                 <button onClick={() => setViewInvoicesModal(false)} className="text-gray-400 hover:text-gray-600">
                   <X size={24} />
@@ -1285,16 +1285,16 @@ const Purchases = () => {
                 <table className="w-full text-sm">
                   <thead className="bg-orange-100">
                     <tr>
-                      <th className="px-3 py-2 text-left font-semibold">Supplier's RNC</th>
-                      <th className="px-3 py-2 text-left font-semibold">Supplier Name</th>
-                      <th className="px-3 py-2 text-left font-semibold">NCF</th>
-                      <th className="px-3 py-2 text-left font-semibold">Date</th>
-                      <th className="px-3 py-2 text-left font-semibold">Concept</th>
-                      <th className="px-3 py-2 text-right font-semibold">Tax Amount</th>
-                      <th className="px-3 py-2 text-right font-semibold">Tax</th>
-                      <th className="px-3 py-2 text-right font-semibold">Amount</th>
-                      <th className="px-3 py-2 text-left font-semibold">Purchase of</th>
-                      <th className="px-3 py-2 text-left font-semibold">Payment Type</th>
+                      <th className="px-3 py-2 text-left font-semibold">{t('supplierRncShort')}</th>
+                      <th className="px-3 py-2 text-left font-semibold">{t('supplierName')}</th>
+                      <th className="px-3 py-2 text-left font-semibold">{t('ncf')}</th>
+                      <th className="px-3 py-2 text-left font-semibold">{t('date')}</th>
+                      <th className="px-3 py-2 text-left font-semibold">{t('concept')}</th>
+                      <th className="px-3 py-2 text-right font-semibold">{t('taxAmountBase')}</th>
+                      <th className="px-3 py-2 text-right font-semibold">{t('tax')}</th>
+                      <th className="px-3 py-2 text-right font-semibold">{t('totalAmount')}</th>
+                      <th className="px-3 py-2 text-left font-semibold">{t('purchaseOf')}</th>
+                      <th className="px-3 py-2 text-left font-semibold">{t('paymentType')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1316,7 +1316,7 @@ const Purchases = () => {
                     ) : (
                       <tr className="border-t">
                         <td colSpan={10} className="px-3 py-4 text-center text-gray-500">
-                          No associated invoices found
+                          {t('noAssociatedInvoicesFound')}
                         </td>
                       </tr>
                     )}
@@ -1329,7 +1329,7 @@ const Purchases = () => {
                   onClick={() => setViewInvoicesModal(false)}
                   className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
                 >
-                  Close
+                  {t('close')}
                 </button>
               </div>
             </motion.div>

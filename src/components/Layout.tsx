@@ -8,7 +8,7 @@ import {
   ShoppingBag,
   Package,
   Box,
-  DollarSign,
+  // DollarSign,
   Wallet,
   Settings,
   BarChart3,

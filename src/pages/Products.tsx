@@ -8,7 +8,7 @@ import PriceHistoryModal from '../components/PriceHistoryModal';
 import { notify, handleApiError } from '../utils/notifications';
 
 const Products = () => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [products, setProducts] = useState<Product[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -173,8 +173,8 @@ const Products = () => {
               <th className="px-6 py-4 text-center text-sm font-bold text-gray-800">{t('unitOfMeasurement').toUpperCase()}</th>
               <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('amount').toUpperCase()}</th>
               <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('unitPrice').toUpperCase()}</th>
-              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800 text-blue-600">SALES PRICE</th>
-              <th className="px-6 py-4 text-center text-sm font-bold text-gray-800 text-purple-600">SALES PRICE HISTORY</th>
+              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800 text-blue-600">{t('salesPrice').toUpperCase()}</th>
+              <th className="px-6 py-4 text-center text-sm font-bold text-gray-800 text-purple-600">{t('salesPriceHistory').toUpperCase()}</th>
               {/* <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('subtotal').toUpperCase()}</th>
               <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('tax').toUpperCase()}</th>
               <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('total').toUpperCase()}</th> */}
@@ -217,10 +217,10 @@ const Products = () => {
                         setShowPriceHistory(true);
                       }}
                       className="px-3 py-1.5 text-purple-600 hover:bg-purple-50 rounded-lg border border-purple-200 hover:border-purple-300 transition-all flex items-center gap-1 mx-auto"
-                      title="View Sales Price History"
+                      title={t('viewSalesPriceHistory')}
                     >
                       <History size={16} />
-                      <span className="text-xs font-medium">History</span>
+                      <span className="text-xs font-medium">{t('history')}</span>
                     </motion.button>
                   </td>
                   {/* <td className="px-6 py-4 text-sm text-right">{storedSubtotal.toFixed(2)}</td>
@@ -354,7 +354,7 @@ const Products = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    SALES PRICE <span className="text-gray-400 text-xs">({t('optional')})</span>
+                    {t('salesPrice')} <span className="text-gray-400 text-xs">({t('optional')})</span>
                   </label>
                   <input
                     type="text"
@@ -364,7 +364,7 @@ const Products = () => {
                     placeholder="0.00 or 38.00"
                   />
                   <p className="text-xs text-gray-500 mt-1">
-                    <span className="font-medium text-blue-600">✓ Can be updated at any time.</span> Selling price for this product.
+                    <span className="font-medium text-blue-600">✓ {language === 'en' ? 'Can be updated at any time.' : 'Puede actualizarse en cualquier momento.'}</span> {language === 'en' ? 'Selling price for this product.' : 'Precio de venta para este producto.'}
                   </p>
                 </div>
                 <div>

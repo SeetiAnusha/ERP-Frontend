@@ -4,6 +4,7 @@ import { X, Plus, Trash2, Calendar, Edit } from 'lucide-react';
 import api from '../api/axios';
 import { ProductPrice } from '../types';
 import { formatNumber } from '../utils/formatNumber';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface Props {
   productId: number;
@@ -13,6 +14,7 @@ interface Props {
 }
 
 const PriceHistoryModal = ({ productId, productName, onClose, onPriceUpdated }: Props) => {
+  const { t } = useLanguage();
   const [prices, setPrices] = useState<ProductPrice[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingPrice, setEditingPrice] = useState<ProductPrice | null>(null);
@@ -41,16 +43,16 @@ const PriceHistoryModal = ({ productId, productName, onClose, onPriceUpdated }: 
       if (onPriceUpdated) {
         onPriceUpdated();
       }
-      alert('Price status synchronized successfully!');
+      alert(t('priceSyncSuccess'));
     } catch (error) {
       console.error('Error syncing prices:', error);
-      alert('Error syncing prices');
+      alert(t('errorSyncingPrices'));
     }
   };
 
   const handleAddPrice = async () => {
     if (!newPrice.salesPrice || !newPrice.effectiveDate) {
-      alert('Please enter sales price and effective date');
+      alert(t('enterSalesPriceAndDate'));
       return;
     }
 
@@ -84,10 +86,10 @@ const PriceHistoryModal = ({ productId, productName, onClose, onPriceUpdated }: 
       }
       
       // Show success message
-      alert(editingPrice ? 'Price updated successfully!' : 'Price added successfully!');
+      alert(editingPrice ? t('priceUpdatedSuccessfully') : t('priceAddedSuccessfully'));
     } catch (error: any) {
       console.error('Error saving price:', error);
-      const errorMessage = error.response?.data?.error || error.message || 'Error saving price';
+      const errorMessage = error.response?.data?.error || error.message || t('errorSavingPrice');
       alert(errorMessage);
     }
   };
@@ -108,7 +110,7 @@ const PriceHistoryModal = ({ productId, productName, onClose, onPriceUpdated }: 
   };
 
   const handleDelete = async (id: number) => {
-    if (window.confirm('Delete this price?')) {
+    if (window.confirm(t('deletePriceConfirm'))) {
       try {
         await api.delete(`/product-prices/${id}`);
         
@@ -120,10 +122,10 @@ const PriceHistoryModal = ({ productId, productName, onClose, onPriceUpdated }: 
           await onPriceUpdated();
         }
         
-        alert('Price deleted successfully!');
+        alert(t('priceDeletedSuccessfully'));
       } catch (error) {
         console.error('Error deleting price:', error);
-        alert('Error deleting price');
+        alert(t('errorDeletingPrice'));
       }
     }
   };
@@ -146,7 +148,7 @@ const PriceHistoryModal = ({ productId, productName, onClose, onPriceUpdated }: 
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold flex items-center gap-2">
             <Calendar className="text-blue-600" />
-            Price History - {productName}
+            {t('priceHistory')} - {productName}
           </h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X size={24} />
@@ -162,24 +164,24 @@ const PriceHistoryModal = ({ productId, productName, onClose, onPriceUpdated }: 
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
           >
             <Plus size={18} />
-            Add New Price
+            {t('addNewPrice')}
           </button>
           <button
             onClick={handleSyncPrices}
             className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2"
-            title="Sync all prices with current date"
+            title={t('syncStatus')}
           >
             <Calendar size={18} />
-            Sync Status
+            {t('syncStatus')}
           </button>
         </div>
 
         {showAddForm && (
           <div className="mb-4 p-4 border-2 border-blue-200 rounded-lg bg-blue-50">
-            <h3 className="text-lg font-semibold mb-3">{editingPrice ? 'Edit Price' : 'Add New Price'}</h3>
+            <h3 className="text-lg font-semibold mb-3">{editingPrice ? t('editPrice') : t('addNewPrice')}</h3>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Sales Price *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('salesPrice')} *</label>
                 <input
                   type="number"
                   step="0.01"
@@ -190,7 +192,7 @@ const PriceHistoryModal = ({ productId, productName, onClose, onPriceUpdated }: 
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Effective Date *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('effectiveDate')} *</label>
                 <input
                   type="date"
                   value={newPrice.effectiveDate}
@@ -204,13 +206,13 @@ const PriceHistoryModal = ({ productId, productName, onClose, onPriceUpdated }: 
                 onClick={handleAddPrice}
                 className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
               >
-                {editingPrice ? 'Update' : 'Save'}
+                {editingPrice ? t('update') : t('save')}
               </button>
               <button
                 onClick={handleCancelEdit}
                 className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400"
               >
-                Cancel
+                {t('cancel')}
               </button>
             </div>
           </div>
@@ -220,9 +222,9 @@ const PriceHistoryModal = ({ productId, productName, onClose, onPriceUpdated }: 
           <table className="w-full text-sm">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left font-semibold">Sales Price</th>
-                <th className="px-4 py-3 text-left font-semibold">Effective Date</th>
-                <th className="px-4 py-3 text-center font-semibold">Status</th>
+                <th className="px-4 py-3 text-left font-semibold">{t('salesPrice')}</th>
+                <th className="px-4 py-3 text-left font-semibold">{t('effectiveDate')}</th>
+                <th className="px-4 py-3 text-center font-semibold">{t('status')}</th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
@@ -235,7 +237,7 @@ const PriceHistoryModal = ({ productId, productName, onClose, onPriceUpdated }: 
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                       price.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                     }`}>
-                      {price.isActive ? 'Active' : 'Inactive'}
+                      {price.isActive ? t('active') : t('inactive')}
                     </span>
                   </td>
                   <td className="px-4 py-3">
@@ -243,14 +245,14 @@ const PriceHistoryModal = ({ productId, productName, onClose, onPriceUpdated }: 
                       <button
                         onClick={() => handleEdit(price)}
                         className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
-                        title="Edit"
+                        title={t('edit')}
                       >
                         <Edit size={16} />
                       </button>
                       <button
                         onClick={() => handleDelete(price.id)}
                         className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50"
-                        title="Delete"
+                        title={t('delete')}
                       >
                         <Trash2 size={16} />
                       </button>
@@ -262,7 +264,7 @@ const PriceHistoryModal = ({ productId, productName, onClose, onPriceUpdated }: 
           </table>
           {prices.length === 0 && (
             <div className="p-8 text-center text-gray-500">
-              No price history found. Add a new price to get started.
+              {t('noPriceHistoryFound')}
             </div>
           )}
         </div>

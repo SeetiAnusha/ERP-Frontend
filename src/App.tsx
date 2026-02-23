@@ -12,7 +12,7 @@ import Suppliers from './pages/Suppliers';
 import FixedAssets from './pages/FixedAssets';
 import Investments from './pages/Investments';
 import PrepaidExpenses from './pages/PrepaidExpenses';
-import Payments from './pages/Payments';
+// import Payments from './pages/Payments';
 import CashRegister from './pages/CashRegister';
 import Adjustments from './pages/Adjustments';
 import Reports from './pages/Reports';

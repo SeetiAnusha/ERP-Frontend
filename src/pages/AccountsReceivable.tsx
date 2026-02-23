@@ -4,8 +4,10 @@ import { Search, DollarSign, CheckCircle, Clock, XCircle, Plus } from 'lucide-re
 import api from '../api/axios';
 import { AccountsReceivable } from '../types/accountsTypes';
 import { notify, handleApiError } from '../utils/notifications';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const AccountsReceivablePage = () => {
+  const { t } = useLanguage();
   const [accountsReceivable, setAccountsReceivable] = useState<AccountsReceivable[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('All');
@@ -100,8 +102,8 @@ const AccountsReceivablePage = () => {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Accounts Receivable</h1>
-        <p className="text-gray-600">Money owed to you (from credit card sales, client credits, etc.)</p>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">{t('accountsReceivable')}</h1>
+        <p className="text-gray-600">{t('moneyOwedToYou')}</p>
       </div>
 
       {/* Summary Cards */}
@@ -113,7 +115,7 @@ const AccountsReceivablePage = () => {
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-blue-600 font-medium">Total Amount</p>
+              <p className="text-sm text-blue-600 font-medium">{t('totalAmount')}</p>
               <p className="text-2xl font-bold text-blue-900">{totalAmount.toFixed(2)}</p>
             </div>
             <DollarSign className="text-blue-600" size={32} />
@@ -128,7 +130,7 @@ const AccountsReceivablePage = () => {
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-green-600 font-medium">Received</p>
+              <p className="text-sm text-green-600 font-medium">{t('received')}</p>
               <p className="text-2xl font-bold text-green-900">{totalReceived.toFixed(2)}</p>
             </div>
             <CheckCircle className="text-green-600" size={32} />
@@ -143,7 +145,7 @@ const AccountsReceivablePage = () => {
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-orange-600 font-medium">Balance (Pending)</p>
+              <p className="text-sm text-orange-600 font-medium">{t('balancePending')}</p>
               <p className="text-2xl font-bold text-orange-900">{totalBalance.toFixed(2)}</p>
             </div>
             <Clock className="text-orange-600" size={32} />
@@ -157,7 +159,7 @@ const AccountsReceivablePage = () => {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
           <input
             type="text"
-            placeholder="Search..."
+            placeholder={t('search') + '...'}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -168,10 +170,10 @@ const AccountsReceivablePage = () => {
           onChange={(e) => setFilterStatus(e.target.value)}
           className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
         >
-          <option value="All">All Status</option>
-          <option value="Pending">Pending</option>
-          <option value="Partial">Partial</option>
-          <option value="Received">Received</option>
+          <option value="All">{t('allStatus')}</option>
+          <option value="Pending">{t('pending')}</option>
+          <option value="Partial">{t('partial')}</option>
+          <option value="Received">{t('received')}</option>
         </select>
       </div>
 
@@ -184,23 +186,23 @@ const AccountsReceivablePage = () => {
         <table className="w-full">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">REG. NUMBER</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">DATE</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">TYPE</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">RELATED DOC</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">CLIENT/CARD</th>
-              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">AMOUNT</th>
-              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">RECEIVED</th>
-              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">BALANCE</th>
-              <th className="px-6 py-4 text-center text-sm font-bold text-gray-800">STATUS</th>
-              <th className="px-6 py-4 text-center text-sm font-bold text-gray-800">ACTION</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('registrationNumber').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('date').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('type').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('relatedDocumentNumber').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('client').toUpperCase()}</th>
+              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('amount').toUpperCase()}</th>
+              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('received').toUpperCase()}</th>
+              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('balance').toUpperCase()}</th>
+              <th className="px-6 py-4 text-center text-sm font-bold text-gray-800">{t('status').toUpperCase()}</th>
+              <th className="px-6 py-4 text-center text-sm font-bold text-gray-800">{t('action').toUpperCase()}</th>
             </tr>
           </thead>
           <tbody>
             {filteredAR.length === 0 ? (
               <tr>
                 <td colSpan={10} className="px-6 py-12 text-center text-gray-500">
-                  No accounts receivable found
+                  {t('noAccountsReceivableFound')}
                 </td>
               </tr>
             ) : (
@@ -234,7 +236,7 @@ const AccountsReceivablePage = () => {
                         className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
                       >
                         <Plus size={16} />
-                        Record Payment
+                        {t('collect')}
                       </button>
                     )}
                   </td>
@@ -253,18 +255,18 @@ const AccountsReceivablePage = () => {
             animate={{ opacity: 1, scale: 1 }}
             className="bg-white rounded-xl p-6 max-w-md w-full mx-4"
           >
-            <h3 className="text-xl font-bold mb-4">Record Payment</h3>
+            <h3 className="text-xl font-bold mb-4">{t('recordPayment')}</h3>
             <div className="space-y-4">
               <div>
-                <p className="text-sm text-gray-600">Document: {selectedAR.relatedDocumentNumber}</p>
-                <p className="text-sm text-gray-600">Client: {selectedAR.clientName || selectedAR.cardNetwork}</p>
-                <p className="text-sm text-gray-600">Total Amount: {Number(selectedAR.amount).toFixed(2)}</p>
-                <p className="text-sm text-gray-600">Already Received: {Number(selectedAR.receivedAmount).toFixed(2)}</p>
-                <p className="text-sm font-semibold text-orange-600">Balance: {Number(selectedAR.balanceAmount).toFixed(2)}</p>
+                <p className="text-sm text-gray-600">{t('document')}: {selectedAR.relatedDocumentNumber}</p>
+                <p className="text-sm text-gray-600">{t('client')}: {selectedAR.clientName || selectedAR.cardNetwork}</p>
+                <p className="text-sm text-gray-600">{t('totalAmount')}: {Number(selectedAR.amount).toFixed(2)}</p>
+                <p className="text-sm text-gray-600">{t('alreadyPaid')}: {Number(selectedAR.receivedAmount).toFixed(2)}</p>
+                <p className="text-sm font-semibold text-orange-600">{t('balance')}: {Number(selectedAR.balanceAmount).toFixed(2)}</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Payment Amount
+                  {t('paymentAmount')}
                 </label>
                 <input
                   type="number"
@@ -272,7 +274,7 @@ const AccountsReceivablePage = () => {
                   value={paymentAmount}
                   onChange={(e) => setPaymentAmount(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="Enter amount"
+                  placeholder={t('enterAmount')}
                 />
               </div>
               <div className="flex gap-3">
@@ -280,7 +282,7 @@ const AccountsReceivablePage = () => {
                   onClick={submitPayment}
                   className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors"
                 >
-                  Confirm Payment
+                  {t('confirmPayment')}
                 </button>
                 <button
                   onClick={() => {
@@ -290,7 +292,7 @@ const AccountsReceivablePage = () => {
                   }}
                   className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300 transition-colors"
                 >
-                  Cancel
+                  {t('cancel')}
                 </button>
               </div>
             </div>
