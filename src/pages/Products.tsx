@@ -167,18 +167,18 @@ const Products = () => {
         <table className="w-full">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('productCode').toUpperCase()}</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('productName').toUpperCase()}</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('description').toUpperCase()}</th>
-              <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">{t('unitOfMeasurement').toUpperCase()}</th>
-              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">{t('amount').toUpperCase()}</th>
-              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">{t('unitPrice').toUpperCase()}</th>
-              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700 text-blue-600">SALES PRICE</th>
-              <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700 text-purple-600">SALES PRICE HISTORY</th>
-              {/* <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">{t('subtotal').toUpperCase()}</th>
-              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">{t('tax').toUpperCase()}</th>
-              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">{t('total').toUpperCase()}</th> */}
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('actions').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('productCode').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('productName').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('description').toUpperCase()}</th>
+              <th className="px-6 py-4 text-center text-sm font-bold text-gray-800">{t('unitOfMeasurement').toUpperCase()}</th>
+              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('amount').toUpperCase()}</th>
+              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('unitPrice').toUpperCase()}</th>
+              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800 text-blue-600">SALES PRICE</th>
+              <th className="px-6 py-4 text-center text-sm font-bold text-gray-800 text-purple-600">SALES PRICE HISTORY</th>
+              {/* <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('subtotal').toUpperCase()}</th>
+              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('tax').toUpperCase()}</th>
+              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('total').toUpperCase()}</th> */}
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('actions').toUpperCase()}</th>
             </tr>
           </thead>
           <tbody>

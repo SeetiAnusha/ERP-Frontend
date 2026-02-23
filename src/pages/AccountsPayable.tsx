@@ -13,6 +13,8 @@ const AccountsPayablePage = () => {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedAP, setSelectedAP] = useState<AccountsPayable | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
+  const [editingDeadline, setEditingDeadline] = useState<number | null>(null);
+  const [newDeadline, setNewDeadline] = useState('');
 
   useEffect(() => {
     fetchAccountsPayable();
@@ -77,6 +79,35 @@ const AccountsPayablePage = () => {
     }
   };
 
+  const handleEditDeadline = (ap: AccountsPayable) => {
+    setEditingDeadline(ap.id);
+    setNewDeadline(ap.dueDate ? new Date(ap.dueDate).toISOString().split('T')[0] : '');
+  };
+
+  const handleSaveDeadline = async (apId: number) => {
+    if (!newDeadline) {
+      notify.warning('Invalid date', 'Please select a valid deadline');
+      return;
+    }
+
+    try {
+      await api.put(`/accounts-payable/${apId}`, {
+        dueDate: newDeadline,
+      });
+      notify.success('Deadline updated', 'Payment deadline has been updated');
+      setEditingDeadline(null);
+      setNewDeadline('');
+      fetchAccountsPayable();
+    } catch (error) {
+      handleApiError(error, 'Updating deadline');
+    }
+  };
+
+  const handleCancelEditDeadline = () => {
+    setEditingDeadline(null);
+    setNewDeadline('');
+  };
+
   const filteredAP = accountsPayable.filter((ap) => {
     const matchesSearch = Object.values(ap).some((value) =>
       value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
@@ -114,7 +145,7 @@ const AccountsPayablePage = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-blue-600 font-medium">Total Amount</p>
-              <p className="text-2xl font-bold text-blue-900">${totalAmount.toFixed(2)}</p>
+              <p className="text-2xl font-bold text-blue-900">{totalAmount.toFixed(2)}</p>
             </div>
             <DollarSign className="text-blue-600" size={32} />
           </div>
@@ -129,7 +160,7 @@ const AccountsPayablePage = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-green-600 font-medium">Paid</p>
-              <p className="text-2xl font-bold text-green-900">${totalPaid.toFixed(2)}</p>
+              <p className="text-2xl font-bold text-green-900">{totalPaid.toFixed(2)}</p>
             </div>
             <CheckCircle className="text-green-600" size={32} />
           </div>
@@ -144,7 +175,7 @@ const AccountsPayablePage = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-red-600 font-medium">Balance (You Owe)</p>
-              <p className="text-2xl font-bold text-red-900">${totalBalance.toFixed(2)}</p>
+              <p className="text-2xl font-bold text-red-900">{totalBalance.toFixed(2)}</p>
             </div>
             <Clock className="text-red-600" size={32} />
           </div>
@@ -181,25 +212,37 @@ const AccountsPayablePage = () => {
         animate={{ opacity: 1 }}
         className="bg-white rounded-xl shadow-lg overflow-x-auto"
       >
-        <table className="w-full">
-          <thead className="bg-gray-50 border-b border-gray-200">
+        <table className="w-full min-w-max table-auto">
+          <thead className="bg-gray-50 border-b-2 border-gray-200">
             <tr>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">REG. NUMBER</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">DATE</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">TYPE</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">RELATED DOC</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">SUPPLIER/CARD</th>
-              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">AMOUNT</th>
-              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">PAID</th>
-              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">BALANCE</th>
-              <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">STATUS</th>
-              <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">ACTION</th>
+              <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">TYPE</th>
+              <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">REGISTRATION NO.</th>
+              <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">REGISTRATION DATE</th>
+              <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">RNC SUPPLIER</th>
+              <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">SUPPLIER CODE AND NAME</th>
+              <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">NCF</th>
+              <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">DATE</th>
+              <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">PURCHASE OF</th>
+              <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">PAYMENT TERMS</th>
+              <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">
+                <div className="flex items-center gap-2">
+                  PAYMENT DEADLINE
+                  <span className="text-xs font-normal text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
+                    ✎ Editable
+                  </span>
+                </div>
+              </th>
+              <th className="px-4 py-4 text-right text-sm font-bold text-gray-800 whitespace-nowrap">AMOUNT</th>
+              <th className="px-4 py-4 text-right text-sm font-bold text-gray-800 whitespace-nowrap">PAID</th>
+              <th className="px-4 py-4 text-right text-sm font-bold text-gray-800 whitespace-nowrap">BALANCE</th>
+              <th className="px-4 py-4 text-center text-sm font-bold text-gray-800 whitespace-nowrap">STATUS</th>
+              <th className="px-4 py-4 text-center text-sm font-bold text-gray-800 whitespace-nowrap">ACTION</th>
             </tr>
           </thead>
           <tbody>
             {filteredAP.length === 0 ? (
               <tr>
-                <td colSpan={10} className="px-6 py-12 text-center text-gray-500">
+                <td colSpan={15} className="px-6 py-12 text-center text-gray-500">
                   No accounts payable found
                 </td>
               </tr>
@@ -212,29 +255,67 @@ const AccountsPayablePage = () => {
                   transition={{ delay: index * 0.05 }}
                   className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
                 >
-                  <td className="px-6 py-4 text-sm font-medium">{ap.registrationNumber}</td>
-                  <td className="px-6 py-4 text-sm">{new Date(ap.registrationDate).toLocaleDateString()}</td>
-                  <td className="px-6 py-4 text-sm">{ap.type}</td>
-                  <td className="px-6 py-4 text-sm">
-                    {ap.relatedDocumentType} - {ap.relatedDocumentNumber}
+                  <td className="px-4 py-4 text-sm whitespace-nowrap">{ap.type}</td>
+                  <td className="px-4 py-4 text-sm font-medium whitespace-nowrap">{ap.relatedDocumentNumber || 'N/A'}</td>
+                  <td className="px-4 py-4 text-sm whitespace-nowrap">{new Date(ap.registrationDate).toLocaleDateString()}</td>
+                  <td className="px-4 py-4 text-sm whitespace-nowrap">{(ap as any).supplierRnc || 'N/A'}</td>
+                  <td className="px-4 py-4 text-sm whitespace-nowrap">{ap.supplierName || ap.cardIssuer || 'N/A'}</td>
+                  <td className="px-4 py-4 text-sm whitespace-nowrap">{(ap as any).ncf || 'N/A'}</td>
+                  <td className="px-4 py-4 text-sm whitespace-nowrap">{(ap as any).purchaseDate ? new Date((ap as any).purchaseDate).toLocaleDateString() : 'N/A'}</td>
+                  <td className="px-4 py-4 text-sm whitespace-nowrap">{(ap as any).purchaseType || 'N/A'}</td>
+                  <td className="px-4 py-4 text-sm whitespace-nowrap">{(ap as any).paymentType || ap.type}</td>
+                  <td className="px-4 py-4 text-sm whitespace-nowrap">
+                    {editingDeadline === ap.id ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="date"
+                          value={newDeadline}
+                          onChange={(e) => setNewDeadline(e.target.value)}
+                          className="px-2 py-1 border border-blue-300 rounded text-sm focus:ring-2 focus:ring-blue-500"
+                          autoFocus
+                        />
+                        <button
+                          onClick={() => handleSaveDeadline(ap.id)}
+                          className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 font-medium"
+                          title="Save"
+                        >
+                          ✓
+                        </button>
+                        <button
+                          onClick={handleCancelEditDeadline}
+                          className="px-2 py-1 bg-gray-400 text-white rounded text-xs hover:bg-gray-500 font-medium"
+                          title="Cancel"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <div 
+                        onClick={() => handleEditDeadline(ap)}
+                        className="cursor-pointer hover:bg-blue-100 px-3 py-1.5 rounded border border-dashed border-blue-300 hover:border-blue-500 inline-flex items-center gap-2 transition-all"
+                        title="Click to edit deadline"
+                      >
+                        <span>{ap.dueDate ? new Date(ap.dueDate).toLocaleDateString() : 'N/A'}</span>
+                        <span className="text-blue-600 text-xs">✎</span>
+                      </div>
+                    )}
                   </td>
-                  <td className="px-6 py-4 text-sm">{ap.supplierName || ap.cardIssuer || 'N/A'}</td>
-                  <td className="px-6 py-4 text-sm font-semibold text-right">${Number(ap.amount).toFixed(2)}</td>
-                  <td className="px-6 py-4 text-sm font-semibold text-right text-green-600">
-                    ${Number(ap.paidAmount).toFixed(2)}
+                  <td className="px-4 py-4 text-sm font-semibold text-right whitespace-nowrap">{Number(ap.amount).toFixed(2)}</td>
+                  <td className="px-4 py-4 text-sm font-semibold text-right text-green-600 whitespace-nowrap">
+                    {Number(ap.paidAmount).toFixed(2)}
                   </td>
-                  <td className="px-6 py-4 text-sm font-semibold text-right text-red-600">
-                    ${Number(ap.balanceAmount).toFixed(2)}
+                  <td className="px-4 py-4 text-sm font-semibold text-right text-red-600 whitespace-nowrap">
+                    {Number(ap.balanceAmount).toFixed(2)}
                   </td>
-                  <td className="px-6 py-4 text-center">{getStatusBadge(ap.status)}</td>
-                  <td className="px-6 py-4 text-center">
+                  <td className="px-4 py-4 text-center whitespace-nowrap">{getStatusBadge(ap.status)}</td>
+                  <td className="px-4 py-4 text-center whitespace-nowrap">
                     {ap.status !== 'Paid' && (
                       <button
                         onClick={() => handleRecordPayment(ap)}
-                        className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
                       >
-                        <Plus size={16} />
-                        Record Payment
+                        <Plus size={14} />
+                        Pay
                       </button>
                     )}
                   </td>
@@ -258,9 +339,9 @@ const AccountsPayablePage = () => {
               <div>
                 <p className="text-sm text-gray-600">Document: {selectedAP.relatedDocumentNumber}</p>
                 <p className="text-sm text-gray-600">Supplier: {selectedAP.supplierName || selectedAP.cardIssuer}</p>
-                <p className="text-sm text-gray-600">Total Amount: ${Number(selectedAP.amount).toFixed(2)}</p>
-                <p className="text-sm text-gray-600">Already Paid: ${Number(selectedAP.paidAmount).toFixed(2)}</p>
-                <p className="text-sm font-semibold text-red-600">Balance: ${Number(selectedAP.balanceAmount).toFixed(2)}</p>
+                <p className="text-sm text-gray-600">Total Amount: {Number(selectedAP.amount).toFixed(2)}</p>
+                <p className="text-sm text-gray-600">Already Paid: {Number(selectedAP.paidAmount).toFixed(2)}</p>
+                <p className="text-sm font-semibold text-red-600">Balance: {Number(selectedAP.balanceAmount).toFixed(2)}</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">

@@ -146,14 +146,14 @@ const FixedAssets = () => {
         <table className="w-full">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">CODE</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">NAME</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">CATEGORY</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">ACQUISITION COST</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">DEPRECIATION</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">BOOK VALUE</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">STATUS</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">ACTIONS</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">CODE</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">NAME</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">CATEGORY</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">ACQUISITION COST</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">DEPRECIATION</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">BOOK VALUE</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">STATUS</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">ACTIONS</th>
             </tr>
           </thead>
           <tbody>

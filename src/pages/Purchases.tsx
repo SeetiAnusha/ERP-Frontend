@@ -350,17 +350,17 @@ const Purchases = () => {
         <table className="w-full min-w-max">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('registrationNumber').toUpperCase()}</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('supplier').toUpperCase()}</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('supplierRnc').toUpperCase()}</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('date').toUpperCase()}</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('purchaseOf').toUpperCase()}</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('paymentType').toUpperCase()}</th>
-              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">{t('total').toUpperCase()}</th>
-              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">PAID</th>
-              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">BALANCE</th>
-              <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">STATUS</th>
-              <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">{t('actions').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('registrationNumber').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('supplier').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('supplierRnc').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('date').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('purchaseOf').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('paymentType').toUpperCase()}</th>
+              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('total').toUpperCase()}</th>
+              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">PAID</th>
+              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">BALANCE</th>
+              <th className="px-6 py-4 text-center text-sm font-bold text-gray-800">STATUS</th>
+              <th className="px-6 py-4 text-center text-sm font-bold text-gray-800">{t('actions').toUpperCase()}</th>
             </tr>
           </thead>
           <tbody>

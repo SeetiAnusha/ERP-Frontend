@@ -49,7 +49,7 @@ function App() {
             <Route path="/fixed-assets" element={<FixedAssets />} />
             <Route path="/investments" element={<Investments />} /> 
             <Route path="/prepaid-expenses" element={<PrepaidExpenses />} /> 
-            <Route path="/payments" element={<Payments />} />
+            {/* <Route path="/payments" element={<Payments />} /> */}
             <Route path="/cash-register" element={<CashRegister />} />
             <Route path="/adjustments" element={<Adjustments />} /> 
             <Route path="/reports" element={<Reports />} />

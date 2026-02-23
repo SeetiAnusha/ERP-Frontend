@@ -114,7 +114,7 @@ const AccountsReceivablePage = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-blue-600 font-medium">Total Amount</p>
-              <p className="text-2xl font-bold text-blue-900">${totalAmount.toFixed(2)}</p>
+              <p className="text-2xl font-bold text-blue-900">{totalAmount.toFixed(2)}</p>
             </div>
             <DollarSign className="text-blue-600" size={32} />
           </div>
@@ -129,7 +129,7 @@ const AccountsReceivablePage = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-green-600 font-medium">Received</p>
-              <p className="text-2xl font-bold text-green-900">${totalReceived.toFixed(2)}</p>
+              <p className="text-2xl font-bold text-green-900">{totalReceived.toFixed(2)}</p>
             </div>
             <CheckCircle className="text-green-600" size={32} />
           </div>
@@ -144,7 +144,7 @@ const AccountsReceivablePage = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-orange-600 font-medium">Balance (Pending)</p>
-              <p className="text-2xl font-bold text-orange-900">${totalBalance.toFixed(2)}</p>
+              <p className="text-2xl font-bold text-orange-900">{totalBalance.toFixed(2)}</p>
             </div>
             <Clock className="text-orange-600" size={32} />
           </div>
@@ -184,16 +184,16 @@ const AccountsReceivablePage = () => {
         <table className="w-full">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">REG. NUMBER</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">DATE</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">TYPE</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">RELATED DOC</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">CLIENT/CARD</th>
-              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">AMOUNT</th>
-              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">RECEIVED</th>
-              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">BALANCE</th>
-              <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">STATUS</th>
-              <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">ACTION</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">REG. NUMBER</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">DATE</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">TYPE</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">RELATED DOC</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">CLIENT/CARD</th>
+              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">AMOUNT</th>
+              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">RECEIVED</th>
+              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">BALANCE</th>
+              <th className="px-6 py-4 text-center text-sm font-bold text-gray-800">STATUS</th>
+              <th className="px-6 py-4 text-center text-sm font-bold text-gray-800">ACTION</th>
             </tr>
           </thead>
           <tbody>
@@ -219,12 +219,12 @@ const AccountsReceivablePage = () => {
                     {ar.relatedDocumentType} - {ar.relatedDocumentNumber}
                   </td>
                   <td className="px-6 py-4 text-sm">{ar.clientName || ar.cardNetwork || 'N/A'}</td>
-                  <td className="px-6 py-4 text-sm font-semibold text-right">${Number(ar.amount).toFixed(2)}</td>
+                  <td className="px-6 py-4 text-sm font-semibold text-right">{Number(ar.amount).toFixed(2)}</td>
                   <td className="px-6 py-4 text-sm font-semibold text-right text-green-600">
-                    ${Number(ar.receivedAmount).toFixed(2)}
+                    {Number(ar.receivedAmount).toFixed(2)}
                   </td>
                   <td className="px-6 py-4 text-sm font-semibold text-right text-orange-600">
-                    ${Number(ar.balanceAmount).toFixed(2)}
+                    {Number(ar.balanceAmount).toFixed(2)}
                   </td>
                   <td className="px-6 py-4 text-center">{getStatusBadge(ar.status)}</td>
                   <td className="px-6 py-4 text-center">
@@ -258,9 +258,9 @@ const AccountsReceivablePage = () => {
               <div>
                 <p className="text-sm text-gray-600">Document: {selectedAR.relatedDocumentNumber}</p>
                 <p className="text-sm text-gray-600">Client: {selectedAR.clientName || selectedAR.cardNetwork}</p>
-                <p className="text-sm text-gray-600">Total Amount: ${Number(selectedAR.amount).toFixed(2)}</p>
-                <p className="text-sm text-gray-600">Already Received: ${Number(selectedAR.receivedAmount).toFixed(2)}</p>
-                <p className="text-sm font-semibold text-orange-600">Balance: ${Number(selectedAR.balanceAmount).toFixed(2)}</p>
+                <p className="text-sm text-gray-600">Total Amount: {Number(selectedAR.amount).toFixed(2)}</p>
+                <p className="text-sm text-gray-600">Already Received: {Number(selectedAR.receivedAmount).toFixed(2)}</p>
+                <p className="text-sm font-semibold text-orange-600">Balance: {Number(selectedAR.balanceAmount).toFixed(2)}</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">

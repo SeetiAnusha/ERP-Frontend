@@ -80,8 +80,8 @@ const Sales = () => {
   };
 
   const addProductToSale = () => {
-    if (!selectedProduct || quantity <= 0 || salesPrice <= 0) {
-      notify.warning('Invalid input', 'Please select a product and enter valid quantity and sales price');
+    if (!selectedProduct || quantity <= 0) {
+      notify.warning('Invalid input', 'Please select a product and enter valid quantity');
       return;
     }
     
@@ -94,7 +94,7 @@ const Sales = () => {
       return;
     }
     
-    // Use entered sales price and tax
+    // Use entered sales price and tax (allow 0 for free items)
     const subtotal = quantity * salesPrice;
     const total = subtotal + taxAmount;
     
@@ -275,17 +275,17 @@ const Sales = () => {
         <table className="w-full min-w-max">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('registrationNumber').toUpperCase()}</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('client').toUpperCase()}</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">CLIENT RNC</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('date').toUpperCase()}</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">SALE OF</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">PAYMENT TYPE</th>
-              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">{t('total').toUpperCase()}</th>
-              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">MONTO COBRADO</th>
-              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">BALANCE</th>
-              <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">ESTADO DE COBRO</th>
-              <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">{t('actions').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('registrationNumber').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('client').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">CLIENT RNC</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('date').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">SALE OF</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">PAYMENT TYPE</th>
+              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('total').toUpperCase()}</th>
+              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">MONTO COBRADO</th>
+              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">BALANCE</th>
+              <th className="px-6 py-4 text-center text-sm font-bold text-gray-800">ESTADO DE COBRO</th>
+              <th className="px-6 py-4 text-center text-sm font-bold text-gray-800">{t('actions').toUpperCase()}</th>
             </tr>
           </thead>
           <tbody>
@@ -528,24 +528,25 @@ const Sales = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Sales Price *</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Sales Price</label>
                       <input
                         type="number"
                         step="0.01"
-                        min="0.01"
+                        min="0"
                         value={salesPrice}
                         onChange={(e) => {
                           const val = e.target.value;
-                          setSalesPrice(val === '' ? '' as any : parseFloat(val) || 1);
+                          setSalesPrice(val === '' ? 0 : parseFloat(val) || 0);
                         }}
                         onBlur={(e) => {
-                          if (e.target.value === '' || parseFloat(e.target.value) <= 0) {
-                            setSalesPrice(0.01);
+                          if (e.target.value === '' || parseFloat(e.target.value) < 0) {
+                            setSalesPrice(0);
                           }
                         }}
                         placeholder="0.00"
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                       />
+                      <p className="text-xs text-gray-500 mt-1">Enter 0 for free items</p>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Tax *</label>

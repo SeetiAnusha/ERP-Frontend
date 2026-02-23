@@ -121,12 +121,12 @@ const Clients = () => {
         <table className="w-full">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('code').toUpperCase()}</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('name').toUpperCase()}</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('idTaxNumber').toUpperCase()}</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('phone').toUpperCase()}</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('address').toUpperCase()}</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">{t('actions').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('code').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('name').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('idTaxNumber').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('phone').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('address').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('actions').toUpperCase()}</th>
             </tr>
           </thead>
           <tbody>

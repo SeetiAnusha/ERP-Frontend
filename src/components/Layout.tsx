@@ -34,14 +34,14 @@ const Layout = ({ children }: LayoutProps) => {
     { path: '/clients', icon: Users, label: t('clients') },
     { path: '/purchases', icon: ShoppingBag, label: t('purchases') },
     { path: '/suppliers', icon: Package, label: t('suppliers') },
-    { path: '/payments', icon: DollarSign, label: t('payments') },
+    // { path: '/payments', icon: DollarSign, label: t('payments') },
     { path: '/accounts-receivable', icon: FileText, label: 'Accounts Receivable' },
     { path: '/accounts-payable', icon: CreditCard, label: 'Accounts Payable' },
     { path: '/cash-register', icon: Wallet, label: t('cashRegister') },
     { path: '/adjustments', icon: Settings, label: t('adjustments') },
     { path: '/reports', icon: BarChart3, label: t('reports') },
-    { path: '/investments', icon: Package, label: t('investments') },
-    { path: '/prepaid-expenses', icon: Package, label: t('prepaidExpenses') },
+    // { path: '/investments', icon: Package, label: t('investments') },
+    // { path: '/prepaid-expenses', icon: Package, label: t('prepaidExpenses') },
   ];
 
   return (

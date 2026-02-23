@@ -778,7 +778,7 @@ const Payments = () => {
                           </tbody>
                           <tfoot className="bg-gray-50">
                             <tr>
-                              <td colSpan={7} className="px-3 py-2 text-right font-semibold text-gray-700">
+                              <td colSpan={7} className="px-3 py-2 text-right font-bold text-gray-800">
                                 Total Amount to Apply:
                               </td>
                               <td className="px-3 py-2 text-right font-bold text-blue-600">
