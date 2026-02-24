@@ -364,6 +364,7 @@ const translations = {
     viewDetailedPayments: 'View Detailed Payments',
     exportReports: 'Export Reports',
     downloadPDF: 'Download PDF',
+    totalRevenue: 'Total Revenue',
   },
   
   es: {
@@ -728,6 +729,7 @@ const translations = {
     viewDetailedPayments: 'Ver pagos detallados',
     exportReports: 'Exportar Reportes',
     downloadPDF: 'Descargar PDF',
+    totalRevenue: 'Ingresos Totales',
   }
 };
 

@@ -15,11 +15,17 @@ interface InventoryMovement {
   operation: 'BUYS' | 'SALE';
   product: string;
   amount: number;
-  unitPrice: number;
-  totalAmount: number;
+  unitPrice: number; // For BUYS: purchase cost, For SALES: actual cost (not selling price)
+  totalAmount: number; // For BUYS: total cost, For SALES: total cost (not revenue)
   balanceInAmount: number;
   balanceIn: number;
   averageUnitCost: number;
+  // New fields for SALES only
+  sellingPrice?: number; // Selling price per unit (for SALES only)
+  salesRevenue?: number; // Total sales revenue (for SALES only)
+  grossMargin?: number; // Revenue - Cost (for SALES only)
+  marginPercentOnRevenue?: number; // (Margin / Revenue) * 100
+  marginPercentOnCost?: number; // (Margin / Cost) * 100
 }
 
 interface InventorySheet {
@@ -122,6 +128,16 @@ const Inventory = () => {
             if (item.productId === product.id) {
               const saleDate = new Date(sale.date);
               if (saleDate >= new Date(dateRange.startDate) && saleDate <= new Date(dateRange.endDate)) {
+                // Calculate cost at time of sale (will be refined after sorting)
+                const sellingPrice = parseFloat(item.unitPrice.toString());
+                const quantity = Number(item.quantity) || 0;
+                const salesRevenue = parseFloat(item.total.toString());
+                
+                // Cost will be calculated based on average cost at time of sale
+                // This is a placeholder, will be updated in the running balance calculation
+                const estimatedCost = parseFloat((product.unitCost || 0).toString());
+                const totalCost = estimatedCost * quantity;
+                
                 movements.push({
                   registrationNo: sale.registrationNumber,
                   registrationDate: sale.registrationDate,
@@ -131,12 +147,18 @@ const Inventory = () => {
                   date: sale.date,
                   operation: 'SALE',
                   product: product.name,
-                  amount: Number(item.quantity) || 0,
-                  unitPrice: parseFloat(item.unitPrice.toString()),
-                  totalAmount: parseFloat(item.total.toString()),
+                  amount: quantity,
+                  unitPrice: estimatedCost, // COST per unit (not selling price!)
+                  totalAmount: totalCost, // Total COST (not revenue!)
                   balanceInAmount: 0, // Will be calculated after sorting
                   balanceIn: 0, // Will be calculated after sorting
                   averageUnitCost: 0, // Will be calculated after sorting
+                  // Sales-specific fields
+                  sellingPrice: sellingPrice,
+                  salesRevenue: salesRevenue,
+                  grossMargin: 0, // Will be calculated after we know actual cost
+                  marginPercentOnRevenue: 0,
+                  marginPercentOnCost: 0,
                 });
               }
             }
@@ -196,11 +218,27 @@ const Inventory = () => {
           runningBalance += movement.amount;
           runningBalanceAmount += movement.totalAmount;
         } else {
-          // SALE
+          // SALE - Calculate actual cost based on average cost at time of sale
           const avgCost = runningBalance > 0 ? runningBalanceAmount / runningBalance : 0;
-          const costOfSale = avgCost * movement.amount;
+          const actualCostPerUnit = avgCost;
+          const actualTotalCost = actualCostPerUnit * movement.amount;
+          
+          // Update movement with actual cost (not selling price!)
+          movement.unitPrice = actualCostPerUnit;
+          movement.totalAmount = actualTotalCost;
+          
+          // Calculate margins
+          const revenue = movement.salesRevenue || 0;
+          const cost = actualTotalCost;
+          const margin = revenue - cost;
+          
+          movement.grossMargin = margin;
+          movement.marginPercentOnRevenue = revenue > 0 ? (margin / revenue) * 100 : 0;
+          movement.marginPercentOnCost = cost > 0 ? (margin / cost) * 100 : 0;
+          
+          // Reduce inventory
           runningBalance -= movement.amount;
-          runningBalanceAmount -= costOfSale;
+          runningBalanceAmount -= actualTotalCost;
         }
 
         // Update the movement with calculated values
@@ -361,8 +399,13 @@ const Inventory = () => {
                   <th className="px-3 py-2 text-left">{t('operation')}</th>
                   <th className="px-3 py-2 text-left">{t('product')}</th>
                   <th className="px-3 py-2 text-right">{t('quantity')}</th>
-                  <th className="px-3 py-2 text-right">{t('unitPrice')}</th>
+                  <th className="px-3 py-2 text-right">{t('unitCost')}</th>
                   <th className="px-3 py-2 text-right">{t('amount')}</th>
+                  <th className="px-3 py-2 text-right bg-green-700">{t('salesPrice')}</th>
+                  <th className="px-3 py-2 text-right bg-green-700">{t('totalRevenue')}</th>
+                  <th className="px-3 py-2 text-right bg-yellow-700">{t('grossMargin')}</th>
+                  <th className="px-3 py-2 text-right bg-yellow-700">{t('grossMargin')} %</th>
+                  <th className="px-3 py-2 text-right bg-yellow-700">% On Cost</th>
                   <th className="px-3 py-2 text-right">{t('balanceInQuantity')}</th>
                   <th className="px-3 py-2 text-right">{t('balanceInAmount')}</th>
                   <th className="px-3 py-2 text-right">{t('averageUnitCost')}</th>
@@ -390,8 +433,23 @@ const Inventory = () => {
                     </td>
                     <td className="px-3 py-2">{movement.product}</td>
                     <td className="px-3 py-2 text-right">{Number(movement.amount || 0).toFixed(2)}</td>
-                    <td className="px-3 py-2 text-right">{Number(movement.unitPrice || 0).toFixed(2)}</td>
+                    <td className="px-3 py-2 text-right font-semibold text-blue-600">{Number(movement.unitPrice || 0).toFixed(2)}</td>
                     <td className="px-3 py-2 text-right">{Number(movement.totalAmount || 0).toFixed(2)}</td>
+                    <td className="px-3 py-2 text-right bg-green-50 font-semibold">
+                      {movement.operation === 'SALE' ? Number(movement.sellingPrice || 0).toFixed(2) : '-'}
+                    </td>
+                    <td className="px-3 py-2 text-right bg-green-50 font-semibold">
+                      {movement.operation === 'SALE' ? Number(movement.salesRevenue || 0).toFixed(2) : '-'}
+                    </td>
+                    <td className="px-3 py-2 text-right bg-yellow-50 font-semibold">
+                      {movement.operation === 'SALE' ? Number(movement.grossMargin || 0).toFixed(2) : '-'}
+                    </td>
+                    <td className="px-3 py-2 text-right bg-yellow-50">
+                      {movement.operation === 'SALE' ? Number(movement.marginPercentOnRevenue || 0).toFixed(2) + '%' : '-'}
+                    </td>
+                    <td className="px-3 py-2 text-right bg-yellow-50">
+                      {movement.operation === 'SALE' ? Number(movement.marginPercentOnCost || 0).toFixed(2) + '%' : '-'}
+                    </td>
                     <td className="px-3 py-2 text-right font-semibold">{Number(movement.balanceIn || 0).toFixed(2)}</td>
                     <td className="px-3 py-2 text-right">{Number(movement.balanceInAmount || 0).toFixed(2)}</td>
                     <td className="px-3 py-2 text-right">{Number(movement.averageUnitCost || 0).toFixed(2)}</td>

@@ -202,8 +202,11 @@ const Purchases = () => {
 
   const calculateTotals = () => {
     const productTotal = purchaseItems.reduce((sum, item) => sum + (Number(item.total) || 0), 0);
-    const associatedTotal = associatedInvoices.reduce((sum, inv) => sum + (Number(inv.tax) || 0), 0); // Use tax field (base amount without tax)
-    const grandTotal = productTotal + associatedTotal + associatedInvoices.reduce((sum, inv) => sum + (Number(inv.taxAmount) || 0), 0); // Add taxAmount (the actual tax)
+    // Include both base amount (tax field) and tax amount (taxAmount field) in associated costs
+    const associatedTotal = associatedInvoices.reduce((sum, inv) => 
+      sum + (Number(inv.tax) || 0) + (Number(inv.taxAmount) || 0), 0
+    );
+    const grandTotal = productTotal + associatedTotal;
     return { productTotal, associatedTotal, grandTotal };
   };
 
