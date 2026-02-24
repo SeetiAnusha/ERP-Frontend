@@ -27,6 +27,11 @@ const AccountsPayablePage = () => {
     setIsLoading(true);
     try {
       const response = await api.get('/accounts-payable');
+      console.log('🔍 Accounts Payable API Response:', response.data);
+      console.log('🔍 First item:', response.data[0]);
+      console.log('🔍 First item supplierRnc:', response.data[0]?.supplierRnc);
+      console.log('🔍 First item ncf:', response.data[0]?.ncf);
+      console.log('🔍 First item paymentType:', response.data[0]?.paymentType);
       setAccountsPayable(response.data);
     } catch (error) {
       handleApiError(error, 'Loading accounts payable');
@@ -261,12 +266,12 @@ const AccountsPayablePage = () => {
                   <td className="px-4 py-4 text-sm whitespace-nowrap">{ap.type}</td>
                   <td className="px-4 py-4 text-sm font-medium whitespace-nowrap">{ap.relatedDocumentNumber || 'N/A'}</td>
                   <td className="px-4 py-4 text-sm whitespace-nowrap">{new Date(ap.registrationDate).toLocaleDateString()}</td>
-                  <td className="px-4 py-4 text-sm whitespace-nowrap">{(ap as any).supplierRnc || 'N/A'}</td>
+                  <td className="px-4 py-4 text-sm whitespace-nowrap">{ap.supplierRnc || 'N/A'}</td>
                   <td className="px-4 py-4 text-sm whitespace-nowrap">{ap.supplierName || ap.cardIssuer || 'N/A'}</td>
-                  <td className="px-4 py-4 text-sm whitespace-nowrap">{(ap as any).ncf || 'N/A'}</td>
-                  <td className="px-4 py-4 text-sm whitespace-nowrap">{(ap as any).purchaseDate ? new Date((ap as any).purchaseDate).toLocaleDateString() : 'N/A'}</td>
-                  <td className="px-4 py-4 text-sm whitespace-nowrap">{(ap as any).purchaseType || 'N/A'}</td>
-                  <td className="px-4 py-4 text-sm whitespace-nowrap">{(ap as any).paymentType || ap.type}</td>
+                  <td className="px-4 py-4 text-sm whitespace-nowrap">{ap.ncf || 'N/A'}</td>
+                  <td className="px-4 py-4 text-sm whitespace-nowrap">{ap.purchaseDate ? new Date(ap.purchaseDate).toLocaleDateString() : 'N/A'}</td>
+                  <td className="px-4 py-4 text-sm whitespace-nowrap">{ap.purchaseType || 'N/A'}</td>
+                  <td className="px-4 py-4 text-sm whitespace-nowrap">{ap.paymentType || ap.type}</td>
                   <td className="px-4 py-4 text-sm whitespace-nowrap">
                     {editingDeadline === ap.id ? (
                       <div className="flex items-center gap-2">

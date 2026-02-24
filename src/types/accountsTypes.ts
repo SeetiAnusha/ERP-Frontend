@@ -30,7 +30,12 @@ export interface AccountsPayable {
   relatedDocumentNumber: string;
   supplierId?: number;
   supplierName?: string;
+  supplierRnc?: string;
   cardIssuer?: string;
+  ncf?: string;
+  purchaseDate?: string;
+  purchaseType?: string;
+  paymentType?: string;
   amount: number;
   paidAmount: number;
   balanceAmount: number;
