@@ -420,6 +420,8 @@ const translations = {
     totalOut: 'Total Out',
     partyEntity: 'Party/Entity',
     clientSupplierBank: 'Client/Supplier/Bank',
+    cost: 'Cost',
+    costOfGoodsSold: 'Cost of Goods Sold',
   },
   
   es: {
@@ -840,6 +842,8 @@ const translations = {
     totalOut: 'Total Saliente',
     partyEntity: 'Parte/Entidad',
     clientSupplierBank: 'Cliente/Proveedor/Banco',
+    cost: 'Costo',
+    costOfGoodsSold: 'Costo de Bienes Vendidos',
   }
 };
 

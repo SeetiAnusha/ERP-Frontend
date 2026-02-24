@@ -403,6 +403,7 @@ const Inventory = () => {
                   <th className="px-3 py-2 text-right">{t('amount')}</th>
                   <th className="px-3 py-2 text-right bg-green-700">{t('salesPrice')}</th>
                   <th className="px-3 py-2 text-right bg-green-700">{t('totalRevenue')}</th>
+                  <th className="px-3 py-2 text-right bg-orange-700">{t('cost')}</th>
                   <th className="px-3 py-2 text-right bg-yellow-700">{t('grossMargin')}</th>
                   <th className="px-3 py-2 text-right bg-yellow-700">{t('grossMargin')} %</th>
                   <th className="px-3 py-2 text-right bg-yellow-700">% On Cost</th>
@@ -440,6 +441,9 @@ const Inventory = () => {
                     </td>
                     <td className="px-3 py-2 text-right bg-green-50 font-semibold">
                       {movement.operation === 'SALE' ? Number(movement.salesRevenue || 0).toFixed(2) : '-'}
+                    </td>
+                    <td className="px-3 py-2 text-right bg-orange-50 font-semibold">
+                      {movement.operation === 'SALE' ? Number(movement.totalAmount || 0).toFixed(2) : '-'}
                     </td>
                     <td className="px-3 py-2 text-right bg-yellow-50 font-semibold">
                       {movement.operation === 'SALE' ? Number(movement.grossMargin || 0).toFixed(2) : '-'}
