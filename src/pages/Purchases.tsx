@@ -895,23 +895,37 @@ const Purchases = () => {
               <div className="mb-6 p-4 bg-orange-50 rounded-lg">
                 <div className="grid grid-cols-4 gap-3 mb-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('supplierRncShort')} *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('supplier')} *</label>
+                    <select
+                      value={newAssociatedInvoice.supplierRnc ? suppliers.find(s => s.rnc === newAssociatedInvoice.supplierRnc)?.id || '' : ''}
+                      onChange={(e) => {
+                        const supplier = suppliers.find(s => s.id === parseInt(e.target.value));
+                        if (supplier) {
+                          setNewAssociatedInvoice({
+                            ...newAssociatedInvoice, 
+                            supplierRnc: supplier.rnc || '',
+                            supplierName: supplier.name || ''
+                          });
+                        }
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-orange-500"
+                    >
+                      <option value="">{t('selectSupplier')}</option>
+                      {suppliers.map((supplier) => (
+                        <option key={supplier.id} value={supplier.id}>
+                          {supplier.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('supplierRncShort')}</label>
                     <input
                       type="text"
                       value={newAssociatedInvoice.supplierRnc}
-                      onChange={(e) => setNewAssociatedInvoice({...newAssociatedInvoice, supplierRnc: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                      readOnly
+                      className="w-full px-3 py-2 border border-gray-300 rounded text-sm bg-gray-50"
                       placeholder="RNC"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('supplierName')} *</label>
-                    <input
-                      type="text"
-                      value={newAssociatedInvoice.supplierName}
-                      onChange={(e) => setNewAssociatedInvoice({...newAssociatedInvoice, supplierName: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
-                      placeholder={t('name')}
                     />
                   </div>
                   <div>

@@ -4,6 +4,7 @@ import { TrendingUp, Users, ShoppingCart, Package, DollarSign, AlertTriangle } f
 import axios from '../api/axios';
 import { Sale, Purchase, Client, Product } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import { formatNumber } from '../utils/formatNumber';
 
 const Dashboard = () => {
   const { t } = useLanguage();
@@ -60,7 +61,7 @@ const Dashboard = () => {
   const stats = [
     { 
       label: 'Total Sales', 
-      value: `${totalSalesAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, 
+      value: `${formatNumber(totalSalesAmount)}`, 
       count: sales.length,
       icon: ShoppingCart, 
       color: 'bg-blue-500' 
@@ -74,14 +75,14 @@ const Dashboard = () => {
     },
     { 
       label: 'Total Purchases', 
-      value: `${totalPurchasesAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, 
+      value: `${formatNumber(totalPurchasesAmount)}`, 
       count: purchases.length,
       icon: Package, 
       color: 'bg-purple-500' 
     },
     { 
       label: 'Net Revenue', 
-      value: `${totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, 
+      value: `${formatNumber(totalRevenue)}`, 
       count: totalRevenue >= 0 ? 'Profit' : 'Loss',
       icon: TrendingUp, 
       color: totalRevenue >= 0 ? 'bg-orange-500' : 'bg-red-500' 
@@ -180,7 +181,7 @@ const Dashboard = () => {
                     </span>
                   </div>
                   <span className="font-semibold text-green-600">
-                    {parseFloat(sale.total.toString()).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    {formatNumber(parseFloat(sale.total.toString()))}
                   </span>
                 </div>
               ))
@@ -220,7 +221,7 @@ const Dashboard = () => {
                     </span>
                   </div>
                   <span className="font-semibold text-blue-600">
-                    {parseFloat(purchase.total.toString()).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    {formatNumber(parseFloat(purchase.total.toString()))}
                   </span>
                 </div>
               ))
@@ -251,10 +252,9 @@ const Dashboard = () => {
             </div>
           </div>
           <p className="text-sm text-gray-500">
-            Total: {sales
+            Total: {formatNumber(sales
               .filter(s => s.collectionStatus === 'Not Collected' || s.collectionStatus === 'Partial')
-              .reduce((sum, s) => sum + parseFloat(s.balanceAmount.toString()), 0)
-              .toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              .reduce((sum, s) => sum + parseFloat(s.balanceAmount.toString()), 0))}
           </p>
         </motion.div>
 
@@ -276,10 +276,9 @@ const Dashboard = () => {
             </div>
           </div>
           <p className="text-sm text-gray-500">
-            Total: {purchases
+            Total: {formatNumber(purchases
               .filter(p => p.paymentStatus === 'Unpaid' || p.paymentStatus === 'Partial')
-              .reduce((sum, p) => sum + parseFloat(p.balanceAmount.toString()), 0)
-              .toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              .reduce((sum, p) => sum + parseFloat(p.balanceAmount.toString()), 0))}
           </p>
         </motion.div>
 

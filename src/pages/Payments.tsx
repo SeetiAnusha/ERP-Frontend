@@ -4,6 +4,7 @@ import { FaPlus, FaEdit, FaTrash, FaDollarSign, FaSearch } from 'react-icons/fa'
 import axios from '../api/axios';
 import { Payment, Purchase, Sale, Client, Supplier } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import { formatNumber } from '../utils/formatNumber';
 
 
 const Payments = () => {
@@ -293,7 +294,7 @@ const Payments = () => {
               <div>
                 <p className="text-red-600 text-sm font-medium">Payments Out</p>
                 <p className="text-2xl font-bold text-red-700">
-                  {totalPaymentsOut.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {formatNumber(totalPaymentsOut)}
                 </p>
               </div>
               <FaDollarSign className="text-red-400 text-3xl" />
@@ -305,7 +306,7 @@ const Payments = () => {
               <div>
                 <p className="text-green-600 text-sm font-medium">Payments In</p>
                 <p className="text-2xl font-bold text-green-700">
-                  {totalPaymentsIn.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {formatNumber(totalPaymentsIn)}
                 </p>
               </div>
               <FaDollarSign className="text-green-400 text-3xl" />
@@ -317,7 +318,7 @@ const Payments = () => {
               <div>
                 <p className="text-blue-600 text-sm font-medium">Net Cash Flow</p>
                 <p className="text-2xl font-bold text-blue-700">
-                  {(totalPaymentsIn - totalPaymentsOut).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {formatNumber(totalPaymentsIn - totalPaymentsOut)}
                 </p>
               </div>
               <FaDollarSign className="text-blue-400 text-3xl" />
@@ -428,7 +429,7 @@ const Payments = () => {
                       {payment.paymentMethod}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-gray-900">
-                      {parseFloat(payment.paymentAmount.toString()).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {formatNumber(parseFloat(payment.paymentAmount.toString()))}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-700">
                       {appliedInvoices.length > 0 ? (
@@ -437,7 +438,7 @@ const Payments = () => {
                             <div key={idx} className="flex justify-between items-center bg-gray-50 px-2 py-1 rounded">
                               <span className="font-medium text-blue-600">{app.invoiceNumber}</span>
                               <span className="text-green-600 font-semibold">
-                                {parseFloat(app.appliedAmount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {formatNumber(parseFloat(app.appliedAmount))}
                               </span>
                             </div>
                           ))}

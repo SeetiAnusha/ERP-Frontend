@@ -5,6 +5,7 @@ import api from '../api/axios';
 import { AccountsPayable } from '../types/accountsTypes';
 import { notify, handleApiError } from '../utils/notifications';
 import { useLanguage } from '../contexts/LanguageContext';
+import { formatNumber } from '../utils/formatNumber';
 
 const AccountsPayablePage = () => {
   const { t } = useLanguage();
@@ -302,12 +303,12 @@ const AccountsPayablePage = () => {
                       </div>
                     )}
                   </td>
-                  <td className="px-4 py-4 text-sm font-semibold text-right whitespace-nowrap">{Number(ap.amount).toFixed(2)}</td>
+                  <td className="px-4 py-4 text-sm font-semibold text-right whitespace-nowrap">{formatNumber(Number(ap.amount))}</td>
                   <td className="px-4 py-4 text-sm font-semibold text-right text-green-600 whitespace-nowrap">
-                    {Number(ap.paidAmount).toFixed(2)}
+                    {formatNumber(Number(ap.paidAmount))}
                   </td>
                   <td className="px-4 py-4 text-sm font-semibold text-right text-red-600 whitespace-nowrap">
-                    {Number(ap.balanceAmount).toFixed(2)}
+                    {formatNumber(Number(ap.balanceAmount))}
                   </td>
                   <td className="px-4 py-4 text-center whitespace-nowrap">{getStatusBadge(ap.status)}</td>
                   <td className="px-4 py-4 text-center whitespace-nowrap">

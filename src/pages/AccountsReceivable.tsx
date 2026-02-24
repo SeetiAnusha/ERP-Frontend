@@ -5,6 +5,7 @@ import api from '../api/axios';
 import { AccountsReceivable } from '../types/accountsTypes';
 import { notify, handleApiError } from '../utils/notifications';
 import { useLanguage } from '../contexts/LanguageContext';
+import { formatNumber } from '../utils/formatNumber';
 
 const AccountsReceivablePage = () => {
   const { t } = useLanguage();
@@ -221,12 +222,12 @@ const AccountsReceivablePage = () => {
                     {ar.relatedDocumentType} - {ar.relatedDocumentNumber}
                   </td>
                   <td className="px-6 py-4 text-sm">{ar.clientName || ar.cardNetwork || 'N/A'}</td>
-                  <td className="px-6 py-4 text-sm font-semibold text-right">{Number(ar.amount).toFixed(2)}</td>
+                  <td className="px-6 py-4 text-sm font-semibold text-right">{formatNumber(Number(ar.amount))}</td>
                   <td className="px-6 py-4 text-sm font-semibold text-right text-green-600">
-                    {Number(ar.receivedAmount).toFixed(2)}
+                    {formatNumber(Number(ar.receivedAmount))}
                   </td>
                   <td className="px-6 py-4 text-sm font-semibold text-right text-orange-600">
-                    {Number(ar.balanceAmount).toFixed(2)}
+                    {formatNumber(Number(ar.balanceAmount))}
                   </td>
                   <td className="px-6 py-4 text-center">{getStatusBadge(ar.status)}</td>
                   <td className="px-6 py-4 text-center">

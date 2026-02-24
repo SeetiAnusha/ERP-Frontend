@@ -4,6 +4,7 @@ import { FaPlus, FaTrash, FaWallet, FaArrowUp, FaArrowDown, FaSearch } from 'rea
 import axios from '../api/axios';
 import { CashTransaction } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import { formatNumber } from '../utils/formatNumber';
 
 const CashRegister = () => {
   const { t } = useLanguage();
@@ -238,7 +239,7 @@ const CashRegister = () => {
               <div>
                 <p className="text-blue-600 text-sm font-medium">{t('currentBalance')}</p>
                 <p className="text-2xl font-bold text-blue-700">
-                  {parseFloat(cashBalance.toString()).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  {formatNumber(cashBalance)}
                 </p>
               </div>
               <FaWallet className="text-blue-400 text-3xl" />
@@ -250,7 +251,7 @@ const CashRegister = () => {
               <div>
                 <p className="text-green-600 text-sm font-medium">{t('totalInflow')}</p>
                 <p className="text-2xl font-bold text-green-700">
-                  {totalInflow.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  {formatNumber(totalInflow)}
                 </p>
               </div>
               <FaArrowUp className="text-green-400 text-3xl" />
@@ -262,7 +263,7 @@ const CashRegister = () => {
               <div>
                 <p className="text-red-600 text-sm font-medium">{t('totalOutflow')}</p>
                 <p className="text-2xl font-bold text-red-700">
-                  {totalOutflow.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  {formatNumber(totalOutflow)}
                 </p>
               </div>
               <FaArrowDown className="text-red-400 text-3xl" />
@@ -362,11 +363,11 @@ const CashRegister = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold">
                     <span className={transaction.transactionType === 'INFLOW' ? 'text-green-600' : 'text-red-600'}>
                       {transaction.transactionType === 'INFLOW' ? '+' : '-'}
-                      {parseFloat(transaction.amount.toString()).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      {formatNumber(transaction.amount)}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-gray-900">
-                    {parseFloat(transaction.balance.toString()).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    {formatNumber(transaction.balance)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                     <button
@@ -713,21 +714,21 @@ const CashRegister = () => {
                           <div className="bg-white rounded-lg p-3 shadow-sm">
                             <div className="flex justify-between items-center">
                               <span className="text-sm text-gray-700">💵 {t('cashIn')}</span>
-                              <span className="font-bold text-green-600">${report.cash.toFixed(2)}</span>
+                              <span className="font-bold text-green-600">${formatNumber(report.cash)}</span>
                             </div>
                           </div>
                           
                           <div className="bg-white rounded-lg p-3 shadow-sm">
                             <div className="flex justify-between items-center">
                               <span className="text-sm text-gray-700">📥 {t('depositIn')}</span>
-                              <span className="font-bold text-green-600">${report.deposit.toFixed(2)}</span>
+                              <span className="font-bold text-green-600">${formatNumber(report.deposit)}</span>
                             </div>
                           </div>
                           
                           <div className="bg-white rounded-lg p-3 shadow-sm">
                             <div className="flex justify-between items-center">
                               <span className="text-sm text-gray-700">🏦 {t('bankTransferIn')}</span>
-                              <span className="font-bold text-green-600">${report.bankTransferIn.toFixed(2)}</span>
+                              <span className="font-bold text-green-600">${formatNumber(report.bankTransferIn)}</span>
                             </div>
                           </div>
                           
@@ -735,7 +736,7 @@ const CashRegister = () => {
                             <div className="flex justify-between items-center">
                               <span className="font-bold text-green-800">{t('totalIn')}:</span>
                               <span className="font-bold text-green-800 text-xl">
-                                ${(report.cash + report.deposit + report.bankTransferIn).toFixed(2)}
+                                ${formatNumber(report.cash + report.deposit + report.bankTransferIn)}
                               </span>
                             </div>
                           </div>
@@ -748,28 +749,28 @@ const CashRegister = () => {
                           <div className="bg-white rounded-lg p-3 shadow-sm">
                             <div className="flex justify-between items-center">
                               <span className="text-sm text-gray-700">💵 {t('cashOut')}</span>
-                              <span className="font-bold text-red-600">${report.cashOut.toFixed(2)}</span>
+                              <span className="font-bold text-red-600">${formatNumber(report.cashOut)}</span>
                             </div>
                           </div>
                           
                           <div className="bg-white rounded-lg p-3 shadow-sm">
                             <div className="flex justify-between items-center">
                               <span className="text-sm text-gray-700">📤 {t('depositOut')}</span>
-                              <span className="font-bold text-red-600">${report.depositOut.toFixed(2)}</span>
+                              <span className="font-bold text-red-600">${formatNumber(report.depositOut)}</span>
                             </div>
                           </div>
                           
                           <div className="bg-white rounded-lg p-3 shadow-sm">
                             <div className="flex justify-between items-center">
                               <span className="text-sm text-gray-700">🏦 {t('bankTransferOut')}</span>
-                              <span className="font-bold text-red-600">${report.bankTransferOut.toFixed(2)}</span>
+                              <span className="font-bold text-red-600">${formatNumber(report.bankTransferOut)}</span>
                             </div>
                           </div>
                           
                           <div className="bg-white rounded-lg p-3 shadow-sm">
                             <div className="flex justify-between items-center">
                               <span className="text-sm text-gray-700">🏦 {t('bankDeposits')}</span>
-                              <span className="font-bold text-red-600">${report.bankDeposits.toFixed(2)}</span>
+                              <span className="font-bold text-red-600">${formatNumber(report.bankDeposits)}</span>
                             </div>
                           </div>
                           
@@ -777,7 +778,7 @@ const CashRegister = () => {
                             <div className="flex justify-between items-center">
                               <span className="font-bold text-red-800">{t('totalOut')}:</span>
                               <span className="font-bold text-red-800 text-xl">
-                                ${(report.cashOut + report.depositOut + report.bankTransferOut + report.bankDeposits).toFixed(2)}
+                                ${formatNumber(report.cashOut + report.depositOut + report.bankTransferOut + report.bankDeposits)}
                               </span>
                             </div>
                           </div>
@@ -797,7 +798,7 @@ const CashRegister = () => {
                             </p>
                           </div>
                           <span className={`text-4xl font-bold ${netCash >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                            ${netCash.toFixed(2)}
+                            ${formatNumber(netCash)}
                           </span>
                         </div>
                       </div>

@@ -4,6 +4,7 @@ import { FaFileExcel, FaCalendar, FaSearch, FaChartLine } from 'react-icons/fa';
 import axios from '../api/axios';
 import { Product, Purchase, Sale } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import { formatNumber } from '../utils/formatNumber';
 
 interface InventoryMovement {
   registrationNo: string;
@@ -433,30 +434,30 @@ const Inventory = () => {
                       </span>
                     </td>
                     <td className="px-3 py-2">{movement.product}</td>
-                    <td className="px-3 py-2 text-right">{Number(movement.amount || 0).toFixed(2)}</td>
-                    <td className="px-3 py-2 text-right font-semibold text-blue-600">{Number(movement.unitPrice || 0).toFixed(2)}</td>
-                    <td className="px-3 py-2 text-right">{Number(movement.totalAmount || 0).toFixed(2)}</td>
+                    <td className="px-3 py-2 text-right">{formatNumber(movement.amount)}</td>
+                    <td className="px-3 py-2 text-right font-semibold text-blue-600">{formatNumber(movement.unitPrice)}</td>
+                    <td className="px-3 py-2 text-right">{formatNumber(movement.totalAmount)}</td>
                     <td className="px-3 py-2 text-right bg-green-50 font-semibold">
-                      {movement.operation === 'SALE' ? Number(movement.sellingPrice || 0).toFixed(2) : '-'}
+                      {movement.operation === 'SALE' ? formatNumber(movement.sellingPrice) : '-'}
                     </td>
                     <td className="px-3 py-2 text-right bg-green-50 font-semibold">
-                      {movement.operation === 'SALE' ? Number(movement.salesRevenue || 0).toFixed(2) : '-'}
+                      {movement.operation === 'SALE' ? formatNumber(movement.salesRevenue) : '-'}
                     </td>
                     <td className="px-3 py-2 text-right bg-orange-50 font-semibold">
-                      {movement.operation === 'SALE' ? Number(movement.totalAmount || 0).toFixed(2) : '-'}
+                      {movement.operation === 'SALE' ? formatNumber(movement.totalAmount) : '-'}
                     </td>
                     <td className="px-3 py-2 text-right bg-yellow-50 font-semibold">
-                      {movement.operation === 'SALE' ? Number(movement.grossMargin || 0).toFixed(2) : '-'}
+                      {movement.operation === 'SALE' ? formatNumber(movement.grossMargin) : '-'}
                     </td>
                     <td className="px-3 py-2 text-right bg-yellow-50">
-                      {movement.operation === 'SALE' ? Number(movement.marginPercentOnRevenue || 0).toFixed(2) + '%' : '-'}
+                      {movement.operation === 'SALE' ? formatNumber(movement.marginPercentOnRevenue) + '%' : '-'}
                     </td>
                     <td className="px-3 py-2 text-right bg-yellow-50">
-                      {movement.operation === 'SALE' ? Number(movement.marginPercentOnCost || 0).toFixed(2) + '%' : '-'}
+                      {movement.operation === 'SALE' ? formatNumber(movement.marginPercentOnCost) + '%' : '-'}
                     </td>
-                    <td className="px-3 py-2 text-right font-semibold">{Number(movement.balanceIn || 0).toFixed(2)}</td>
-                    <td className="px-3 py-2 text-right">{Number(movement.balanceInAmount || 0).toFixed(2)}</td>
-                    <td className="px-3 py-2 text-right">{Number(movement.averageUnitCost || 0).toFixed(2)}</td>
+                    <td className="px-3 py-2 text-right font-semibold">{formatNumber(movement.balanceIn)}</td>
+                    <td className="px-3 py-2 text-right">{formatNumber(movement.balanceInAmount)}</td>
+                    <td className="px-3 py-2 text-right">{formatNumber(movement.averageUnitCost)}</td>
                     <td className="px-3 py-2 text-center">{new Date(movement.date).getFullYear()}</td>
                     <td className="px-3 py-2 text-center">{new Date(movement.date).toLocaleString('en-US', { month: 'long' })}</td>
                   </tr>
@@ -470,35 +471,35 @@ const Inventory = () => {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="bg-white p-3 rounded-lg shadow">
                 <p className="text-xs text-gray-600">Current Balance</p>
-                <p className="text-xl font-bold text-blue-600">{Number(sheet.totals.currentBalance || 0).toFixed(2)}</p>
+                <p className="text-xl font-bold text-blue-600">{formatNumber(sheet.totals.currentBalance)}</p>
               </div>
               <div className="bg-white p-3 rounded-lg shadow">
                 <p className="text-xs text-gray-600">Average Cost</p>
-                <p className="text-xl font-bold text-purple-600">{Number(sheet.totals.averageCost || 0).toFixed(2)}</p>
+                <p className="text-xl font-bold text-purple-600">{formatNumber(sheet.totals.averageCost)}</p>
               </div>
               <div className="bg-white p-3 rounded-lg shadow">
                 <p className="text-xs text-gray-600">Total Income</p>
-                <p className="text-xl font-bold text-green-600">{Number(sheet.totals.totalIncome || 0).toFixed(2)}</p>
+                <p className="text-xl font-bold text-green-600">{formatNumber(sheet.totals.totalIncome)}</p>
               </div>
               <div className="bg-white p-3 rounded-lg shadow">
                 <p className="text-xs text-gray-600">{t('totalCost')}</p>
-                <p className="text-xl font-bold text-red-600">{Number(sheet.totals.totalCost || 0).toFixed(2)}</p>
+                <p className="text-xl font-bold text-red-600">{formatNumber(sheet.totals.totalCost)}</p>
               </div>
               <div className="bg-white p-3 rounded-lg shadow">
                 <p className="text-xs text-gray-600">{t('grossMargin')}</p>
-                <p className="text-xl font-bold text-orange-600">{Number(sheet.totals.grossMargin || 0).toFixed(2)}</p>
+                <p className="text-xl font-bold text-orange-600">{formatNumber(sheet.totals.grossMargin)}</p>
               </div>
               <div className="bg-white p-3 rounded-lg shadow">
                 <p className="text-xs text-gray-600">{t('grossMarginOnRevenue')}</p>
-                <p className="text-xl font-bold text-teal-600">{Number(sheet.totals.grossMarginPercent || 0).toFixed(2)}%</p>
+                <p className="text-xl font-bold text-teal-600">{formatNumber(sheet.totals.grossMarginPercent)}%</p>
               </div>
               <div className="bg-white p-3 rounded-lg shadow">
                 <p className="text-xs text-gray-600">{t('grossMarginOnCost')}</p>
-                <p className="text-xl font-bold text-indigo-600">{Number(sheet.totals.grossMarginOnCost || 0).toFixed(2)}%</p>
+                <p className="text-xl font-bold text-indigo-600">{formatNumber(sheet.totals.grossMarginOnCost)}%</p>
               </div>
               <div className="bg-white p-3 rounded-lg shadow">
                 <p className="text-xs text-gray-600">{t('purchases')}</p>
-                <p className="text-xl font-bold text-gray-600">{Number(sheet.totals.totalPurchases || 0).toFixed(2)}</p>
+                <p className="text-xl font-bold text-gray-600">{formatNumber(sheet.totals.totalPurchases)}</p>
               </div>
             </div>
           </div>

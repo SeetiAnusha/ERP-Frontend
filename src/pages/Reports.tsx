@@ -4,6 +4,7 @@ import { FaChartLine, FaCalendar, FaFileAlt } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import axios from '../api/axios';
 import { useLanguage } from '../contexts/LanguageContext';
+import { formatNumber } from '../utils/formatNumber';
 
 const Reports = () => {
   const { t } = useLanguage();
@@ -117,8 +118,8 @@ const Reports = () => {
 
   const profitMargin = salesData.totalRevenue - purchasesData.totalCost;
   const profitMarginPercentage = salesData.totalRevenue > 0 
-    ? ((profitMargin / salesData.totalRevenue) * 100).toFixed(2)
-    : 0;
+    ? formatNumber(((profitMargin / salesData.totalRevenue) * 100), 2)
+    : '0.00';
 
   return (
     <motion.div
@@ -167,7 +168,7 @@ const Reports = () => {
             <FaChartLine className="text-2xl opacity-75" />
           </div>
           <p className="text-3xl font-bold">
-            {salesData.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {formatNumber(salesData.totalRevenue)}
           </p>
           <p className="text-sm opacity-75 mt-2">{salesData.salesCount} {t('sales').toLowerCase()}</p>
         </motion.div>
@@ -183,7 +184,7 @@ const Reports = () => {
             <FaChartLine className="text-2xl opacity-75" />
           </div>
           <p className="text-3xl font-bold">
-            {purchasesData.totalCost.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {formatNumber(purchasesData.totalCost)}
           </p>
           <p className="text-sm opacity-75 mt-2">{purchasesData.purchasesCount} {t('purchases').toLowerCase()}</p>
         </motion.div>
@@ -199,7 +200,7 @@ const Reports = () => {
             <FaChartLine className="text-2xl opacity-75" />
           </div>
           <p className="text-3xl font-bold">
-            {profitMargin.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {formatNumber(profitMargin)}
           </p>
           <p className="text-sm opacity-75 mt-2">{profitMarginPercentage}% {t('grossMargin').toLowerCase()}</p>
         </motion.div>
@@ -215,7 +216,7 @@ const Reports = () => {
             <FaChartLine className="text-2xl opacity-75" />
           </div>
           <p className="text-3xl font-bold">
-            {paymentsData.netCashFlow.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {formatNumber(paymentsData.netCashFlow)}
           </p>
           <p className="text-sm opacity-75 mt-2">{t('paymentsIn')} - {t('paymentsOut')}</p>
         </motion.div>
@@ -270,7 +271,7 @@ const Reports = () => {
             <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
               <span className="text-gray-600">{t('totalRevenue')}</span>
               <span className="font-semibold text-blue-600">
-                {salesData.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                {formatNumber(salesData.totalRevenue)}
               </span>
             </div>
             <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
@@ -285,7 +286,7 @@ const Reports = () => {
               <span className="text-gray-600">Average Sale Value</span>
               <span className="font-semibold">
                 {salesData.salesCount > 0 
-                  ? (salesData.totalRevenue / salesData.salesCount).toLocaleString('en-US', { minimumFractionDigits: 2 })
+                  ? formatNumber(salesData.totalRevenue / salesData.salesCount)
                   : '0.00'
                 }
               </span>
@@ -307,7 +308,7 @@ const Reports = () => {
             <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
               <span className="text-gray-600">{t('totalCost')}</span>
               <span className="font-semibold text-purple-600">
-                {purchasesData.totalCost.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                {formatNumber(purchasesData.totalCost)}
               </span>
             </div>
             <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
@@ -322,7 +323,7 @@ const Reports = () => {
               <span className="text-gray-600">Average Purchase Value</span>
               <span className="font-semibold">
                 {purchasesData.purchasesCount > 0 
-                  ? (purchasesData.totalCost / purchasesData.purchasesCount).toLocaleString('en-US', { minimumFractionDigits: 2 })
+                  ? formatNumber(purchasesData.totalCost / purchasesData.purchasesCount)
                   : '0.00'
                 }
               </span>
@@ -340,19 +341,19 @@ const Reports = () => {
             <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg border border-green-200">
               <span className="text-gray-600">{t('paymentsIn')} ({t('received')})</span>
               <span className="font-semibold text-green-600">
-                {paymentsData.paymentsIn.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                {formatNumber(paymentsData.paymentsIn)}
               </span>
             </div>
             <div className="flex justify-between items-center p-3 bg-red-50 rounded-lg border border-red-200">
               <span className="text-gray-600">{t('paymentsOut')} ({t('paid')})</span>
               <span className="font-semibold text-red-600">
-                {paymentsData.paymentsOut.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                {formatNumber(paymentsData.paymentsOut)}
               </span>
             </div>
             <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg border border-blue-200">
               <span className="text-gray-600 font-medium">{t('netCashFlow')}</span>
-              <span className={`font-bold text-lg {paymentsData.netCashFlow >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {paymentsData.netCashFlow.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              <span className={`font-bold text-lg ${paymentsData.netCashFlow >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {formatNumber(paymentsData.netCashFlow)}
               </span>
             </div>
           </div>
@@ -376,7 +377,7 @@ const Reports = () => {
             <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
               <span className="text-gray-600">{t('totalInventoryValue')}</span>
               <span className="font-semibold text-orange-600">
-                {productsData.totalInventoryValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                {formatNumber(productsData.totalInventoryValue)}
               </span>
             </div>
           </div>
@@ -390,19 +391,19 @@ const Reports = () => {
           <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
             <p className="text-sm text-gray-600 mb-1">{t('totalRevenue')}</p>
             <p className="text-2xl font-bold text-blue-600">
-              {salesData.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              {formatNumber(salesData.totalRevenue)}
             </p>
           </div>
           <div className="p-4 bg-red-50 rounded-lg border border-red-200">
             <p className="text-sm text-gray-600 mb-1">{t('totalCost')}</p>
             <p className="text-2xl font-bold text-red-600">
-              {purchasesData.totalCost.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              {formatNumber(purchasesData.totalCost)}
             </p>
           </div>
           <div className="p-4 bg-green-50 rounded-lg border border-green-200">
             <p className="text-sm text-gray-600 mb-1">{t('grossProfit')}</p>
             <p className="text-2xl font-bold text-green-600">
-              {profitMargin.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              {formatNumber(profitMargin)}
             </p>
             <p className="text-sm text-gray-600 mt-1">{profitMarginPercentage}% {t('grossMargin').toLowerCase()}</p>
           </div>

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { FaFileExcel, FaEye } from 'react-icons/fa';
 import axios from '../api/axios';
+import { formatNumber } from '../utils/formatNumber';
 
 interface PPEAsset {
   id: number;
@@ -139,7 +140,7 @@ const PPEReport = () => {
         >
           <h3 className="text-sm font-medium opacity-90">Total Acquisition Cost</h3>
           <p className="text-3xl font-bold mt-2">
-            ${totals.totalAcquisitionCost.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {formatNumber(totals.totalAcquisitionCost)}
           </p>
           <p className="text-sm opacity-75 mt-2">{totals.assetCount} assets</p>
         </motion.div>
@@ -152,7 +153,7 @@ const PPEReport = () => {
         >
           <h3 className="text-sm font-medium opacity-90">Accumulated Depreciation</h3>
           <p className="text-3xl font-bold mt-2">
-            ${totals.totalAccumulatedDepreciation.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {formatNumber(totals.totalAccumulatedDepreciation)}
           </p>
         </motion.div>
 
@@ -164,7 +165,7 @@ const PPEReport = () => {
         >
           <h3 className="text-sm font-medium opacity-90">Current Book Value</h3>
           <p className="text-3xl font-bold mt-2">
-            ${totals.totalCurrentBookValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {formatNumber(totals.totalCurrentBookValue)}
           </p>
         </motion.div>
 
@@ -176,7 +177,7 @@ const PPEReport = () => {
         >
           <h3 className="text-sm font-medium opacity-90">Monthly Depreciation</h3>
           <p className="text-3xl font-bold mt-2">
-            ${totals.totalMonthlyDepreciation.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {formatNumber(totals.totalMonthlyDepreciation)}
           </p>
         </motion.div>
       </div>
@@ -220,12 +221,12 @@ const PPEReport = () => {
                     <td className="px-4 py-3">{asset.name}</td>
                     <td className="px-4 py-3">{asset.category}</td>
                     <td className="px-4 py-3">{new Date(asset.acquisitionDate).toLocaleDateString()}</td>
-                    <td className="px-4 py-3 text-right">${asset.acquisitionCost.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                    <td className="px-4 py-3 text-right">{formatNumber(asset.acquisitionCost)}</td>
                     <td className="px-4 py-3 text-right">{asset.usefulLife}</td>
-                    <td className="px-4 py-3 text-right">${asset.monthlyDepreciation.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                    <td className="px-4 py-3 text-right text-red-600">${asset.accumulatedDepreciation.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                    <td className="px-4 py-3 text-right font-semibold text-green-600">${asset.currentBookValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                    <td className="px-4 py-3 text-right">{asset.depreciationPercent.toFixed(2)}%</td>
+                    <td className="px-4 py-3 text-right">{formatNumber(asset.monthlyDepreciation)}</td>
+                    <td className="px-4 py-3 text-right text-red-600">{formatNumber(asset.accumulatedDepreciation)}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-green-600">{formatNumber(asset.currentBookValue)}</td>
+                    <td className="px-4 py-3 text-right">{formatNumber(asset.depreciationPercent, 2)}%</td>
                     <td className="px-4 py-3 text-center">
                       <button
                         onClick={() => viewDepreciationSchedule(asset.id)}
@@ -257,11 +258,11 @@ const PPEReport = () => {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                 <div className="bg-gray-50 p-3 rounded">
                   <p className="text-xs text-gray-600">Acquisition Cost</p>
-                  <p className="font-semibold">${scheduleData.asset.acquisitionCost.toLocaleString()}</p>
+                  <p className="font-semibold">{formatNumber(scheduleData.asset.acquisitionCost)}</p>
                 </div>
                 <div className="bg-gray-50 p-3 rounded">
                   <p className="text-xs text-gray-600">Residual Value</p>
-                  <p className="font-semibold">${scheduleData.asset.residualValue.toLocaleString()}</p>
+                  <p className="font-semibold">{formatNumber(scheduleData.asset.residualValue)}</p>
                 </div>
                 <div className="bg-gray-50 p-3 rounded">
                   <p className="text-xs text-gray-600">Useful Life</p>
@@ -290,9 +291,9 @@ const PPEReport = () => {
                       <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                         <td className="px-3 py-2">{item.period}</td>
                         <td className="px-3 py-2">{new Date(item.date).toLocaleDateString()}</td>
-                        <td className="px-3 py-2 text-right">${item.periodDepreciation.toFixed(2)}</td>
-                        <td className="px-3 py-2 text-right text-red-600">${item.accumulatedDepreciation.toFixed(2)}</td>
-                        <td className="px-3 py-2 text-right font-semibold">${item.bookValue.toFixed(2)}</td>
+                        <td className="px-3 py-2 text-right">{formatNumber(item.periodDepreciation)}</td>
+                        <td className="px-3 py-2 text-right text-red-600">{formatNumber(item.accumulatedDepreciation)}</td>
+                        <td className="px-3 py-2 text-right font-semibold">{formatNumber(item.bookValue)}</td>
                       </tr>
                     ))}
                   </tbody>

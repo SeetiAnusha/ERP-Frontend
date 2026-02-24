@@ -6,6 +6,7 @@ import { Product } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import PriceHistoryModal from '../components/PriceHistoryModal';
 import { notify, handleApiError } from '../utils/notifications';
+import { formatNumber } from '../utils/formatNumber';
 
 const Products = () => {
   const { t, language } = useLanguage();
@@ -205,9 +206,9 @@ const Products = () => {
                   <td className="px-6 py-4 text-sm font-medium">{product.name}</td>
                   <td className="px-6 py-4 text-sm text-gray-600">{product.description || '-'}</td>
                   <td className="px-6 py-4 text-sm text-center">{product.unit}</td>
-                  <td className="px-6 py-4 text-sm text-right">{amount.toFixed(2)}</td>
-                  <td className="px-6 py-4 text-sm text-right">{unitPrice.toFixed(2)}</td>
-                  <td className="px-6 py-4 text-sm text-right text-blue-600 font-semibold">{Number(product.salesPrice || 0).toFixed(2)}</td>
+                  <td className="px-6 py-4 text-sm text-right">{formatNumber(amount)}</td>
+                  <td className="px-6 py-4 text-sm text-right">{formatNumber(unitPrice)}</td>
+                  <td className="px-6 py-4 text-sm text-right text-blue-600 font-semibold">{formatNumber(Number(product.salesPrice || 0))}</td>
                   <td className="px-6 py-4 text-center">
                     <motion.button
                       whileHover={{ scale: 1.05 }}
@@ -372,7 +373,7 @@ const Products = () => {
                   <input
                     type="text"
                     readOnly
-                    value={((Number(formData.quantity) || 0) * (Number(formData.unitCost) || 0)).toFixed(2)}
+                    value={formatNumber((Number(formData.quantity) || 0) * (Number(formData.unitCost) || 0))}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700 font-semibold"
                   />
                   <p className="text-xs text-gray-500 mt-1">{t('amount')} × {t('unitPrice')}</p>

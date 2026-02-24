@@ -5,6 +5,7 @@ import api from '../api/axios';
 import { Sale, Client, Product } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { notify, handleApiError } from '../utils/notifications';
+import { formatNumber } from '../utils/formatNumber';
 
 interface SaleItem {
   productId: number;
@@ -303,9 +304,9 @@ const Sales = () => {
                 <td className="px-6 py-4 text-sm">{new Date(sale.date).toLocaleDateString()}</td>
                 <td className="px-6 py-4 text-sm">{sale.saleType || 'N/A'}</td>
                 <td className="px-6 py-4 text-sm">{sale.paymentType || 'N/A'}</td>
-                <td className="px-6 py-4 text-sm font-semibold text-right">{Number(sale.total).toFixed(2)}</td>
-                <td className="px-6 py-4 text-sm font-semibold text-right text-green-600">{Number(sale.collectedAmount || 0).toFixed(2)}</td>
-                <td className="px-6 py-4 text-sm font-semibold text-right text-orange-600">{Number(sale.balanceAmount || 0).toFixed(2)}</td>
+                <td className="px-6 py-4 text-sm font-semibold text-right">{formatNumber(Number(sale.total))}</td>
+                <td className="px-6 py-4 text-sm font-semibold text-right text-green-600">{formatNumber(Number(sale.collectedAmount || 0))}</td>
+                <td className="px-6 py-4 text-sm font-semibold text-right text-orange-600">{formatNumber(Number(sale.balanceAmount || 0))}</td>
                 <td className="px-6 py-4 text-center">
                   <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                     sale.collectionStatus === 'Collected' || sale.collectionStatus === 'Cobrada' ? 'bg-green-100 text-green-800' :
@@ -504,7 +505,7 @@ const Sales = () => {
                       <option value="">Select product...</option>
                       {products.filter(p => p.status === 'ACTIVE').map((product) => (
                         <option key={product.id} value={product.id}>
-                          {product.name} - Sales Price: {Number(product.salesPrice || 0).toFixed(2)} | Stock: {product.amount}
+                          {product.name} - Sales Price: {formatNumber(Number(product.salesPrice || 0))} | Stock: {product.amount}
                         </option>
                       ))}
                     </select>
@@ -604,10 +605,10 @@ const Sales = () => {
                             <td className="px-4 py-3 text-sm">{item.productName}</td>
                             <td className="px-4 py-3 text-sm text-right">{item.productAmount}</td>
                             <td className="px-4 py-3 text-sm text-right">{item.quantity}</td>
-                            <td className="px-4 py-3 text-sm text-right">{Number(item.unitPrice).toFixed(2)}</td>
-                            <td className="px-4 py-3 text-sm text-right">{Number(item.subtotal).toFixed(2)}</td>
-                            <td className="px-4 py-3 text-sm text-right">{Number(item.tax).toFixed(2)}</td>
-                            <td className="px-4 py-3 text-sm text-right font-semibold">{Number(item.total).toFixed(2)}</td>
+                            <td className="px-4 py-3 text-sm text-right">{formatNumber(Number(item.unitPrice))}</td>
+                            <td className="px-4 py-3 text-sm text-right">{formatNumber(Number(item.subtotal))}</td>
+                            <td className="px-4 py-3 text-sm text-right">{formatNumber(Number(item.tax))}</td>
+                            <td className="px-4 py-3 text-sm text-right font-semibold">{formatNumber(Number(item.total))}</td>
                             <td className="px-4 py-3">
                               <button
                                 type="button"
@@ -623,9 +624,9 @@ const Sales = () => {
                       <tfoot className="bg-gray-50 font-semibold">
                         <tr>
                           <td colSpan={4} className="px-4 py-3 text-right">{t('subtotal')}:</td>
-                          <td className="px-4 py-3 text-right">{totals.subtotal.toFixed(2)}</td>
-                          <td className="px-4 py-3 text-right">{totals.tax.toFixed(2)}</td>
-                          <td className="px-4 py-3 text-right text-green-600 text-lg">{totals.total.toFixed(2)}</td>
+                          <td className="px-4 py-3 text-right">{formatNumber(totals.subtotal)}</td>
+                          <td className="px-4 py-3 text-right">{formatNumber(totals.tax)}</td>
+                          <td className="px-4 py-3 text-right text-green-600 text-lg">{formatNumber(totals.total)}</td>
                           <td></td>
                         </tr>
                       </tfoot>
@@ -646,7 +647,7 @@ const Sales = () => {
                     disabled={saleItems.length === 0 || isSubmitting}
                     className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
                   >
-                    {isSubmitting ? 'Creating...' : `${t('createSale')} - ${totals.total.toFixed(2)}`}
+                    {isSubmitting ? 'Creating...' : `${t('createSale')} - $${formatNumber(totals.total)}`}
                   </button>
                 </div>
               </form>
@@ -710,15 +711,15 @@ const Sales = () => {
                   </div>
                   <div>
                     <label className="text-sm text-gray-600">Subtotal</label>
-                    <p className="font-semibold">{Number(selectedSale.subtotal).toFixed(2)}</p>
+                    <p className="font-semibold">{formatNumber(Number(selectedSale.subtotal))}</p>
                   </div>
                   <div>
                     <label className="text-sm text-gray-600">Tax</label>
-                    <p className="font-semibold">{Number(selectedSale.tax).toFixed(2)}</p>
+                    <p className="font-semibold">{formatNumber(Number(selectedSale.tax))}</p>
                   </div>
                   <div>
                     <label className="text-sm text-gray-600">Total</label>
-                    <p className="font-semibold text-lg text-green-600">{Number(selectedSale.total).toFixed(2)}</p>
+                    <p className="font-semibold text-lg text-green-600">{formatNumber(Number(selectedSale.total))}</p>
                   </div>
                   <div>
                     <label className="text-sm text-gray-600">Estado de Cobro</label>
@@ -789,10 +790,10 @@ const Sales = () => {
                           <td className="px-3 py-2">{item.productName}</td>
                           <td className="px-3 py-2">{item.unitOfMeasurement}</td>
                           <td className="px-3 py-2 text-right">{item.quantity}</td>
-                          <td className="px-3 py-2 text-right">{Number(item.unitPrice).toFixed(2)}</td>
-                          <td className="px-3 py-2 text-right">{Number(item.subtotal).toFixed(2)}</td>
-                          <td className="px-3 py-2 text-right">{Number(item.tax).toFixed(2)}</td>
-                          <td className="px-3 py-2 text-right font-semibold">{Number(item.total).toFixed(2)}</td>
+                          <td className="px-3 py-2 text-right">{formatNumber(Number(item.unitPrice))}</td>
+                          <td className="px-3 py-2 text-right">{formatNumber(Number(item.subtotal))}</td>
+                          <td className="px-3 py-2 text-right">{formatNumber(Number(item.tax))}</td>
+                          <td className="px-3 py-2 text-right font-semibold">{formatNumber(Number(item.total))}</td>
                         </tr>
                       ))
                     ) : (
