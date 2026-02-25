@@ -481,10 +481,10 @@ const CashRegister = () => {
                       onChange={(e) => setFormData({ ...formData, relatedDocumentType: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
-                      <option value="">{t('none')}</option>
-                      <option value="Sale">{t('sale')}</option>
-                      <option value="Purchase">{t('purchase')}</option>
-                      <option value="Payment">{t('payment')}</option>
+                      <option value="">None</option>
+                      <option value="Sale">Sale</option>
+                      <option value="Purchase">Purchase</option>
+                      <option value="Payment">Payment</option>
                     </select>
                   </div>
 
