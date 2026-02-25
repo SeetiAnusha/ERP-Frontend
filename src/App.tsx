@@ -14,6 +14,7 @@ import Investments from './pages/Investments';
 import PrepaidExpenses from './pages/PrepaidExpenses';
 // import Payments from './pages/Payments';
 import CashRegister from './pages/CashRegister';
+import BankRegister from './pages/BankRegister';
 import Adjustments from './pages/Adjustments';
 import Reports from './pages/Reports';
 import PPEReport from './pages/PPEReport';
@@ -51,6 +52,7 @@ function App() {
             <Route path="/prepaid-expenses" element={<PrepaidExpenses />} /> 
             {/* <Route path="/payments" element={<Payments />} /> */}
             <Route path="/cash-register" element={<CashRegister />} />
+            <Route path="/bank-register" element={<BankRegister />} />
             <Route path="/adjustments" element={<Adjustments />} /> 
             <Route path="/reports" element={<Reports />} />
             <Route path="/reports/ppe" element={<PPEReport />} />

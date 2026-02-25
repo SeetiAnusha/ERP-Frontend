@@ -25,6 +25,7 @@ const CashRegister = () => {
     relatedDocumentNumber: '',
     clientRnc: '',
     clientName: '',
+    ncf: '',
     description: '',
   });
 
@@ -98,6 +99,7 @@ const CashRegister = () => {
       relatedDocumentNumber: '',
       clientRnc: '',
       clientName: '',
+      ncf: '',
       description: '',
     });
     setShowModal(false);
@@ -314,13 +316,19 @@ const CashRegister = () => {
                   {t('type')}
                 </th>
                 <th className="px-6 py-3 text-left text-sm font-bold text-gray-800 uppercase tracking-wider">
+                  {t('method')}
+                </th>
+                <th className="px-6 py-3 text-left text-sm font-bold text-gray-800 uppercase tracking-wider">
                   {t('partyEntity')}
                 </th>
                 <th className="px-6 py-3 text-left text-sm font-bold text-gray-800 uppercase tracking-wider">
-                  {t('description')}
+                  RNC
                 </th>
                 <th className="px-6 py-3 text-left text-sm font-bold text-gray-800 uppercase tracking-wider">
-                  {t('method')}
+                  NCF
+                </th>
+                <th className="px-6 py-3 text-left text-sm font-bold text-gray-800 uppercase tracking-wider">
+                  {t('description')}
                 </th>
                 <th className="px-6 py-3 text-right text-sm font-bold text-gray-800 uppercase tracking-wider">
                   {t('amount')}
@@ -351,14 +359,20 @@ const CashRegister = () => {
                       {transaction.transactionType === 'INFLOW' ? t('inflow') : t('outflow')}
                     </span>
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {transaction.paymentMethod}
+                  </td>
                   <td className="px-6 py-4 text-sm text-gray-900">
                     {transaction.clientName || '-'}
                   </td>
+                  <td className="px-6 py-4 text-sm text-gray-500">
+                    {transaction.clientRnc || '-'}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-500">
+                    {transaction.ncf || '-'}
+                  </td>
                   <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
                     {transaction.description}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {transaction.paymentMethod}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold">
                     <span className={transaction.transactionType === 'INFLOW' ? 'text-green-600' : 'text-red-600'}>
@@ -496,6 +510,20 @@ const CashRegister = () => {
                       value={formData.clientRnc}
                       onChange={(e) => setFormData({ ...formData, clientRnc: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="RNC/Cedula"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      NCF
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.ncf}
+                      onChange={(e) => setFormData({ ...formData, ncf: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="B0100000001"
                     />
                   </div>
 

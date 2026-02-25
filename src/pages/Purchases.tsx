@@ -548,6 +548,7 @@ const Purchases = () => {
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="CASH">{t('cash')}</option>
+                      <option value="CHEQUE">{t('cheque')}</option>
                       <option value="BANK_TRANSFER">{t('bankTransfer')}</option>
                       <option value="DEPOSIT">{t('deposit')}</option>
                       <option value="CREDIT_CARD">{t('creditCard')}</option>
@@ -1007,6 +1008,7 @@ const Purchases = () => {
                     >
                       <option value="">{t('selectType')}</option>
                       <option value="CASH">{t('cash')}</option>
+                      <option value="CHEQUE">{t('cheque')}</option>
                       <option value="BANK_TRANSFER">{t('bankTransfer')}</option>
                       <option value="DEPOSIT">{t('deposit')}</option>
                       <option value="CREDIT_CARD">{t('creditCard')}</option>

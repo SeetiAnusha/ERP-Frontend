@@ -8,6 +8,9 @@ export interface AccountsReceivable {
   relatedDocumentNumber: string;
   clientId?: number;
   clientName?: string;
+  clientRnc?: string;
+  ncf?: string;
+  saleOf?: string;
   cardNetwork?: string;
   amount: number;
   receivedAmount: number;

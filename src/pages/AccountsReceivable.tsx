@@ -192,6 +192,9 @@ const AccountsReceivablePage = () => {
               <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('type').toUpperCase()}</th>
               <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('relatedDocumentNumber').toUpperCase()}</th>
               <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('client').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">RNC</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">NCF</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">SALE OF</th>
               <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('amount').toUpperCase()}</th>
               <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('received').toUpperCase()}</th>
               <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('balance').toUpperCase()}</th>
@@ -202,7 +205,7 @@ const AccountsReceivablePage = () => {
           <tbody>
             {filteredAR.length === 0 ? (
               <tr>
-                <td colSpan={10} className="px-6 py-12 text-center text-gray-500">
+                <td colSpan={13} className="px-6 py-12 text-center text-gray-500">
                   {t('noAccountsReceivableFound')}
                 </td>
               </tr>
@@ -222,6 +225,11 @@ const AccountsReceivablePage = () => {
                     {ar.relatedDocumentType} - {ar.relatedDocumentNumber}
                   </td>
                   <td className="px-6 py-4 text-sm">{ar.clientName || ar.cardNetwork || 'N/A'}</td>
+                  <td className="px-6 py-4 text-sm text-gray-500">{ar.clientRnc || '-'}</td>
+                  <td className="px-6 py-4 text-sm text-gray-500">{ar.ncf || '-'}</td>
+                  <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate" title={ar.saleOf}>
+                    {ar.saleOf || '-'}
+                  </td>
                   <td className="px-6 py-4 text-sm font-semibold text-right">{formatNumber(Number(ar.amount))}</td>
                   <td className="px-6 py-4 text-sm font-semibold text-right text-green-600">
                     {formatNumber(Number(ar.receivedAmount))}

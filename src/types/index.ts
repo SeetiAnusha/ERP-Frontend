@@ -234,6 +234,7 @@ export interface CashTransaction {
   relatedDocumentNumber?: string;
   clientRnc?: string;
   clientName?: string;
+  ncf?: string;
   description: string;
   balance: number;
 }
