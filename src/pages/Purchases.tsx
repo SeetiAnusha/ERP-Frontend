@@ -234,6 +234,27 @@ const Purchases = () => {
     
     if (isSubmitting) return; // Prevent double submission
     
+    // Validate required fields
+    if (!formData.supplierId) {
+      alert('Please select a supplier');
+      return;
+    }
+    
+    if (!formData.date) {
+      alert('Please select a date');
+      return;
+    }
+    
+    if (!formData.purchaseType) {
+      alert('Please select a purchase type');
+      return;
+    }
+    
+    if (!formData.paymentType) {
+      alert('Please select a payment type');
+      return;
+    }
+    
     if (purchaseItems.length === 0) {
       alert('Please add at least one product');
       return;
@@ -248,16 +269,19 @@ const Purchases = () => {
       await api.post('/purchases', {
         ...formData,
         supplierId: parseInt(formData.supplierId),
-        supplierRnc: formData.supplierRnc,
-        ncf: formData.ncf,
-        purchaseType: formData.purchaseType,
+        supplierRnc: formData.supplierRnc || null,
+        ncf: formData.ncf || null,
         productTotal: totals.productTotal,
         additionalExpenses: totals.associatedTotal,
         total: totals.grandTotal,
         paidAmount: paidAmount,
         balanceAmount: totals.grandTotal - paidAmount,
         items: purchaseItems,
-        associatedInvoices: associatedInvoices,
+        associatedInvoices: associatedInvoices.map(inv => ({
+          ...inv,
+          concept: inv.concept || 'Associated cost',
+          ncf: inv.ncf || 'N/A',
+        })),
       });
       fetchPurchases();
       closeModal();
