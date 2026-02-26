@@ -302,9 +302,9 @@ const CashRegister = () => {
 
       {/* Transactions Table */}
       <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
+            <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-20">
               <tr>
                 <th className="px-6 py-3 text-left text-sm font-bold text-gray-800 uppercase tracking-wider">
                   {t('registrationHash')}

@@ -161,24 +161,24 @@ const InvestmentReport = () => {
 
       {/* Investments Table */}
       <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
           <table className="w-full">
-            <thead className="bg-blue-900 text-white">
+            <thead className="bg-blue-900 text-white sticky top-0 z-20">
               <tr>
-                <th className="px-4 py-3 text-left">Code</th>
-                <th className="px-4 py-3 text-left">Name</th>
-                <th className="px-4 py-3 text-left">Type</th>
-                <th className="px-4 py-3 text-left">Acquisition Date</th>
-                <th className="px-4 py-3 text-right">Quantity</th>
-                <th className="px-4 py-3 text-right">Unit Cost</th>
-                <th className="px-4 py-3 text-right">Acquisition Cost</th>
-                <th className="px-4 py-3 text-right">Current Value</th>
-                <th className="px-4 py-3 text-right">Gain/Loss</th>
-                <th className="px-4 py-3 text-right">ROI %</th>
-                <th className="px-4 py-3 text-right">Annualized Return %</th>
-                <th className="px-4 py-3 text-right">Days Held</th>
-                <th className="px-4 py-3 text-left">Maturity Date</th>
-                <th className="px-4 py-3 text-right">Interest Rate</th>
+                <th className="px-4 py-3 text-left bg-blue-900">Code</th>
+                <th className="px-4 py-3 text-left bg-blue-900">Name</th>
+                <th className="px-4 py-3 text-left bg-blue-900">Type</th>
+                <th className="px-4 py-3 text-left bg-blue-900">Acquisition Date</th>
+                <th className="px-4 py-3 text-right bg-blue-900">Quantity</th>
+                <th className="px-4 py-3 text-right bg-blue-900">Unit Cost</th>
+                <th className="px-4 py-3 text-right bg-blue-900">Acquisition Cost</th>
+                <th className="px-4 py-3 text-right bg-blue-900">Current Value</th>
+                <th className="px-4 py-3 text-right bg-blue-900">Gain/Loss</th>
+                <th className="px-4 py-3 text-right bg-blue-900">ROI %</th>
+                <th className="px-4 py-3 text-right bg-blue-900">Annualized Return %</th>
+                <th className="px-4 py-3 text-right bg-blue-900">Days Held</th>
+                <th className="px-4 py-3 text-left bg-blue-900">Maturity Date</th>
+                <th className="px-4 py-3 text-right bg-blue-900">Interest Rate</th>
               </tr>
             </thead>
             <tbody>

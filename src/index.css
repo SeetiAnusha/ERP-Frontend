@@ -53,3 +53,39 @@ body {
 [data-sonner-toaster][data-y-position="top"] {
   top: 20px !important;
 }
+
+/* Sticky Table Headers - Makes headers stay visible when scrolling */
+thead {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+/* Ensure table headers have proper background and shadow */
+thead th {
+  background-color: rgb(249 250 251) !important; /* bg-gray-50 */
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* For tables with white background headers */
+thead.bg-white th {
+  background-color: white !important;
+}
+
+/* For tables with gray background headers */
+thead.bg-gray-50 th {
+  background-color: rgb(249 250 251) !important;
+}
+
+/* Ensure the table container allows sticky positioning */
+.overflow-x-auto {
+  position: relative;
+}
+
+/* Make sure the table itself is positioned correctly */
+table {
+  position: relative;
+}

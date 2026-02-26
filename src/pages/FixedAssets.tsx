@@ -144,7 +144,7 @@ const FixedAssets = () => {
         className="bg-white rounded-xl shadow-lg overflow-hidden"
       >
         <table className="w-full">
-          <thead className="bg-gray-50 border-b border-gray-200">
+          <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-20">
             <tr>
               <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">CODE</th>
               <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">NAME</th>

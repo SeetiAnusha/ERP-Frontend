@@ -184,21 +184,21 @@ const PPEReport = () => {
 
       {/* Assets Table */}
       <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
           <table className="w-full">
-            <thead className="bg-blue-900 text-white">
+            <thead className="bg-blue-900 text-white sticky top-0 z-20">
               <tr>
-                <th className="px-4 py-3 text-left">Code</th>
-                <th className="px-4 py-3 text-left">Name</th>
-                <th className="px-4 py-3 text-left">Category</th>
-                <th className="px-4 py-3 text-left">Acquisition Date</th>
-                <th className="px-4 py-3 text-right">Acquisition Cost</th>
-                <th className="px-4 py-3 text-right">Useful Life (Years)</th>
-                <th className="px-4 py-3 text-right">Monthly Depreciation</th>
-                <th className="px-4 py-3 text-right">Accumulated Depreciation</th>
-                <th className="px-4 py-3 text-right">Book Value</th>
-                <th className="px-4 py-3 text-right">Depreciation %</th>
-                <th className="px-4 py-3 text-center">Actions</th>
+                <th className="px-4 py-3 text-left bg-blue-900">Code</th>
+                <th className="px-4 py-3 text-left bg-blue-900">Name</th>
+                <th className="px-4 py-3 text-left bg-blue-900">Category</th>
+                <th className="px-4 py-3 text-left bg-blue-900">Acquisition Date</th>
+                <th className="px-4 py-3 text-right bg-blue-900">Acquisition Cost</th>
+                <th className="px-4 py-3 text-right bg-blue-900">Useful Life (Years)</th>
+                <th className="px-4 py-3 text-right bg-blue-900">Monthly Depreciation</th>
+                <th className="px-4 py-3 text-right bg-blue-900">Accumulated Depreciation</th>
+                <th className="px-4 py-3 text-right bg-blue-900">Book Value</th>
+                <th className="px-4 py-3 text-right bg-blue-900">Depreciation %</th>
+                <th className="px-4 py-3 text-center bg-blue-900">Actions</th>
               </tr>
             </thead>
             <tbody>

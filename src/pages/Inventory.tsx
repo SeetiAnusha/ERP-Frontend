@@ -387,32 +387,41 @@ const Inventory = () => {
           </div>
 
           {/* Movements Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-blue-900 text-white">
+          <style>{`
+            .inventory-header-blue { background-color: #1e3a8a !important; color: white !important; }
+            .inventory-header-green { background-color: #15803d !important; color: white !important; }
+            .inventory-header-orange { background-color: #c2410c !important; color: white !important; }
+            .inventory-header-yellow { background-color: #a16207 !important; color: white !important; }
+          `}</style>
+          <div 
+            className="overflow-auto max-h-[600px]" 
+            style={{ position: 'relative' }}
+          >
+            <table className="w-full text-sm" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
+              <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
                 <tr>
-                  <th className="px-3 py-2 text-left">{t('registrationNumber')}</th>
-                  <th className="px-3 py-2 text-left">{t('registrationDate')}</th>
-                  <th className="px-3 py-2 text-left">{t('supplierRnc')}</th>
-                  <th className="px-3 py-2 text-left">{t('supplierName')}</th>
-                  <th className="px-3 py-2 text-left">{t('ncf')}</th>
-                  <th className="px-3 py-2 text-left">{t('date')}</th>
-                  <th className="px-3 py-2 text-left">{t('operation')}</th>
-                  <th className="px-3 py-2 text-left">{t('product')}</th>
-                  <th className="px-3 py-2 text-right">{t('quantity')}</th>
-                  <th className="px-3 py-2 text-right">{t('unitCost')}</th>
-                  <th className="px-3 py-2 text-right">{t('amount')}</th>
-                  <th className="px-3 py-2 text-right bg-green-700">{t('salesPrice')}</th>
-                  <th className="px-3 py-2 text-right bg-green-700">{t('totalRevenue')}</th>
-                  <th className="px-3 py-2 text-right bg-orange-700">{t('cost')}</th>
-                  <th className="px-3 py-2 text-right bg-yellow-700">{t('grossMargin')}</th>
-                  <th className="px-3 py-2 text-right bg-yellow-700">{t('grossMargin')} %</th>
-                  <th className="px-3 py-2 text-right bg-yellow-700">% On Cost</th>
-                  <th className="px-3 py-2 text-right">{t('balanceInQuantity')}</th>
-                  <th className="px-3 py-2 text-right">{t('balanceInAmount')}</th>
-                  <th className="px-3 py-2 text-right">{t('averageUnitCost')}</th>
-                  <th className="px-3 py-2 text-center">{t('year')}</th>
-                  <th className="px-3 py-2 text-center">{t('month')}</th>
+                  <th className="px-3 py-2 text-left inventory-header-blue" style={{ position: 'sticky', top: 0, zIndex: 20 }}>{t('registrationNumber')}</th>
+                  <th className="px-3 py-2 text-left inventory-header-blue" style={{ position: 'sticky', top: 0, zIndex: 20 }}>{t('registrationDate')}</th>
+                  <th className="px-3 py-2 text-left inventory-header-blue" style={{ position: 'sticky', top: 0, zIndex: 20 }}>{t('supplierRnc')}</th>
+                  <th className="px-3 py-2 text-left inventory-header-blue" style={{ position: 'sticky', top: 0, zIndex: 20 }}>{t('supplierName')}</th>
+                  <th className="px-3 py-2 text-left inventory-header-blue" style={{ position: 'sticky', top: 0, zIndex: 20 }}>{t('ncf')}</th>
+                  <th className="px-3 py-2 text-left inventory-header-blue" style={{ position: 'sticky', top: 0, zIndex: 20 }}>{t('date')}</th>
+                  <th className="px-3 py-2 text-left inventory-header-blue" style={{ position: 'sticky', top: 0, zIndex: 20 }}>{t('operation')}</th>
+                  <th className="px-3 py-2 text-left inventory-header-blue" style={{ position: 'sticky', top: 0, zIndex: 20 }}>{t('product')}</th>
+                  <th className="px-3 py-2 text-right inventory-header-blue" style={{ position: 'sticky', top: 0, zIndex: 20 }}>{t('quantity')}</th>
+                  <th className="px-3 py-2 text-right inventory-header-blue" style={{ position: 'sticky', top: 0, zIndex: 20 }}>{t('unitCost')}</th>
+                  <th className="px-3 py-2 text-right inventory-header-blue" style={{ position: 'sticky', top: 0, zIndex: 20 }}>{t('amount')}</th>
+                  <th className="px-3 py-2 text-right inventory-header-green" style={{ position: 'sticky', top: 0, zIndex: 20 }}>{t('salesPrice')}</th>
+                  <th className="px-3 py-2 text-right inventory-header-green" style={{ position: 'sticky', top: 0, zIndex: 20 }}>{t('totalRevenue')}</th>
+                  <th className="px-3 py-2 text-right inventory-header-orange" style={{ position: 'sticky', top: 0, zIndex: 20 }}>{t('cost')}</th>
+                  <th className="px-3 py-2 text-right inventory-header-yellow" style={{ position: 'sticky', top: 0, zIndex: 20 }}>{t('grossMargin')}</th>
+                  <th className="px-3 py-2 text-right inventory-header-yellow" style={{ position: 'sticky', top: 0, zIndex: 20 }}>{t('grossMargin')} %</th>
+                  <th className="px-3 py-2 text-right inventory-header-yellow" style={{ position: 'sticky', top: 0, zIndex: 20 }}>% On Cost</th>
+                  <th className="px-3 py-2 text-right inventory-header-blue" style={{ position: 'sticky', top: 0, zIndex: 20 }}>{t('balanceInQuantity')}</th>
+                  <th className="px-3 py-2 text-right inventory-header-blue" style={{ position: 'sticky', top: 0, zIndex: 20 }}>{t('balanceInAmount')}</th>
+                  <th className="px-3 py-2 text-right inventory-header-blue" style={{ position: 'sticky', top: 0, zIndex: 20 }}>{t('averageUnitCost')}</th>
+                  <th className="px-3 py-2 text-center inventory-header-blue" style={{ position: 'sticky', top: 0, zIndex: 20 }}>{t('year')}</th>
+                  <th className="px-3 py-2 text-center inventory-header-blue" style={{ position: 'sticky', top: 0, zIndex: 20 }}>{t('month')}</th>
                 </tr>
               </thead>
               <tbody>

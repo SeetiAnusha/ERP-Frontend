@@ -218,10 +218,10 @@ const AccountsPayablePage = () => {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="bg-white rounded-xl shadow-lg overflow-x-auto"
+        className="bg-white rounded-xl shadow-lg overflow-x-auto max-h-[600px] overflow-y-auto"
       >
         <table className="w-full min-w-max table-auto">
-          <thead className="bg-gray-50 border-b-2 border-gray-200">
+          <thead className="bg-gray-50 border-b-2 border-gray-200 sticky top-0 z-20">
             <tr>
               <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">{t('type').toUpperCase()}</th>
               <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">{t('registrationNo').toUpperCase()}</th>
