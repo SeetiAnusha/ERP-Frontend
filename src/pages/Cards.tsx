@@ -8,6 +8,7 @@ interface Card {
   id: number;
   code: string;
   bankName: string;
+  cardName: string; // NEW: User-friendly card name
   cardNumberLast4: string;
   cardType: 'CREDIT' | 'DEBIT';
   cardBrand: string;
@@ -38,8 +39,10 @@ const Cards = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingCard, setEditingCard] = useState<Card | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false); // Add loading state
   const [formData, setFormData] = useState({
     bankName: '',
+    cardName: '', // NEW: User-friendly card name
     cardNumberLast4: '',
     cardType: 'CREDIT' as 'CREDIT' | 'DEBIT',
     cardBrand: '',
@@ -73,6 +76,11 @@ const Cards = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Prevent double submission
+    if (isSubmitting) return;
+    
+    setIsSubmitting(true);
     try {
       if (editingCard) {
         await api.put(`/cards/${editingCard.id}`, formData);
@@ -83,6 +91,8 @@ const Cards = () => {
       closeModal();
     } catch (error) {
       console.error('Error saving card:', error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -102,6 +112,7 @@ const Cards = () => {
       setEditingCard(card);
       setFormData({
         bankName: card.bankName,
+        cardName: card.cardName,
         cardNumberLast4: card.cardNumberLast4,
         cardType: card.cardType,
         cardBrand: card.cardBrand,
@@ -113,6 +124,7 @@ const Cards = () => {
       setEditingCard(null);
       setFormData({
         bankName: '',
+        cardName: '',
         cardNumberLast4: '',
         cardType: 'CREDIT',
         cardBrand: '',
@@ -127,6 +139,7 @@ const Cards = () => {
   const closeModal = () => {
     setShowModal(false);
     setEditingCard(null);
+    setIsSubmitting(false); // Reset loading state when closing
   };
 
   const filteredCards = cards.filter((card) =>
@@ -175,6 +188,7 @@ const Cards = () => {
           <thead className="bg-gray-50 border-b">
             <tr>
               <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('code').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('cardName').toUpperCase()}</th>
               <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('bankName').toUpperCase()}</th>
               <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('last4Digits').toUpperCase()}</th>
               <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('cardType').toUpperCase()}</th>
@@ -189,6 +203,7 @@ const Cards = () => {
             {filteredCards.map((card) => (
               <tr key={card.id} className="border-b hover:bg-gray-50">
                 <td className="px-6 py-4 text-sm font-medium">{card.code}</td>
+                <td className="px-6 py-4 text-sm font-semibold text-blue-600">{card.cardName}</td>
                 <td className="px-6 py-4 text-sm">{card.bankName}</td>
                 <td className="px-6 py-4 text-sm">****{card.cardNumberLast4}</td>
                 <td className="px-6 py-4 text-sm">
@@ -268,7 +283,7 @@ const Cards = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 p-4 overflow-y-auto"
             onClick={closeModal}
           >
             <motion.div
@@ -276,18 +291,19 @@ const Cards = () => {
               animate={{ scale: 1 }}
               exit={{ scale: 0.9 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-xl p-6 w-full max-w-md"
+              className="bg-white rounded-xl p-6 w-full max-w-md my-8 max-h-[90vh] overflow-y-auto"
             >
-              <div className="flex justify-between items-center mb-6">
+              <div className="flex justify-between items-center mb-6 sticky top-0 bg-white z-10 pb-4 border-b">
                 <h2 className="text-2xl font-bold">
                   {editingCard ? t('editCard') : t('newCard')}
                 </h2>
-                <button onClick={closeModal}>
+                <button onClick={closeModal} className="p-1 hover:bg-gray-100 rounded">
                   <X size={24} />
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="max-h-[60vh] overflow-y-auto pr-2">
+                <form id="card-form" onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">{t('bankName')} *</label>
                   <input
@@ -298,6 +314,21 @@ const Cards = () => {
                     className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
                     placeholder="Banco Popular, BHD, etc."
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t('cardName')} *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.cardName}
+                    onChange={(e) => setFormData({ ...formData, cardName: e.target.value })}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                    placeholder="John's Business Card, Main Company Card, etc."
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Friendly name to easily identify this card
+                  </p>
                 </div>
 
                 <div>
@@ -318,12 +349,27 @@ const Cards = () => {
                   <select
                     required
                     value={formData.cardType}
-                    onChange={(e) => setFormData({ ...formData, cardType: e.target.value as 'CREDIT' | 'DEBIT' })}
+                    onChange={(e) => {
+                      const newCardType = e.target.value as 'CREDIT' | 'DEBIT';
+                      setFormData({ 
+                        ...formData, 
+                        cardType: newCardType,
+                        // Clear bank account if switching to CREDIT
+                        bankAccountId: newCardType === 'CREDIT' ? '' : formData.bankAccountId,
+                        // Clear credit limit if switching to DEBIT
+                        creditLimit: newCardType === 'DEBIT' ? '0' : formData.creditLimit
+                      });
+                    }}
                     className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
                   >
                     <option value="CREDIT">{t('credit')}</option>
                     <option value="DEBIT">Debit</option>
                   </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {formData.cardType === 'DEBIT' 
+                      ? '💳 DEBIT: Uses money from your bank account' 
+                      : '💳 CREDIT: Uses credit limit from card issuer'}
+                  </p>
                 </div>
 
                 <div>
@@ -343,12 +389,20 @@ const Cards = () => {
                   </label>
                   <select
                     required={formData.cardType === 'DEBIT'}
-                    value={formData.bankAccountId}
+                    disabled={formData.cardType === 'CREDIT'}
+                    value={formData.cardType === 'CREDIT' ? '' : formData.bankAccountId}
                     onChange={(e) => setFormData({ ...formData, bankAccountId: e.target.value })}
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 ${
+                      formData.cardType === 'CREDIT' ? 'bg-gray-100 cursor-not-allowed' : ''
+                    }`}
                   >
-                    <option value="">{t('selectBankAccount')}</option>
-                    {bankAccounts.map(account => (
+                    <option value="">
+                      {formData.cardType === 'DEBIT' 
+                        ? t('selectBankAccount')
+                        : 'Not applicable for Credit Cards'
+                      }
+                    </option>
+                    {formData.cardType === 'DEBIT' && bankAccounts.map(account => (
                       <option key={account.id} value={account.id}>
                         {account.bankName} - {account.accountNumber} (Balance: ${Number(account.balance).toFixed(2)})
                       </option>
@@ -356,8 +410,8 @@ const Cards = () => {
                   </select>
                   <p className="text-xs text-gray-500 mt-1">
                     {formData.cardType === 'DEBIT' 
-                      ? 'DEBIT card must be linked to a bank account' 
-                      : 'Optional: Link CREDIT card to bank account for payment tracking'}
+                      ? '💳 DEBIT card: Money deducted directly from selected bank account' 
+                      : '💳 CREDIT card: Uses credit limit, not linked to bank account'}
                   </p>
                 </div>
 
@@ -370,15 +424,18 @@ const Cards = () => {
                     step="0.01"
                     min="0"
                     required={formData.cardType === 'CREDIT'}
-                    value={formData.creditLimit}
+                    disabled={formData.cardType === 'DEBIT'}
+                    value={formData.cardType === 'DEBIT' ? '0' : formData.creditLimit}
                     onChange={(e) => setFormData({ ...formData, creditLimit: e.target.value })}
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 ${
+                      formData.cardType === 'DEBIT' ? 'bg-gray-100 cursor-not-allowed' : ''
+                    }`}
                     placeholder="0.00"
                   />
                   <p className="text-xs text-gray-500 mt-1">
                     {formData.cardType === 'CREDIT' 
-                      ? 'Maximum credit limit available on this card' 
-                      : 'Not applicable for DEBIT cards (uses bank account balance)'}
+                      ? '💰 Maximum credit limit available on this card' 
+                      : '💰 Not applicable for DEBIT cards (uses bank account balance)'}
                   </p>
                 </div>
 
@@ -394,23 +451,34 @@ const Cards = () => {
                     <option value="INACTIVE">{t('inactive')}</option>
                   </select>
                 </div>
+                </form>
+              </div>
 
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={closeModal}
-                    className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50"
-                  >
-                    {t('cancel')}
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
-                  >
-                    {editingCard ? t('update') : t('create')}
-                  </button>
-                </div>
-              </form>
+              <div className="flex gap-3 pt-4 mt-4 border-t sticky bottom-0 bg-white">
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  disabled={isSubmitting}
+                  className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {t('cancel')}
+                </button>
+                <button
+                  type="submit"
+                  form="card-form"
+                  disabled={isSubmitting}
+                  className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-purple-600"
+                >
+                  {isSubmitting ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      {editingCard ? 'Updating...' : 'Creating...'}
+                    </div>
+                  ) : (
+                    editingCard ? t('update') : t('create')
+                  )}
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}

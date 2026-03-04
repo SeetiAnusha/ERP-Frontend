@@ -539,7 +539,7 @@ const CashRegister = () => {
                       <option value="">{t('selectCashRegister')}</option>
                       {cashRegisterMasters.map((register) => (
                         <option key={register.id} value={register.id}>
-                          {register.code} - {register.name} ({register.location})
+                          {register.code} - {register.name} ({register.location}) - Balance: {formatNumber(register.balance)}
                         </option>
                       ))}
                     </select>
@@ -742,7 +742,7 @@ const CashRegister = () => {
                             <option value="">{t('selectBankAccount')}</option>
                             {bankAccounts.map((account) => (
                               <option key={account.id} value={account.id}>
-                                {account.code} - {account.bankName} - {account.accountNumber}
+                                {account.code} - {account.bankName} - {account.accountNumber} - Balance: {formatNumber(account.balance)}
                               </option>
                             ))}
                           </select>
@@ -838,7 +838,7 @@ const CashRegister = () => {
                     <option value="">{t('selectCashRegister')}</option>
                     {cashRegisterMasters.map((register) => (
                       <option key={register.id} value={register.id}>
-                        {register.code} - {register.name} ({register.location})
+                        {register.code} - {register.name} ({register.location}) - Balance: {formatNumber(register.balance)}
                       </option>
                     ))}
                   </select>
@@ -855,7 +855,7 @@ const CashRegister = () => {
                     <option value="">{t('selectBankAccount')}</option>
                     {bankAccounts.map((account) => (
                       <option key={account.id} value={account.id}>
-                        {account.code} - {account.bankName} - {account.accountNumber}
+                        {account.code} - {account.bankName} - {account.accountNumber} - Balance: {formatNumber(account.balance)}
                       </option>
                     ))}
                   </select>

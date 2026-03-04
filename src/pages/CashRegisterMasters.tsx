@@ -20,6 +20,7 @@ const CashRegisterMasters = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingRegister, setEditingRegister] = useState<CashRegisterMaster | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false); // Add loading state
   const [formData, setFormData] = useState({
     name: '',
     location: '',
@@ -41,6 +42,11 @@ const CashRegisterMasters = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Prevent double submission
+    if (isSubmitting) return;
+    
+    setIsSubmitting(true);
     try {
       if (editingRegister) {
         await api.put(`/cash-register-masters/${editingRegister.id}`, formData);
@@ -51,6 +57,8 @@ const CashRegisterMasters = () => {
       closeModal();
     } catch (error) {
       console.error('Error saving cash register:', error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -87,6 +95,7 @@ const CashRegisterMasters = () => {
   const closeModal = () => {
     setShowModal(false);
     setEditingRegister(null);
+    setIsSubmitting(false); // Reset loading state
   };
 
   const filteredRegisters = registers.filter((register) =>
@@ -244,15 +253,24 @@ const CashRegisterMasters = () => {
                   <button
                     type="button"
                     onClick={closeModal}
-                    className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50"
+                    disabled={isSubmitting}
+                    className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {t('cancel')}
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                    disabled={isSubmitting}
+                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-green-600"
                   >
-                    {editingRegister ? t('update') : t('create')}
+                    {isSubmitting ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        {editingRegister ? 'Updating...' : 'Creating...'}
+                      </div>
+                    ) : (
+                      editingRegister ? t('update') : t('create')
+                    )}
                   </button>
                 </div>
               </form>

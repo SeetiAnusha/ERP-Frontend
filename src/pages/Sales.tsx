@@ -590,7 +590,7 @@ const Sales = () => {
                         <option value="">Select debit card...</option>
                         {cards.filter(card => card.cardType === 'DEBIT').map(card => (
                           <option key={card.id} value={card.id}>
-                            {card.cardBrand || 'Debit Card'} ****{card.cardNumberLast4}
+                            {card.cardName ? card.cardName : `${card.cardBrand || 'Debit Card'} ****${card.cardNumberLast4}`}
                             {card.BankAccount && ` - ${card.BankAccount.bankName} (Balance: $${Number(card.BankAccount.balance).toFixed(2)})`}
                           </option>
                         ))}

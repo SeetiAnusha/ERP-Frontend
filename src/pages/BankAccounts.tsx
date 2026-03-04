@@ -21,6 +21,7 @@ const BankAccounts = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingAccount, setEditingAccount] = useState<BankAccount | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false); // Add loading state
   const [formData, setFormData] = useState({
     bankName: '',
     accountNumber: '',
@@ -44,6 +45,11 @@ const BankAccounts = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Prevent double submission
+    if (isSubmitting) return;
+    
+    setIsSubmitting(true);
     try {
       if (editingAccount) {
         await api.put(`/bank-accounts/${editingAccount.id}`, formData);
@@ -54,6 +60,8 @@ const BankAccounts = () => {
       closeModal();
     } catch (error) {
       console.error('Error saving bank account:', error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -94,6 +102,7 @@ const BankAccounts = () => {
   const closeModal = () => {
     setShowModal(false);
     setEditingAccount(null);
+    setIsSubmitting(false); // Reset loading state
   };
 
   const filteredAccounts = accounts.filter((account) =>
@@ -286,15 +295,24 @@ const BankAccounts = () => {
                   <button
                     type="button"
                     onClick={closeModal}
-                    className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50"
+                    disabled={isSubmitting}
+                    className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {t('cancel')}
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    disabled={isSubmitting}
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-600"
                   >
-                    {editingAccount ? t('update') : t('create')}
+                    {isSubmitting ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        {editingAccount ? 'Updating...' : 'Creating...'}
+                      </div>
+                    ) : (
+                      editingAccount ? t('update') : t('create')
+                    )}
                   </button>
                 </div>
               </form>

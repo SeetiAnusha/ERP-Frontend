@@ -726,7 +726,7 @@ const Purchases = () => {
                           <option value="">Select Bank Account</option>
                           {bankAccounts.map((account: any) => (
                             <option key={account.id} value={account.id}>
-                              {account.bankName} - {account.accountNumber} ({account.accountType})
+                              {account.bankName} - {account.accountNumber} ({account.accountType}) - Balance: {formatNumber(account.balance)}
                             </option>
                           ))}
                         </select>
@@ -768,7 +768,7 @@ const Purchases = () => {
                           <option value="">Select Bank Account</option>
                           {bankAccounts.map((account: any) => (
                             <option key={account.id} value={account.id}>
-                              {account.bankName} - {account.accountNumber} ({account.accountType})
+                              {account.bankName} - {account.accountNumber} ({account.accountType}) - Balance: {formatNumber(account.balance)}
                             </option>
                           ))}
                         </select>
@@ -809,9 +809,9 @@ const Purchases = () => {
                           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                         >
                           <option value="">Select debit card...</option>
-                          {cards.filter((card: any) => card.cardType === 'DEBIT').map((card: any) => (
+                        {cards.filter((card: any) => card.cardType === 'DEBIT').map((card: any) => (
                             <option key={card.id} value={card.id}>
-                              {card.cardBrand || 'Debit Card'} ****{card.cardNumberLast4}
+                              {card.cardName ? card.cardName : `${card.cardBrand || 'Debit Card'} ****${card.cardNumberLast4}`}
                               {card.BankAccount && ` - ${card.BankAccount.bankName} (Balance: $${Number(card.BankAccount.balance).toFixed(2)})`}
                             </option>
                           ))}
@@ -858,7 +858,7 @@ const Purchases = () => {
                           <option value="">Select credit card...</option>
                           {cards.filter((card: any) => card.cardType === 'CREDIT').map((card: any) => (
                             <option key={card.id} value={card.id}>
-                              {card.cardBrand || 'Credit Card'} ****{card.cardNumberLast4}
+                              {card.cardName ? card.cardName : `${card.cardBrand || 'Credit Card'} ****${card.cardNumberLast4}`}
                               {card.creditLimit && ` (Limit: $${Number(card.creditLimit).toFixed(2)}, Available: $${(Number(card.creditLimit) - Number(card.usedCredit || 0)).toFixed(2)})`}
                             </option>
                           ))}
@@ -1345,7 +1345,7 @@ const Purchases = () => {
                       {/* <option value="CASH">{t('cash')}</option> */}
                       <option value="CHEQUE">{t('cheque')}</option>
                       <option value="BANK_TRANSFER">{t('bankTransfer')}</option>
-                      <option value="DEPOSIT">{t('deposit')}</option>
+                      {/* <option value="DEPOSIT">{t('deposit')}</option> */}
                       <option value="DEBIT_CARD">Debit Card</option>
                       <option value="CREDIT_CARD">{t('creditCard')}</option>
                       <option value="CREDIT">{t('credit')}</option>
@@ -1373,7 +1373,7 @@ const Purchases = () => {
                           .filter((card: any) => card.cardType === (newAssociatedInvoice.paymentType === 'DEBIT_CARD' ? 'DEBIT' : 'CREDIT'))
                           .map((card: any) => (
                             <option key={card.id} value={card.id}>
-                              {card.cardBrand || (newAssociatedInvoice.paymentType === 'DEBIT_CARD' ? 'Debit Card' : 'Credit Card')} ****{card.cardNumberLast4}
+                              {card.cardName ? card.cardName : `${card.cardBrand || (newAssociatedInvoice.paymentType === 'DEBIT_CARD' ? 'Debit Card' : 'Credit Card')} ****${card.cardNumberLast4}`}
                               {newAssociatedInvoice.paymentType === 'DEBIT_CARD' && card.BankAccount && 
                                 ` - ${card.BankAccount.bankName} (Balance: $${Number(card.BankAccount.balance).toFixed(2)})`}
                               {newAssociatedInvoice.paymentType === 'CREDIT_CARD' && card.creditLimit && 
@@ -1465,7 +1465,7 @@ const Purchases = () => {
                             {invoice.cardId ? (
                               (() => {
                                 const card = cards.find((c: any) => c.id === parseInt(invoice.cardId || '0'));
-                                return card ? `${card.cardBrand || 'Card'} ****${card.cardNumberLast4}` : 'Card not found';
+                                return card ? (card.cardName ? card.cardName : `${card.cardBrand || 'Card'} ****${card.cardNumberLast4}`) : 'Card not found';
                               })()
                             ) : '-'}
                           </td>

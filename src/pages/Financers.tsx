@@ -23,6 +23,7 @@ const Financers = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingFinancer, setEditingFinancer] = useState<Financer | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false); // Add loading state
   const [formData, setFormData] = useState({
     name: '',
     contactPerson: '',
@@ -49,6 +50,11 @@ const Financers = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Prevent double submission
+    if (isSubmitting) return;
+    
+    setIsSubmitting(true);
     try {
       if (editingFinancer) {
         await api.put(`/financers/${editingFinancer.id}`, formData);
@@ -59,6 +65,8 @@ const Financers = () => {
       closeModal();
     } catch (error) {
       console.error('Error saving financer:', error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -105,6 +113,7 @@ const Financers = () => {
   const closeModal = () => {
     setShowModal(false);
     setEditingFinancer(null);
+    setIsSubmitting(false); // Reset loading state
   };
 
   const filteredFinancers = financers.filter((financer) =>
@@ -328,15 +337,24 @@ const Financers = () => {
                   <button
                     type="button"
                     onClick={closeModal}
-                    className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50"
+                    disabled={isSubmitting}
+                    className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {t('cancel')}
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                    disabled={isSubmitting}
+                    className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-indigo-600"
                   >
-                    {editingFinancer ? t('update') : t('create')}
+                    {isSubmitting ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        {editingFinancer ? 'Updating...' : 'Creating...'}
+                      </div>
+                    ) : (
+                      editingFinancer ? t('update') : t('create')
+                    )}
                   </button>
                 </div>
               </form>
