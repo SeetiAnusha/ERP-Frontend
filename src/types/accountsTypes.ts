@@ -34,6 +34,7 @@ export interface AccountsPayable {
   supplierId?: number;
   supplierName?: string;
   supplierRnc?: string;
+  cardId?: number;
   cardIssuer?: string;
   ncf?: string;
   purchaseDate?: string;

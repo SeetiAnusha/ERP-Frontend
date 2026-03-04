@@ -141,6 +141,8 @@ export interface AssociatedInvoice {
   amount: number;
   purchaseType: string;
   paymentType?: string;
+  cardId?: string;
+  bankAccountId?: string;
 }
 
 export interface FixedAsset {
@@ -237,6 +239,13 @@ export interface CashTransaction {
   ncf?: string;
   description: string;
   balance: number;
+  // Phase 3: New fields
+  cashRegisterId?: number;
+  bankAccountId?: number;
+  chequeNumber?: string;
+  receiptNumber?: string;
+  customerId?: number;
+  invoiceIds?: string;
 }
 
 export interface Adjustment {

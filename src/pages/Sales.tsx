@@ -24,6 +24,9 @@ const Sales = () => {
   const [sales, setSales] = useState<Sale[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [cards, setCards] = useState<any[]>([]);
+  const [cashRegisters, setCashRegisters] = useState<any[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -35,6 +38,9 @@ const Sales = () => {
     ncf: '',
     saleType: 'Merchandise for sale',
     paymentType: 'CASH',
+    cashRegisterId: '',
+    cardId: '',
+    bankAccountId: '',
     paidAmount: 0,
     status: 'COMPLETED',
   });
@@ -51,7 +57,37 @@ const Sales = () => {
     fetchSales();
     fetchClients();
     fetchProducts();
+    fetchCards();
+    fetchCashRegisters();
+    fetchBankAccounts();
   }, []);
+
+  const fetchBankAccounts = async () => {
+    try {
+      const response = await api.get('/bank-accounts');
+      setBankAccounts(response.data);
+    } catch (error) {
+      console.error('Error fetching bank accounts:', error);
+    }
+  };
+
+  const fetchCards = async () => {
+    try {
+      const response = await api.get('/cards');
+      setCards(response.data);
+    } catch (error) {
+      console.error('Error fetching cards:', error);
+    }
+  };
+
+  const fetchCashRegisters = async () => {
+    try {
+      const response = await api.get('/cash-register-masters');
+      setCashRegisters(response.data);
+    } catch (error) {
+      console.error('Error fetching cash registers:', error);
+    }
+  };
 
   const fetchSales = async () => {
     try {
@@ -138,6 +174,24 @@ const Sales = () => {
       return;
     }
     
+    // ✅ Validation: Check cash register for CASH/CHEQUE
+    if ((formData.paymentType === 'CASH' || formData.paymentType === 'CHEQUE') && !formData.cashRegisterId) {
+      notify.warning('Cash Register Required', `Please select a cash register for ${formData.paymentType} payments`);
+      return;
+    }
+    
+    // ✅ Validation: Check card for DEBIT_CARD
+    if (formData.paymentType === 'DEBIT_CARD' && !formData.cardId) {
+      notify.warning('Debit Card Required', 'Please select a debit card');
+      return;
+    }
+    
+    // ✅ Validation: Check bank account for BANK_TRANSFER/DEPOSIT
+    if ((formData.paymentType === 'BANK_TRANSFER' || formData.paymentType === 'DEPOSIT') && !formData.bankAccountId) {
+      notify.warning('Bank Account Required', `Please select a bank account for ${formData.paymentType} payments`);
+      return;
+    }
+    
     setIsSubmitting(true);
     
     try {
@@ -147,6 +201,9 @@ const Sales = () => {
       await api.post('/sales', {
         ...formData,
         clientId: parseInt(formData.clientId),
+        cashRegisterId: formData.cashRegisterId ? parseInt(formData.cashRegisterId) : undefined,
+        cardId: formData.cardId ? parseInt(formData.cardId) : undefined,
+        bankAccountId: formData.bankAccountId ? parseInt(formData.bankAccountId) : undefined,
         subtotal: totals.subtotal,
         tax: totals.tax,
         discount: 0,
@@ -177,6 +234,9 @@ const Sales = () => {
       ncf: '',
       saleType: 'Merchandise for sale',
       paymentType: 'CASH',
+      cashRegisterId: '',
+      cardId: '',
+      bankAccountId: '',
       paidAmount: 0,
       status: 'COMPLETED',
     });
@@ -476,17 +536,95 @@ const Sales = () => {
                     <select
                       required
                       value={formData.paymentType}
-                      onChange={(e) => setFormData({ ...formData, paymentType: e.target.value })}
+                      onChange={(e) => setFormData({ ...formData, paymentType: e.target.value, cashRegisterId: '', cardId: '', bankAccountId: '' })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="CASH">Cash</option>
                       <option value="CHEQUE">Cheque</option>
+                      <option value="DEBIT_CARD">Debit Card</option>
+                      {/* TODO: Discuss with client - Credit Card sales logic */}
+                      <option value="CREDIT_CARD">Credit Card</option>
                       <option value="BANK_TRANSFER">Bank Transfer</option>
                       <option value="DEPOSIT">Deposit</option>
-                      <option value="CREDIT_CARD">Credit Card</option>
                       <option value="CREDIT">Credit</option>
                     </select>
                   </div>
+                  
+                  {/* ✅ Cash Register Selection for CASH/CHEQUE */}
+                  {(formData.paymentType === 'CASH' || formData.paymentType === 'CHEQUE') && (
+                    <div className="col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Select Cash Register *
+                      </label>
+                      <select
+                        required
+                        value={formData.cashRegisterId}
+                        onChange={(e) => setFormData({ ...formData, cashRegisterId: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Select cash register...</option>
+                        {cashRegisters.map(cr => (
+                          <option key={cr.id} value={cr.id}>
+                            {cr.name} (Balance: ${Number(cr.balance || 0).toFixed(2)})
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">
+                        💰 Cash register will be updated with this sale
+                      </p>
+                    </div>
+                  )}
+                  
+                  {/* ✅ Debit Card Selection for DEBIT_CARD */}
+                  {formData.paymentType === 'DEBIT_CARD' && (
+                    <div className="col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Select Debit Card *
+                      </label>
+                      <select
+                        required
+                        value={formData.cardId}
+                        onChange={(e) => setFormData({ ...formData, cardId: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Select debit card...</option>
+                        {cards.filter(card => card.cardType === 'DEBIT').map(card => (
+                          <option key={card.id} value={card.id}>
+                            {card.cardBrand || 'Debit Card'} ****{card.cardNumberLast4}
+                            {card.BankAccount && ` - ${card.BankAccount.bankName} (Balance: $${Number(card.BankAccount.balance).toFixed(2)})`}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">
+                        💳 DEBIT: Money goes to your bank account immediately (Bank Register)
+                      </p>
+                    </div>
+                  )}
+                  
+                  {/* ✅ Bank Account Selection for BANK_TRANSFER/DEPOSIT */}
+                  {(formData.paymentType === 'BANK_TRANSFER' || formData.paymentType === 'DEPOSIT') && (
+                    <div className="col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Select Bank Account *
+                      </label>
+                      <select
+                        required
+                        value={formData.bankAccountId}
+                        onChange={(e) => setFormData({ ...formData, bankAccountId: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Select bank account...</option>
+                        {bankAccounts.map(account => (
+                          <option key={account.id} value={account.id}>
+                            {account.bankName} - {account.accountNumber} (Balance: ${Number(account.balance || 0).toFixed(2)})
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">
+                        🏦 Money will be transferred directly to this bank account
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Add Products */}

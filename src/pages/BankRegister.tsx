@@ -22,6 +22,35 @@ interface BankTransaction {
   bankAccountName?: string;
   bankAccountNumber?: string;
   referenceNumber?: string;
+  chequeNumber?: string;
+  transferNumber?: string;
+  supplierId?: number;
+  supplierName?: string;
+  invoiceIds?: string;
+}
+
+interface BankAccount {
+  id: number;
+  bankName: string;
+  accountNumber: string;
+  accountType: string;
+  balance: number;
+}
+
+interface Supplier {
+  id: number;
+  name: string;
+  contactPerson: string;
+  phone: string;
+}
+
+interface PendingInvoice {
+  id: number;
+  registrationNumber: string;
+  amount: number;
+  balanceAmount: number;
+  invoiceDate: string;
+  description: string;
 }
 
 const BankRegister = () => {
@@ -31,26 +60,42 @@ const BankRegister = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('All');
   const [bankBalance, setBankBalance] = useState(0);
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [pendingInvoices, setPendingInvoices] = useState<PendingInvoice[]>([]);
+  const [selectedInvoices, setSelectedInvoices] = useState<number[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
     registrationDate: new Date().toISOString().split('T')[0],
     transactionType: 'INFLOW',
     amount: '',
-    paymentMethod: 'Bank Transfer',
+    paymentMethod: 'CHEQUE',
     relatedDocumentType: '',
     relatedDocumentNumber: '',
     clientRnc: '',
     clientName: '',
     ncf: '',
     description: '',
-    bankAccountName: '',
-    bankAccountNumber: '',
+    bankAccountId: '',
+    supplierId: '',
     referenceNumber: '',
   });
 
   useEffect(() => {
     fetchTransactions();
+    fetchBankAccounts();
+    fetchSuppliers();
   }, []);
+
+  useEffect(() => {
+    if (formData.supplierId) {
+      fetchPendingInvoices(parseInt(formData.supplierId));
+    } else {
+      setPendingInvoices([]);
+      setSelectedInvoices([]);
+    }
+  }, [formData.supplierId]);
 
   const fetchTransactions = async () => {
     try {
@@ -65,15 +110,66 @@ const BankRegister = () => {
     }
   };
 
+  const fetchBankAccounts = async () => {
+    try {
+      const response = await axios.get('/bank-accounts');
+      setBankAccounts(response.data);
+    } catch (error) {
+      console.error('Error fetching bank accounts:', error);
+    }
+  };
+
+  const fetchSuppliers = async () => {
+    try {
+      const response = await axios.get('/suppliers');
+      setSuppliers(response.data);
+    } catch (error) {
+      console.error('Error fetching suppliers:', error);
+    }
+  };
+
+  const fetchPendingInvoices = async (supplierId: number) => {
+    try {
+      const response = await axios.get(`/bank-register/pending-invoices/${supplierId}`);
+      setPendingInvoices(response.data);
+    } catch (error) {
+      console.error('Error fetching pending invoices:', error);
+      setPendingInvoices([]);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (isSubmitting) return;
+    
+    // Validation for OUTFLOW with supplier
+    if (formData.transactionType === 'OUTFLOW' && formData.supplierId && selectedInvoices.length === 0) {
+      alert('Please select at least one invoice to pay');
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
     try {
-      await axios.post('/bank-register', formData);
+      const submitData = {
+        ...formData,
+        bankAccountId: formData.bankAccountId ? parseInt(formData.bankAccountId) : undefined,
+        supplierId: formData.supplierId ? parseInt(formData.supplierId) : undefined,
+        invoiceIds: selectedInvoices.length > 0 ? JSON.stringify(selectedInvoices) : undefined,
+        amount: parseFloat(formData.amount),
+      };
+      
+      await axios.post('/bank-register', submitData);
       fetchTransactions();
+      fetchBankAccounts(); // Refresh bank account balances
       resetForm();
-    } catch (error) {
+      alert('Transaction created successfully!');
+    } catch (error: any) {
       console.error('Error saving transaction:', error);
-      alert('Error saving transaction');
+      alert(error.response?.data?.message || 'Error saving transaction');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -94,18 +190,34 @@ const BankRegister = () => {
       registrationDate: new Date().toISOString().split('T')[0],
       transactionType: 'INFLOW',
       amount: '',
-      paymentMethod: 'Bank Transfer',
+      paymentMethod: 'CHEQUE',
       relatedDocumentType: '',
       relatedDocumentNumber: '',
       clientRnc: '',
       clientName: '',
       ncf: '',
       description: '',
-      bankAccountName: '',
-      bankAccountNumber: '',
+      bankAccountId: '',
+      supplierId: '',
       referenceNumber: '',
     });
+    setSelectedInvoices([]);
+    setPendingInvoices([]);
     setShowModal(false);
+  };
+
+  const toggleInvoiceSelection = (invoiceId: number) => {
+    setSelectedInvoices(prev => 
+      prev.includes(invoiceId) 
+        ? prev.filter(id => id !== invoiceId)
+        : [...prev, invoiceId]
+    );
+  };
+
+  const calculateSelectedInvoicesTotal = () => {
+    return pendingInvoices
+      .filter(inv => selectedInvoices.includes(inv.id))
+      .reduce((sum, inv) => sum + parseFloat(inv.balanceAmount.toString()), 0);
   };
 
   const filteredTransactions = transactions.filter(transaction => {
@@ -237,7 +349,7 @@ const BankRegister = () => {
                 <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('clientName')}/{t('supplier')}</th>
                 <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('clientRnc')}</th>
                 <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('ncf')}</th>
-                <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('referenceNumber')}</th>
+                <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('chequeTransferNumber')}</th>
                 <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('description')}</th>
                 <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('amount')}</th>
                 <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('balance')}</th>
@@ -276,7 +388,9 @@ const BankRegister = () => {
                     <td className="px-6 py-4 text-sm">{transaction.clientName || '-'}</td>
                     <td className="px-6 py-4 text-sm">{transaction.clientRnc || '-'}</td>
                     <td className="px-6 py-4 text-sm">{transaction.ncf || '-'}</td>
-                    <td className="px-6 py-4 text-sm">{transaction.referenceNumber || '-'}</td>
+                    <td className="px-6 py-4 text-sm font-medium text-blue-600">
+                      {transaction.chequeNumber || transaction.transferNumber || transaction.referenceNumber || '-'}
+                    </td>
                     <td className="px-6 py-4 text-sm max-w-xs truncate" title={transaction.description}>
                       {transaction.description}
                     </td>
@@ -343,16 +457,20 @@ const BankRegister = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('amount')} *</label>
-                  <input
-                    type="number"
-                    step="0.01"
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('bankAccount')} *</label>
+                  <select
                     required
-                    value={formData.amount}
-                    onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                    value={formData.bankAccountId}
+                    onChange={(e) => setFormData({ ...formData, bankAccountId: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="0.00"
-                  />
+                  >
+                    <option value="">{t('selectBankAccount')}</option>
+                    {bankAccounts.map(account => (
+                      <option key={account.id} value={account.id}>
+                        {account.bankName} - {account.accountNumber} (Balance: {formatNumber(account.balance)})
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
@@ -363,99 +481,41 @@ const BankRegister = () => {
                     onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="Bank Transfer">{t('bankTransfer')}</option>
-                    <option value="Deposit">{t('deposit')}</option>
+                    <option value="CHEQUE">{t('cheque')}</option>
+                    <option value="BANK_TRANSFER">{t('bankTransfer')}</option>
+                    <option value="DEPOSIT">{t('deposit')}</option>
+                    <option value="CASH">{t('cash')}</option>
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('bankAccountName')}</label>
-                  <input
-                    type="text"
-                    value={formData.bankAccountName}
-                    onChange={(e) => setFormData({ ...formData, bankAccountName: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="Business Checking"
-                  />
-                </div>
+                {formData.transactionType === 'OUTFLOW' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('supplier')}</label>
+                    <select
+                      value={formData.supplierId}
+                      onChange={(e) => setFormData({ ...formData, supplierId: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">{t('selectSupplier')}</option>
+                      {suppliers.map(supplier => (
+                        <option key={supplier.id} value={supplier.id}>
+                          {supplier.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('accountNumber')}</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('amount')} *</label>
                   <input
-                    type="text"
-                    value={formData.bankAccountNumber}
-                    onChange={(e) => setFormData({ ...formData, bankAccountNumber: e.target.value })}
+                    type="number"
+                    step="0.01"
+                    required
+                    value={formData.amount}
+                    onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="****1234"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('referenceNumber')}</label>
-                  <input
-                    type="text"
-                    value={formData.referenceNumber}
-                    onChange={(e) => setFormData({ ...formData, referenceNumber: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="TXN123456"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('relatedDocType')}</label>
-                  <select
-                    value={formData.relatedDocumentType}
-                    onChange={(e) => setFormData({ ...formData, relatedDocumentType: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">{t('selectOption')}</option>
-                    <option value="Sale">{t('sales')}</option>
-                    <option value="Purchase">{t('purchases')}</option>
-                    <option value="Payment">{t('payments')}</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('documentNumber')}</label>
-                  <input
-                    type="text"
-                    value={formData.relatedDocumentNumber}
-                    onChange={(e) => setFormData({ ...formData, relatedDocumentNumber: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="RV0001"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('clientRncCedula')}</label>
-                  <input
-                    type="text"
-                    value={formData.clientRnc}
-                    onChange={(e) => setFormData({ ...formData, clientRnc: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="RNC/Cedula"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('ncf')}</label>
-                  <input
-                    type="text"
-                    value={formData.ncf}
-                    onChange={(e) => setFormData({ ...formData, ncf: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="B0100000001"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('clientName')}/{t('supplier')}</label>
-                  <input
-                    type="text"
-                    value={formData.clientName}
-                    onChange={(e) => setFormData({ ...formData, clientName: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="Supplier/Client Name"
+                    placeholder="0.00"
                   />
                 </div>
 
@@ -472,19 +532,63 @@ const BankRegister = () => {
                 </div>
               </div>
 
+              {/* Pending Invoices Selection */}
+              {formData.transactionType === 'OUTFLOW' && formData.supplierId && pendingInvoices.length > 0 && (
+                <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                  <h3 className="text-lg font-semibold mb-3">{t('selectInvoicesToPay')}</h3>
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {pendingInvoices.map(invoice => (
+                      <label key={invoice.id} className="flex items-center gap-3 p-3 bg-white rounded border hover:bg-blue-50 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={selectedInvoices.includes(invoice.id)}
+                          onChange={() => toggleInvoiceSelection(invoice.id)}
+                          className="w-4 h-4"
+                        />
+                        <div className="flex-1">
+                          <div className="flex justify-between">
+                            <span className="font-medium">{invoice.registrationNumber}</span>
+                            <span className="font-bold text-blue-600">{formatNumber(invoice.balanceAmount)}</span>
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            {new Date(invoice.invoiceDate).toLocaleDateString()} - {invoice.description}
+                          </div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                  {selectedInvoices.length > 0 && (
+                    <div className="mt-3 p-3 bg-blue-100 rounded">
+                      <div className="flex justify-between font-semibold">
+                        <span>{t('selectedInvoicesTotal')}:</span>
+                        <span className="text-blue-700">{formatNumber(calculateSelectedInvoicesTotal())}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {formData.transactionType === 'OUTFLOW' && formData.supplierId && pendingInvoices.length === 0 && (
+                <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-yellow-800">{t('noPendingInvoicesForSupplier')}</p>
+                </div>
+              )}
+
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
                   onClick={resetForm}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  disabled={isSubmitting}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
                 >
                   {t('cancel')}
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  disabled={isSubmitting}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {t('createTransaction')}
+                  {isSubmitting ? t('creating') : t('createTransaction')}
                 </button>
               </div>
             </form>

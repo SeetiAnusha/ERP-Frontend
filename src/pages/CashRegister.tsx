@@ -5,6 +5,7 @@ import axios from '../api/axios';
 import { CashTransaction } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { formatNumber } from '../utils/formatNumber';
+import { cleanFormData } from '../utils/cleanFormData';  // Import utility
 
 const CashRegister = () => {
   const { t } = useLanguage();
@@ -15,34 +16,50 @@ const CashRegister = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('All');
   const [cashBalance, setCashBalance] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);  // Add loading state
+
+  // Phase 3: New state
+  const [cashRegisterMasters, setCashRegisterMasters] = useState<any[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [pendingInvoices, setPendingInvoices] = useState<any[]>([]);
+  const [selectedInvoices, setSelectedInvoices] = useState<number[]>([]);
 
   const [formData, setFormData] = useState({
     registrationDate: new Date().toISOString().split('T')[0],
     transactionType: 'INFLOW',
     amount: '',
-    paymentMethod: 'Cash',
-    relatedDocumentType: '',
+    paymentMethod: 'CASH',
+    relatedDocumentType: 'SALE',
     relatedDocumentNumber: '',
     clientRnc: '',
     clientName: '',
     ncf: '',
     description: '',
+    // Phase 3: New fields
+    cashRegisterId: '',
+    bankAccountId: '',
+    chequeNumber: '',
+    receiptNumber: '',
+    customerId: '',
   });
 
   const [depositData, setDepositData] = useState({
     date: new Date().toISOString().split('T')[0],
-    cashRegisterName: 'Main Cash Register',
-    bankAccountName: '',
-    bankName: '',
+    cashRegisterId: '',
+    bankAccountId: '',
     amount: '',
     description: '',
   });
 
-  const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]); // Single date for End of Day
+  const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
 
   useEffect(() => {
     fetchTransactions();
     fetchBalance();
+    fetchCashRegisterMasters();
+    fetchBankAccounts();
+    fetchCustomers();
   }, []);
 
   const fetchTransactions = async () => {
@@ -63,16 +80,106 @@ const CashRegister = () => {
     }
   };
 
+  // Phase 3: Fetch cash register masters
+  const fetchCashRegisterMasters = async () => {
+    try {
+      const response = await axios.get('/cash-register-masters');
+      const activeRegisters = response.data.filter((r: any) => r.status === 'ACTIVE');
+      setCashRegisterMasters(activeRegisters);
+    } catch (error) {
+      console.error('Error fetching cash registers:', error);
+    }
+  };
+
+  // Phase 3: Fetch bank accounts
+  const fetchBankAccounts = async () => {
+    try {
+      const response = await axios.get('/bank-accounts');
+      const activeAccounts = response.data.filter((a: any) => a.status === 'ACTIVE');
+      setBankAccounts(activeAccounts);
+    } catch (error) {
+      console.error('Error fetching bank accounts:', error);
+    }
+  };
+
+  // Phase 3: Fetch customers
+  const fetchCustomers = async () => {
+    try {
+      const response = await axios.get('/clients');
+      const activeCustomers = response.data.filter((c: any) => c.status === 'ACTIVE');
+      setCustomers(activeCustomers);
+    } catch (error) {
+      console.error('Error fetching customers:', error);
+    }
+  };
+
+  // Phase 3: Fetch pending AR invoices for selected customer
+  const fetchPendingInvoices = async (customerId: string) => {
+    if (!customerId) {
+      setPendingInvoices([]);
+      return;
+    }
+    
+    try {
+      const response = await axios.get(`/cash-register/pending-invoices/${customerId}`);
+      setPendingInvoices(response.data);
+    } catch (error) {
+      console.error('Error fetching pending invoices:', error);
+      setPendingInvoices([]);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Phase 3: Validation
+    if (!formData.cashRegisterId) {
+      alert(t('selectCashRegister') || 'Please select a cash register');
+      return;
+    }
+
+    if (formData.transactionType === 'INFLOW') {
+      // INFLOW validations
+      if (formData.relatedDocumentType === 'AR_COLLECTION') {
+        if (!formData.customerId) {
+          alert(t('selectCustomer') || 'Please select a customer');
+          return;
+        }
+        if (selectedInvoices.length === 0) {
+          alert(t('selectInvoices') || 'Please select at least one invoice');
+          return;
+        }
+      }
+    } else if (formData.transactionType === 'OUTFLOW') {
+      // OUTFLOW validations - only allow BANK_DEPOSIT or CORRECTION
+      if (formData.paymentMethod !== 'BANK_DEPOSIT' && formData.paymentMethod !== 'CORRECTION') {
+        alert('OUTFLOW only allows Bank Deposit or Correction');
+        return;
+      }
+    }
+
     try {
-      await axios.post('/cash-register', formData);
-      fetchTransactions();
-      fetchBalance();
+      setIsSubmitting(true);  // Disable button
+      
+      // Clean form data: convert empty strings to null, parse integers
+      const cleanedData = cleanFormData(
+        {
+          ...formData,
+          invoiceIds: selectedInvoices.length > 0 ? JSON.stringify(selectedInvoices) : null,
+        },
+        ['cashRegisterId', 'bankAccountId', 'customerId']  // Integer fields
+      );
+      
+      await axios.post('/cash-register', cleanedData);
+      await fetchTransactions();
+      await fetchBalance();
       resetForm();
-    } catch (error) {
+      alert(t('transactionCreated') || 'Transaction created successfully!');
+    } catch (error: any) {
       console.error('Error saving transaction:', error);
-      alert('Error saving transaction');
+      alert(error.response?.data?.error || 'Error saving transaction');
+    } finally {
+      setIsSubmitting(false);  // Re-enable button
     }
   };
 
@@ -94,86 +201,111 @@ const CashRegister = () => {
       registrationDate: new Date().toISOString().split('T')[0],
       transactionType: 'INFLOW',
       amount: '',
-      paymentMethod: 'Cash',
-      relatedDocumentType: '',
+      paymentMethod: 'CASH',
+      relatedDocumentType: 'SALE',
       relatedDocumentNumber: '',
       clientRnc: '',
       clientName: '',
       ncf: '',
       description: '',
+      cashRegisterId: '',
+      bankAccountId: '',
+      chequeNumber: '',
+      receiptNumber: '',
+      customerId: '',
     });
+    setSelectedInvoices([]);
+    setPendingInvoices([]);
     setShowModal(false);
   };
 
   const handleDeposit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!depositData.cashRegisterId) {
+      alert(t('selectCashRegister') || 'Please select a cash register');
+      return;
+    }
+    
+    if (!depositData.bankAccountId) {
+      alert(t('selectBankAccount') || 'Please select a bank account');
+      return;
+    }
+    
     try {
       // Create OUTFLOW transaction for cash register (money leaving)
       await axios.post('/cash-register', {
         registrationDate: depositData.date,
         transactionType: 'OUTFLOW',
         amount: depositData.amount,
-        paymentMethod: 'Bank Deposit',
-        relatedDocumentType: 'Bank Deposit',
-        relatedDocumentNumber: `Deposit to ${depositData.bankAccountName}`,
-        clientRnc: '',
-        clientName: depositData.bankName,
-        description: `Bank deposit: ${depositData.description} - ${depositData.bankAccountName} (${depositData.bankName})`,
+        paymentMethod: 'BANK_DEPOSIT',
+        relatedDocumentType: '',
+        relatedDocumentNumber: '',
+        description: depositData.description || 'Bank deposit',
+        cashRegisterId: depositData.cashRegisterId,
+        bankAccountId: depositData.bankAccountId,
       });
       
-      alert('Bank deposit recorded successfully! Cash register balance decreased.');
+      alert('Bank deposit recorded successfully! Cash register balance decreased and bank account increased.');
       fetchTransactions();
       fetchBalance();
       resetDepositForm();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error recording deposit:', error);
-      alert('Error recording deposit');
+      alert(error.response?.data?.error || 'Error recording deposit');
     }
   };
 
   const resetDepositForm = () => {
     setDepositData({
       date: new Date().toISOString().split('T')[0],
-      cashRegisterName: 'Main Cash Register',
-      bankAccountName: '',
-      bankName: '',
+      cashRegisterId: '',
+      bankAccountId: '',
       amount: '',
       description: '',
     });
     setShowDepositModal(false);
   };
 
+  // Phase 3: Handle customer selection for AR collection
+  const handleCustomerChange = (customerId: string) => {
+    setFormData({ ...formData, customerId });
+    setSelectedInvoices([]);
+    fetchPendingInvoices(customerId);
+  };
+
+  // Phase 3: Toggle invoice selection
+  const toggleInvoiceSelection = (invoiceId: number) => {
+    if (selectedInvoices.includes(invoiceId)) {
+      setSelectedInvoices(selectedInvoices.filter(id => id !== invoiceId));
+    } else {
+      setSelectedInvoices([...selectedInvoices, invoiceId]);
+    }
+  };
+
   const generateReport = () => {
     const filtered = transactions.filter(t => {
-      // Parse dates without time to avoid timezone issues
       const tDate = new Date(t.registrationDate.split('T')[0]);
       const selectedDate = new Date(reportDate);
-      
-      // Set all times to midnight for accurate date-only comparison
       tDate.setHours(0, 0, 0, 0);
       selectedDate.setHours(0, 0, 0, 0);
-      
-      // Only match transactions from the selected date
       return tDate.getTime() === selectedDate.getTime();
     });
 
     const report = {
-      // ALL INFLOWS (Money coming into cash register)
-      cash: filtered.filter(t => t.transactionType === 'INFLOW' && t.paymentMethod === 'Cash')
+      cash: filtered.filter(t => t.transactionType === 'INFLOW' && t.paymentMethod === 'CASH')
         .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0),
-      deposit: filtered.filter(t => t.transactionType === 'INFLOW' && t.paymentMethod === 'Deposit')
+      creditCard: filtered.filter(t => t.transactionType === 'INFLOW' && t.paymentMethod === 'CREDIT_CARD')
         .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0),
-      bankTransferIn: filtered.filter(t => t.transactionType === 'INFLOW' && t.paymentMethod === 'Bank Transfer')
+      debitCard: filtered.filter(t => t.transactionType === 'INFLOW' && t.paymentMethod === 'DEBIT_CARD')
         .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0),
-      
-      // ALL OUTFLOWS (Money going out of cash register)
-      cashOut: filtered.filter(t => t.transactionType === 'OUTFLOW' && t.paymentMethod === 'Cash')
+      bankTransferIn: filtered.filter(t => t.transactionType === 'INFLOW' && t.paymentMethod === 'BANK_TRANSFER')
         .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0),
-      depositOut: filtered.filter(t => t.transactionType === 'OUTFLOW' && t.paymentMethod === 'Deposit')
+      cheque: filtered.filter(t => t.transactionType === 'INFLOW' && t.paymentMethod === 'BANK_CHEQUE')
         .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0),
-      bankTransferOut: filtered.filter(t => t.transactionType === 'OUTFLOW' && t.paymentMethod === 'Bank Transfer')
+      bankDeposits: filtered.filter(t => t.transactionType === 'OUTFLOW' && t.paymentMethod === 'BANK_DEPOSIT')
         .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0),
-      bankDeposits: filtered.filter(t => t.transactionType === 'OUTFLOW' && t.paymentMethod === 'Bank Deposit')
+      corrections: filtered.filter(t => t.transactionType === 'OUTFLOW' && t.paymentMethod === 'CORRECTION')
         .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0),
     };
 
@@ -319,15 +451,6 @@ const CashRegister = () => {
                   {t('method')}
                 </th>
                 <th className="px-6 py-3 text-left text-sm font-bold text-gray-800 uppercase tracking-wider">
-                  {t('partyEntity')}
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-bold text-gray-800 uppercase tracking-wider">
-                  RNC
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-bold text-gray-800 uppercase tracking-wider">
-                  NCF
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-bold text-gray-800 uppercase tracking-wider">
                   {t('description')}
                 </th>
                 <th className="px-6 py-3 text-right text-sm font-bold text-gray-800 uppercase tracking-wider">
@@ -362,15 +485,6 @@ const CashRegister = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {transaction.paymentMethod}
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-900">
-                    {transaction.clientName || '-'}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
-                    {transaction.clientRnc || '-'}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
-                    {transaction.ncf || '-'}
-                  </td>
                   <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
                     {transaction.description}
                   </td>
@@ -398,19 +512,39 @@ const CashRegister = () => {
         </div>
       </div>
 
-      {/* Modal */}
+      {/* Transaction Modal - Phase 3 Updated */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
           >
             <div className="p-6">
               <h3 className="text-2xl font-bold mb-6">{t('newCashTransaction')}</h3>
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Cash Register Selection - REQUIRED */}
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {t('selectCashRegister')} *
+                    </label>
+                    <select
+                      required
+                      value={formData.cashRegisterId}
+                      onChange={(e) => setFormData({ ...formData, cashRegisterId: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">{t('selectCashRegister')}</option>
+                      {cashRegisterMasters.map((register) => (
+                        <option key={register.id} value={register.id}>
+                          {register.code} - {register.name} ({register.location})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       {t('date')} *
@@ -454,90 +588,168 @@ const CashRegister = () => {
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {t('paymentMethod')} *
-                    </label>
-                    <select
-                      required
-                      value={formData.paymentMethod}
-                      onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="Cash">{t('cash')}</option>
-                      <option value="Credit Card">{t('creditCard')}</option>
-                      <option value="Debit Card">{t('debitCard')}</option>
-                      <option value="Bank Transfer">{t('bankTransfer')}</option>
-                      <option value="Check">{t('check')}</option>
-                    </select>
-                  </div>
+                  {/* Phase 3: Conditional fields based on transaction type */}
+                  {formData.transactionType === 'INFLOW' && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          {t('paymentMethod')} *
+                        </label>
+                        <select
+                          required
+                          value={formData.paymentMethod}
+                          onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                          <option value="CASH">{t('cash')}</option>
+                          <option value="CREDIT_CARD">{t('creditCard')}</option>
+                          <option value="DEBIT_CARD">{t('debitCard')}</option>
+                          <option value="BANK_TRANSFER">{t('bankTransfer')}</option>
+                          <option value="BANK_CHEQUE">{t('bankCheque')}</option>
+                        </select>
+                      </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {t('relatedDocType')}
-                    </label>
-                    <select
-                      value={formData.relatedDocumentType}
-                      onChange={(e) => setFormData({ ...formData, relatedDocumentType: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="">None</option>
-                      <option value="Sale">Sale</option>
-                      <option value="Purchase">Purchase</option>
-                      <option value="Payment">Payment</option>
-                    </select>
-                  </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          {t('relatedDocType')} *
+                        </label>
+                        <select
+                          required
+                          value={formData.relatedDocumentType}
+                          onChange={(e) => setFormData({ ...formData, relatedDocumentType: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                          <option value="SALE">{t('sale')}</option>
+                          <option value="AR_COLLECTION">{t('arCollection')}</option>
+                          <option value="CONTRIBUTION">{t('contribution')}</option>
+                          <option value="LOAN">{t('loan')}</option>
+                        </select>
+                      </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {t('documentNumber')}
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.relatedDocumentNumber}
-                      onChange={(e) => setFormData({ ...formData, relatedDocumentNumber: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="e.g., SALE-00001"
-                    />
-                  </div>
+                      {/* AR Collection: Show customer and invoice selection */}
+                      {formData.relatedDocumentType === 'AR_COLLECTION' && (
+                        <>
+                          <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              {t('selectCustomer')} *
+                            </label>
+                            <select
+                              required
+                              value={formData.customerId}
+                              onChange={(e) => handleCustomerChange(e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            >
+                              <option value="">{t('selectCustomer')}</option>
+                              {customers.map((customer) => (
+                                <option key={customer.id} value={customer.id}>
+                                  {customer.code} - {customer.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {t('clientRncCedula')}
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.clientRnc}
-                      onChange={(e) => setFormData({ ...formData, clientRnc: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="RNC/Cedula"
-                    />
-                  </div>
+                          {pendingInvoices.length > 0 && (
+                            <div className="md:col-span-2">
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                {t('selectInvoices')} *
+                              </label>
+                              <div className="border border-gray-300 rounded-lg p-4 max-h-60 overflow-y-auto">
+                                {pendingInvoices.map((invoice) => (
+                                  <div key={invoice.id} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded">
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedInvoices.includes(invoice.id)}
+                                      onChange={() => toggleInvoiceSelection(invoice.id)}
+                                      className="w-4 h-4"
+                                    />
+                                    <div className="flex-1">
+                                      <p className="text-sm font-medium">
+                                        {invoice.registrationNumber} - {formatNumber(invoice.balanceAmount)}
+                                      </p>
+                                      <p className="text-xs text-gray-500">
+                                        {new Date(invoice.registrationDate).toLocaleDateString()}
+                                      </p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )}
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      NCF
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.ncf}
-                      onChange={(e) => setFormData({ ...formData, ncf: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="B0100000001"
-                    />
-                  </div>
+                      {/* Cheque Number for Bank Cheque */}
+                      {formData.paymentMethod === 'BANK_CHEQUE' && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            {t('chequeNumber')}
+                          </label>
+                          <input
+                            type="text"
+                            value={formData.chequeNumber}
+                            onChange={(e) => setFormData({ ...formData, chequeNumber: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            placeholder="CHQ-001"
+                          />
+                        </div>
+                      )}
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {t('clientName')}
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.clientName}
-                      onChange={(e) => setFormData({ ...formData, clientName: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          {t('receiptNumber')}
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.receiptNumber}
+                          onChange={(e) => setFormData({ ...formData, receiptNumber: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          placeholder="REC-001"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {/* Phase 3: OUTFLOW - Only Bank Deposit or Correction */}
+                  {formData.transactionType === 'OUTFLOW' && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          {t('paymentMethod')} *
+                        </label>
+                        <select
+                          required
+                          value={formData.paymentMethod}
+                          onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                          <option value="BANK_DEPOSIT">{t('bankDeposit')}</option>
+                          <option value="CORRECTION">{t('correction')}</option>
+                        </select>
+                      </div>
+
+                      {/* Bank Account for Bank Deposit */}
+                      {formData.paymentMethod === 'BANK_DEPOSIT' && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            {t('selectBankAccount')} *
+                          </label>
+                          <select
+                            required
+                            value={formData.bankAccountId}
+                            onChange={(e) => setFormData({ ...formData, bankAccountId: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          >
+                            <option value="">{t('selectBankAccount')}</option>
+                            {bankAccounts.map((account) => (
+                              <option key={account.id} value={account.id}>
+                                {account.code} - {account.bankName} - {account.accountNumber}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
 
                 <div>
@@ -558,15 +770,17 @@ const CashRegister = () => {
                   <button
                     type="button"
                     onClick={resetForm}
-                    className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+                    disabled={isSubmitting}
+                    className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {t('cancel')}
                   </button>
                   <button
                     type="submit"
-                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                    disabled={isSubmitting}
+                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {t('createTransaction')}
+                    {isSubmitting ? t('creating') || 'Creating...' : t('createTransaction')}
                   </button>
                 </div>
               </form>
@@ -575,7 +789,7 @@ const CashRegister = () => {
         </div>
       )}
 
-      {/* Bank Deposit Modal */}
+      {/* Bank Deposit Modal - Phase 3 Updated */}
       {showDepositModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <motion.div
@@ -600,44 +814,6 @@ const CashRegister = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">{t('cashRegisterName')}</label>
-                    <input
-                      type="text"
-                      value={depositData.cashRegisterName}
-                      onChange={(e) => setDepositData({...depositData, cashRegisterName: e.target.value})}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-                      placeholder={t('mainCashRegister')}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">{t('bankAccountName')} *</label>
-                    <input
-                      type="text"
-                      value={depositData.bankAccountName}
-                      onChange={(e) => setDepositData({...depositData, bankAccountName: e.target.value})}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-                      placeholder={t('businessCheckingAccount')}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">{t('bankName')} *</label>
-                    <input
-                      type="text"
-                      value={depositData.bankName}
-                      onChange={(e) => setDepositData({...depositData, bankName: e.target.value})}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-                      placeholder="Bank of America"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">{t('amount')} *</label>
                     <input
                       type="number"
@@ -649,16 +825,51 @@ const CashRegister = () => {
                       required
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">{t('description')}</label>
-                    <input
-                      type="text"
-                      value={depositData.description}
-                      onChange={(e) => setDepositData({...depositData, description: e.target.value})}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-                      placeholder={t('dailyCashDeposit')}
-                    />
-                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{t('selectCashRegister')} *</label>
+                  <select
+                    value={depositData.cashRegisterId}
+                    onChange={(e) => setDepositData({...depositData, cashRegisterId: e.target.value})}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                    required
+                  >
+                    <option value="">{t('selectCashRegister')}</option>
+                    {cashRegisterMasters.map((register) => (
+                      <option key={register.id} value={register.id}>
+                        {register.code} - {register.name} ({register.location})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{t('selectBankAccount')} *</label>
+                  <select
+                    value={depositData.bankAccountId}
+                    onChange={(e) => setDepositData({...depositData, bankAccountId: e.target.value})}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                    required
+                  >
+                    <option value="">{t('selectBankAccount')}</option>
+                    {bankAccounts.map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {account.code} - {account.bankName} - {account.accountNumber}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{t('description')}</label>
+                  <input
+                    type="text"
+                    value={depositData.description}
+                    onChange={(e) => setDepositData({...depositData, description: e.target.value})}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                    placeholder={t('dailyCashDeposit')}
+                  />
                 </div>
 
                 <div className="flex gap-3 pt-4">
@@ -695,7 +906,7 @@ const CashRegister = () => {
               
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  📅 {t('date')} ({t('endOfDayReport')})
+                  📅 {t('date')}
                 </label>
                 <input
                   type="date"
@@ -703,16 +914,14 @@ const CashRegister = () => {
                   onChange={(e) => setReportDate(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-lg"
                 />
-                <p className="text-xs text-gray-500 mt-1">Select a single day to view that day's cash activity</p>
               </div>
 
               {(() => {
                 const report = generateReport();
-                const totalIn = report.cash + report.deposit + report.bankTransferIn;
-                const totalOut = report.cashOut + report.depositOut + report.bankTransferOut + report.bankDeposits;
+                const totalIn = report.cash + report.creditCard + report.debitCard + report.bankTransferIn + report.cheque;
+                const totalOut = report.bankDeposits + report.corrections;
                 const netCash = totalIn - totalOut;
                 
-                // Count filtered transactions for debugging
                 const filtered = transactions.filter(t => {
                   const tDate = new Date(t.registrationDate.split('T')[0]);
                   const selectedDate = new Date(reportDate);
@@ -723,77 +932,64 @@ const CashRegister = () => {
                 
                 return (
                   <div className="space-y-6">
-                    {/* Transaction Count Info */}
                     <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded">
                       <p className="text-sm text-blue-800">
-                        📊 Showing {filtered.length} transaction(s) for {new Date(reportDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                        📊 Showing {filtered.length} transaction(s) for {new Date(reportDate).toLocaleDateString()}
                       </p>
                     </div>
 
-                    {/* Cash Register Summary */}
                     <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-6 border-2 border-blue-300">
-                      <h4 className="text-xl font-bold mb-6 text-blue-900">💵 {t('cashRegister')} {t('collectionSummary')}</h4>
+                      <h4 className="text-xl font-bold mb-6 text-blue-900">💵 {t('cashRegister')} Summary</h4>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* INFLOWS (Money Coming In) */}
                         <div className="space-y-3">
                           <h5 className="font-bold text-green-700 text-lg mb-3">➕ {t('totalIn')}</h5>
                           
                           <div className="bg-white rounded-lg p-3 shadow-sm">
                             <div className="flex justify-between items-center">
-                              <span className="text-sm text-gray-700">💵 {t('cashIn')}</span>
+                              <span className="text-sm text-gray-700">💵 {t('cash')}</span>
                               <span className="font-bold text-green-600">${formatNumber(report.cash)}</span>
                             </div>
                           </div>
                           
                           <div className="bg-white rounded-lg p-3 shadow-sm">
                             <div className="flex justify-between items-center">
-                              <span className="text-sm text-gray-700">📥 {t('depositIn')}</span>
-                              <span className="font-bold text-green-600">${formatNumber(report.deposit)}</span>
+                              <span className="text-sm text-gray-700">💳 {t('creditCard')}</span>
+                              <span className="font-bold text-green-600">${formatNumber(report.creditCard)}</span>
                             </div>
                           </div>
                           
                           <div className="bg-white rounded-lg p-3 shadow-sm">
                             <div className="flex justify-between items-center">
-                              <span className="text-sm text-gray-700">🏦 {t('bankTransferIn')}</span>
+                              <span className="text-sm text-gray-700">💳 {t('debitCard')}</span>
+                              <span className="font-bold text-green-600">${formatNumber(report.debitCard)}</span>
+                            </div>
+                          </div>
+                          
+                          <div className="bg-white rounded-lg p-3 shadow-sm">
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm text-gray-700">🏦 {t('bankTransfer')}</span>
                               <span className="font-bold text-green-600">${formatNumber(report.bankTransferIn)}</span>
+                            </div>
+                          </div>
+                          
+                          <div className="bg-white rounded-lg p-3 shadow-sm">
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm text-gray-700">📝 {t('cheque')}</span>
+                              <span className="font-bold text-green-600">${formatNumber(report.cheque)}</span>
                             </div>
                           </div>
                           
                           <div className="bg-green-100 rounded-lg p-3 border-2 border-green-400">
                             <div className="flex justify-between items-center">
                               <span className="font-bold text-green-800">{t('totalIn')}:</span>
-                              <span className="font-bold text-green-800 text-xl">
-                                ${formatNumber(report.cash + report.deposit + report.bankTransferIn)}
-                              </span>
+                              <span className="font-bold text-green-800 text-xl">${formatNumber(totalIn)}</span>
                             </div>
                           </div>
                         </div>
 
-                        {/* OUTFLOWS (Money Going Out) */}
                         <div className="space-y-3">
                           <h5 className="font-bold text-red-700 text-lg mb-3">➖ {t('totalOut')}</h5>
-                          
-                          <div className="bg-white rounded-lg p-3 shadow-sm">
-                            <div className="flex justify-between items-center">
-                              <span className="text-sm text-gray-700">💵 {t('cashOut')}</span>
-                              <span className="font-bold text-red-600">${formatNumber(report.cashOut)}</span>
-                            </div>
-                          </div>
-                          
-                          <div className="bg-white rounded-lg p-3 shadow-sm">
-                            <div className="flex justify-between items-center">
-                              <span className="text-sm text-gray-700">📤 {t('depositOut')}</span>
-                              <span className="font-bold text-red-600">${formatNumber(report.depositOut)}</span>
-                            </div>
-                          </div>
-                          
-                          <div className="bg-white rounded-lg p-3 shadow-sm">
-                            <div className="flex justify-between items-center">
-                              <span className="text-sm text-gray-700">🏦 {t('bankTransferOut')}</span>
-                              <span className="font-bold text-red-600">${formatNumber(report.bankTransferOut)}</span>
-                            </div>
-                          </div>
                           
                           <div className="bg-white rounded-lg p-3 shadow-sm">
                             <div className="flex justify-between items-center">
@@ -802,41 +998,34 @@ const CashRegister = () => {
                             </div>
                           </div>
                           
+                          <div className="bg-white rounded-lg p-3 shadow-sm">
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm text-gray-700">🔧 {t('corrections')}</span>
+                              <span className="font-bold text-red-600">${formatNumber(report.corrections)}</span>
+                            </div>
+                          </div>
+                          
                           <div className="bg-red-100 rounded-lg p-3 border-2 border-red-400">
                             <div className="flex justify-between items-center">
                               <span className="font-bold text-red-800">{t('totalOut')}:</span>
-                              <span className="font-bold text-red-800 text-xl">
-                                ${formatNumber(report.cashOut + report.depositOut + report.bankTransferOut + report.bankDeposits)}
-                              </span>
+                              <span className="font-bold text-red-800 text-xl">${formatNumber(totalOut)}</span>
                             </div>
                           </div>
                         </div>
                       </div>
 
-                      {/* Divider */}
                       <div className="border-t-2 border-blue-300 my-6"></div>
 
-                      {/* Net Position */}
                       <div className={`rounded-lg p-5 shadow-lg border-4 ${netCash >= 0 ? 'bg-green-100 border-green-500' : 'bg-red-100 border-red-500'}`}>
                         <div className="flex justify-between items-center">
                           <div>
                             <p className="text-lg font-bold text-gray-800">{t('expectedCashInRegister')}</p>
-                            <p className="text-xs text-gray-600 mt-1">
-                              (Total In - Total Out)
-                            </p>
+                            <p className="text-xs text-gray-600 mt-1">(Total In - Total Out)</p>
                           </div>
                           <span className={`text-4xl font-bold ${netCash >= 0 ? 'text-green-700' : 'text-red-700'}`}>
                             ${formatNumber(netCash)}
                           </span>
                         </div>
-                      </div>
-
-                      {/* Helpful Note */}
-                      <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded mt-4">
-                        <p className="text-sm text-yellow-800">
-                          <strong>💡 Note:</strong> This report includes Cash, Deposit, and Bank Transfer transactions. 
-                          Credit card sales and credit purchases are tracked in Accounts Receivable/Payable.
-                        </p>
                       </div>
                     </div>
                   </div>
@@ -860,4 +1049,3 @@ const CashRegister = () => {
 };
 
 export default CashRegister;
-

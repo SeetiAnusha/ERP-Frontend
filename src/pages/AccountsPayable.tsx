@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Search, DollarSign, CheckCircle, Clock, XCircle, Plus } from 'lucide-react';
 import api from '../api/axios';
@@ -16,12 +16,49 @@ const AccountsPayablePage = () => {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedAP, setSelectedAP] = useState<AccountsPayable | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
+  const [selectedCardId, setSelectedCardId] = useState('');
+  const [cards, setCards] = useState<any[]>([]);
   const [editingDeadline, setEditingDeadline] = useState<number | null>(null);
   const [newDeadline, setNewDeadline] = useState('');
 
   useEffect(() => {
     fetchAccountsPayable();
+    fetchCards();
   }, []);
+
+  const fetchCards = async () => {
+    try {
+      const response = await api.get('/cards');
+      setCards(response.data);
+    } catch (error) {
+      console.error('Error fetching cards:', error);
+    }
+  };
+
+  // ✅ DSA: Helper function for determining payable entity (Single Responsibility Principle)
+  const getPayableEntity = (ap: AccountsPayable) => {
+    // Check payment type to determine if it's supplier or card company
+    const isCardPurchase = ap.paymentType === 'CREDIT_CARD' || ap.type === 'CREDIT_CARD_PURCHASE';
+    
+    if (isCardPurchase) {
+      return {
+        type: 'CARD_COMPANY',
+        icon: '💳',
+        label: 'Card Company',
+        name: ap.cardIssuer || 'Card Company',
+        badgeClass: 'bg-blue-100 text-blue-800 border-blue-300',
+      };
+    }
+    
+    // Default to supplier
+    return {
+      type: 'SUPPLIER',
+      icon: '🏢',
+      label: 'Supplier',
+      name: ap.supplierName || 'Supplier',
+      badgeClass: 'bg-green-100 text-green-800 border-green-300',
+    };
+  };
 
   const fetchAccountsPayable = async () => {
     setIsLoading(true);
@@ -66,21 +103,35 @@ const AccountsPayablePage = () => {
   const handleRecordPayment = (ap: AccountsPayable) => {
     setSelectedAP(ap);
     setPaymentAmount(ap.balanceAmount.toString());
+    setSelectedCardId('');
     setShowPaymentModal(true);
   };
 
   const submitPayment = async () => {
     if (!selectedAP || !paymentAmount) return;
     
+    // ✅ For CREDIT_CARD AP, use stored cardId; for SUPPLIER, require selection
+    const cardIdToUse = selectedAP.type === 'CREDIT_CARD_PURCHASE' && selectedAP.cardId 
+      ? selectedAP.cardId 
+      : parseInt(selectedCardId);
+    
+    if (!cardIdToUse) {
+      notify.warning('Please select a card for payment');
+      return;
+    }
+    
     try {
       await api.post(`/accounts-payable/${selectedAP.id}/record-payment`, {
         amount: parseFloat(paymentAmount),
         paidDate: new Date(),
+        cardId: cardIdToUse,
+        paymentMethod: 'CREDIT_CARD',
       });
       notify.success('Payment recorded successfully');
       setShowPaymentModal(false);
       setSelectedAP(null);
       setPaymentAmount('');
+      setSelectedCardId('');
       fetchAccountsPayable();
     } catch (error) {
       handleApiError(error, 'Recording payment');
@@ -223,6 +274,7 @@ const AccountsPayablePage = () => {
         <table className="w-full min-w-max table-auto">
           <thead className="bg-gray-50 border-b-2 border-gray-200 sticky top-0 z-20">
             <tr>
+              <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">PAYABLE TO</th>
               <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">{t('type').toUpperCase()}</th>
               <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">{t('registrationNo').toUpperCase()}</th>
               <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">{t('registrationDate').toUpperCase()}</th>
@@ -250,12 +302,15 @@ const AccountsPayablePage = () => {
           <tbody>
             {filteredAP.length === 0 ? (
               <tr>
-                <td colSpan={15} className="px-6 py-12 text-center text-gray-500">
+                <td colSpan={16} className="px-6 py-12 text-center text-gray-500">
                   {t('noAccountsPayableFound')}
                 </td>
               </tr>
             ) : (
-              filteredAP.map((ap, index) => (
+              filteredAP.map((ap, index) => {
+                const payableEntity = getPayableEntity(ap); // ✅ DSA: Compute once, use multiple times (efficiency)
+                
+                return (
                 <motion.tr
                   key={ap.id}
                   initial={{ opacity: 0, y: 20 }}
@@ -263,6 +318,16 @@ const AccountsPayablePage = () => {
                   transition={{ delay: index * 0.05 }}
                   className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
                 >
+                  {/* ✅ Phase 6: Payable To Column */}
+                  <td className="px-4 py-4 text-sm whitespace-nowrap">
+                    <div className="flex flex-col gap-1">
+                      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium border ${payableEntity.badgeClass} w-fit`}>
+                        <span>{payableEntity.icon}</span>
+                        <span>{payableEntity.label}</span>
+                      </span>
+                      <span className="text-xs text-gray-600 font-medium">{payableEntity.name}</span>
+                    </div>
+                  </td>
                   <td className="px-4 py-4 text-sm whitespace-nowrap">{ap.type}</td>
                   <td className="px-4 py-4 text-sm font-medium whitespace-nowrap">{ap.relatedDocumentNumber || 'N/A'}</td>
                   <td className="px-4 py-4 text-sm whitespace-nowrap">{new Date(ap.registrationDate).toLocaleDateString()}</td>
@@ -328,7 +393,8 @@ const AccountsPayablePage = () => {
                     )}
                   </td>
                 </motion.tr>
-              ))
+                );
+              })
             )}
           </tbody>
         </table>
@@ -351,6 +417,61 @@ const AccountsPayablePage = () => {
                 <p className="text-sm text-gray-600">{t('alreadyPaid')}: {Number(selectedAP.paidAmount).toFixed(2)}</p>
                 <p className="text-sm font-semibold text-red-600">{t('balance')}: {Number(selectedAP.balanceAmount).toFixed(2)}</p>
               </div>
+              {/* Conditional Card Selection: Only show for SUPPLIER AP */}
+              {selectedAP.type !== 'CREDIT_CARD_PURCHASE' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Select Debit Card * (Immediate Payment)
+                </label>
+                <select
+                  value={selectedCardId}
+                  onChange={(e) => setSelectedCardId(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  required
+                >
+                  <option value="">Select a debit card...</option>
+                  {cards.filter(card => card.cardType === 'DEBIT').map(card => (
+                    <option key={card.id} value={card.id}>
+                      {card.cardType} - {card.cardBrand || 'Card'} ****{card.cardNumberLast4}
+                      {card.BankAccount && ` (${card.BankAccount.bankName} - Balance: $${Number(card.BankAccount.balance).toFixed(2)})`}
+                      {card.cardType === 'CREDIT' && ` (Limit: $${Number(card.creditLimit).toFixed(2)})`}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  💳 DEBIT card: Money deducted from bank immediately to pay this debt
+                </p>
+                </div>
+              )}
+              
+              {/* ✅ Info message for CREDIT_CARD AP */}
+              {selectedAP.type === 'CREDIT_CARD_PURCHASE' && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="text-2xl">💳</div>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-blue-900 mb-1">
+                        Credit Card Payment
+                      </p>
+                      <p className="text-xs text-blue-700 mb-2">
+                        This payment will automatically restore your credit limit on the card used for the original purchase.
+                      </p>
+                      <div className="bg-white rounded p-2 text-xs">
+                        <p className="text-gray-600">
+                          <strong>Card:</strong> {selectedAP.cardIssuer || 'Credit Card'}
+                        </p>
+                        <p className="text-gray-600">
+                          <strong>What happens:</strong> Credit limit will be restored by ${Number(selectedAP.balanceAmount).toFixed(2)}
+                        </p>
+                      </div>
+                      <p className="text-xs text-blue-600 mt-2 italic">
+                        💡 No card selection needed - the system will automatically use the original credit card.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   {t('paymentAmount')}
@@ -367,15 +488,18 @@ const AccountsPayablePage = () => {
               <div className="flex gap-3">
                 <button
                   onClick={submitPayment}
-                  className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                  className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium"
                 >
-                  {t('confirmPayment')}
+                  {selectedAP?.type === 'CREDIT_CARD_PURCHASE' 
+                    ? '✓ Confirm Payment & Restore Credit' 
+                    : t('confirmPayment')}
                 </button>
                 <button
                   onClick={() => {
                     setShowPaymentModal(false);
                     setSelectedAP(null);
                     setPaymentAmount('');
+                    setSelectedCardId('');
                   }}
                   className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300 transition-colors"
                 >

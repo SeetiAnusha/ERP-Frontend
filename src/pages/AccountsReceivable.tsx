@@ -12,6 +12,7 @@ const AccountsReceivablePage = () => {
   const [accountsReceivable, setAccountsReceivable] = useState<AccountsReceivable[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('All');
+  const [groupByType, setGroupByType] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState(true);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedAR, setSelectedAR] = useState<AccountsReceivable | null>(null);
@@ -80,6 +81,114 @@ const AccountsReceivablePage = () => {
     }
   };
 
+  const renderARTable = (arList: AccountsReceivable[], title?: string) => (
+    <div className="mb-6">
+      {title && (
+        <div className="mb-4 p-4 bg-gray-50 rounded-lg border-l-4 border-blue-500">
+          <h3 className="text-lg font-semibold text-gray-800">{title}</h3>
+          <p className="text-sm text-gray-600">
+            {arList.length} records • Total: ${arList.reduce((sum, ar) => sum + Number(ar.balanceAmount), 0).toFixed(2)} pending
+          </p>
+        </div>
+      )}
+      <div className="bg-white rounded-xl shadow-lg overflow-x-auto max-h-[400px] overflow-y-auto">
+        <table className="w-full">
+          <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-20">
+            <tr>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('registrationNumber').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('date').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('type').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">RECEIVABLE FROM</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('relatedDocumentNumber').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">RNC</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">NCF</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">SALE OF</th>
+              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('amount').toUpperCase()}</th>
+              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('received').toUpperCase()}</th>
+              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('balance').toUpperCase()}</th>
+              <th className="px-6 py-4 text-center text-sm font-bold text-gray-800">{t('status').toUpperCase()}</th>
+              <th className="px-6 py-4 text-center text-sm font-bold text-gray-800">{t('action').toUpperCase()}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {arList.length === 0 ? (
+              <tr>
+                <td colSpan={13} className="px-6 py-12 text-center text-gray-500">
+                  {t('noAccountsReceivableFound')}
+                </td>
+              </tr>
+            ) : (
+              arList.map((ar, index) => (
+                <motion.tr
+                  key={ar.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                >
+                  <td className="px-6 py-4 text-sm font-medium">{ar.registrationNumber}</td>
+                  <td className="px-6 py-4 text-sm">{new Date(ar.registrationDate).toLocaleDateString()}</td>
+                  <td className="px-6 py-4 text-sm">{ar.type}</td>
+                  <td className="px-6 py-4 text-sm">
+                    {ar.clientName && !ar.cardNetwork ? (
+                      <div>
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mb-1">
+                          👤 Customer
+                        </span>
+                        <div className="text-sm font-medium text-gray-900">{ar.clientName}</div>
+                      </div>
+                    ) : ar.cardNetwork || ar.type === 'CREDIT_CARD_SALE' ? (
+                      <div>
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 mb-1">
+                          💳 Card Company
+                        </span>
+                        <div className="text-sm font-medium text-gray-900">{ar.cardNetwork || 'Card Company'}</div>
+                      </div>
+                    ) : (
+                      <div>
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 mb-1">
+                          📄 Other
+                        </span>
+                        <div className="text-sm font-medium text-gray-900">{ar.clientName || ar.cardNetwork || 'N/A'}</div>
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-sm">
+                    {ar.relatedDocumentType} - {ar.relatedDocumentNumber}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-500">{ar.clientRnc || '-'}</td>
+                  <td className="px-6 py-4 text-sm text-gray-500">{ar.ncf || '-'}</td>
+                  <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate" title={ar.saleOf}>
+                    {ar.saleOf || '-'}
+                  </td>
+                  <td className="px-6 py-4 text-sm font-semibold text-right">{formatNumber(Number(ar.amount))}</td>
+                  <td className="px-6 py-4 text-sm font-semibold text-right text-green-600">
+                    {formatNumber(Number(ar.receivedAmount))}
+                  </td>
+                  <td className="px-6 py-4 text-sm font-semibold text-right text-orange-600">
+                    {formatNumber(Number(ar.balanceAmount))}
+                  </td>
+                  <td className="px-6 py-4 text-center">{getStatusBadge(ar.status)}</td>
+                  <td className="px-6 py-4 text-center">
+                    {ar.status !== 'Received' && (
+                      <button
+                        onClick={() => handleRecordPayment(ar)}
+                        className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                      >
+                        <Plus size={16} />
+                        {t('collect')}
+                      </button>
+                    )}
+                  </td>
+                </motion.tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
   const filteredAR = accountsReceivable.filter((ar) => {
     const matchesSearch = Object.values(ar).some((value) =>
       value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
@@ -87,6 +196,12 @@ const AccountsReceivablePage = () => {
     const matchesStatus = filterStatus === 'All' || ar.status === filterStatus;
     return matchesSearch && matchesStatus;
   });
+
+  // Group AR by type if grouping is enabled
+  const groupedAR = groupByType ? {
+    customers: filteredAR.filter(ar => ar.clientName && !ar.cardNetwork),
+    cards: filteredAR.filter(ar => ar.cardNetwork || ar.type === 'CREDIT_CARD_SALE'),
+  } : null;
 
   const totalAmount = filteredAR.reduce((sum, ar) => sum + Number(ar.amount), 0);
   const totalReceived = filteredAR.reduce((sum, ar) => sum + Number(ar.receivedAmount), 0);
@@ -155,7 +270,7 @@ const AccountsReceivablePage = () => {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-4 mb-6">
+      <div className="flex gap-4 mb-6 items-center">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
           <input
@@ -176,84 +291,45 @@ const AccountsReceivablePage = () => {
           <option value="Partial">{t('partial')}</option>
           <option value="Received">{t('received')}</option>
         </select>
+        <label className="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-lg border border-gray-300">
+          <input
+            type="checkbox"
+            checked={groupByType}
+            onChange={(e) => setGroupByType(e.target.checked)}
+            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          />
+          <span className="text-sm font-medium text-gray-700">Group by Type</span>
+        </label>
       </div>
 
       {/* Table */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="bg-white rounded-xl shadow-lg overflow-x-auto max-h-[600px] overflow-y-auto"
       >
-        <table className="w-full">
-          <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-20">
-            <tr>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('registrationNumber').toUpperCase()}</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('date').toUpperCase()}</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('type').toUpperCase()}</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('relatedDocumentNumber').toUpperCase()}</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('client').toUpperCase()}</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">RNC</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">NCF</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">SALE OF</th>
-              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('amount').toUpperCase()}</th>
-              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('received').toUpperCase()}</th>
-              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('balance').toUpperCase()}</th>
-              <th className="px-6 py-4 text-center text-sm font-bold text-gray-800">{t('status').toUpperCase()}</th>
-              <th className="px-6 py-4 text-center text-sm font-bold text-gray-800">{t('action').toUpperCase()}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredAR.length === 0 ? (
-              <tr>
-                <td colSpan={13} className="px-6 py-12 text-center text-gray-500">
-                  {t('noAccountsReceivableFound')}
-                </td>
-              </tr>
-            ) : (
-              filteredAR.map((ar, index) => (
-                <motion.tr
-                  key={ar.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
-                >
-                  <td className="px-6 py-4 text-sm font-medium">{ar.registrationNumber}</td>
-                  <td className="px-6 py-4 text-sm">{new Date(ar.registrationDate).toLocaleDateString()}</td>
-                  <td className="px-6 py-4 text-sm">{ar.type}</td>
-                  <td className="px-6 py-4 text-sm">
-                    {ar.relatedDocumentType} - {ar.relatedDocumentNumber}
-                  </td>
-                  <td className="px-6 py-4 text-sm">{ar.clientName || ar.cardNetwork || 'N/A'}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500">{ar.clientRnc || '-'}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500">{ar.ncf || '-'}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate" title={ar.saleOf}>
-                    {ar.saleOf || '-'}
-                  </td>
-                  <td className="px-6 py-4 text-sm font-semibold text-right">{formatNumber(Number(ar.amount))}</td>
-                  <td className="px-6 py-4 text-sm font-semibold text-right text-green-600">
-                    {formatNumber(Number(ar.receivedAmount))}
-                  </td>
-                  <td className="px-6 py-4 text-sm font-semibold text-right text-orange-600">
-                    {formatNumber(Number(ar.balanceAmount))}
-                  </td>
-                  <td className="px-6 py-4 text-center">{getStatusBadge(ar.status)}</td>
-                  <td className="px-6 py-4 text-center">
-                    {ar.status !== 'Received' && (
-                      <button
-                        onClick={() => handleRecordPayment(ar)}
-                        className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
-                      >
-                        <Plus size={16} />
-                        {t('collect')}
-                      </button>
-                    )}
-                  </td>
-                </motion.tr>
-              ))
+        {groupByType && groupedAR ? (
+          <div>
+            {/* Customer Receivables */}
+            {groupedAR.customers.length > 0 && renderARTable(
+              groupedAR.customers, 
+              "👤 Customer Receivables"
             )}
-          </tbody>
-        </table>
+            
+            {/* Card Company Receivables */}
+            {groupedAR.cards.length > 0 && renderARTable(
+              groupedAR.cards, 
+              "💳 Card Company Receivables"
+            )}
+            
+            {filteredAR.length === 0 && (
+              <div className="bg-white rounded-xl shadow-lg p-12 text-center">
+                <p className="text-gray-500">{t('noAccountsReceivableFound')}</p>
+              </div>
+            )}
+          </div>
+        ) : (
+          renderARTable(filteredAR)
+        )}
       </motion.div>
 
       {/* Payment Modal */}

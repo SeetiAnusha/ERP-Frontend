@@ -5,6 +5,7 @@ import api from '../api/axios';
 import { Purchase, Supplier, Product, AssociatedInvoice } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { formatNumber } from '../utils/formatNumber';
+import { cleanFormData } from '../utils/cleanFormData';  // Import utility
 
 interface PurchaseItem {
   productId: number;
@@ -27,6 +28,10 @@ const Purchases = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   
+  // Phase 2: New master data
+  const [bankAccounts, setBankAccounts] = useState<any[]>([]);
+  const [cards, setCards] = useState<any[]>([]);
+  
   // Main modal
   const [showModal, setShowModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -36,9 +41,18 @@ const Purchases = () => {
     supplierRnc: '',
     ncf: '',
     purchaseType: 'Merchandise for sale or consumption',
-    paymentType: 'CASH',
+    paymentType: 'CREDIT', // Changed default from CASH to CREDIT
     paidAmount: 0,
     status: 'COMPLETED',
+    // Phase 2: New payment fields
+    bankAccountId: '',
+    cardId: '',
+    chequeNumber: '',
+    chequeDate: '',
+    transferNumber: '',
+    transferDate: '',
+    paymentReference: '',
+    voucherDate: '',
   });
   
   // Products
@@ -63,7 +77,9 @@ const Purchases = () => {
     taxAmount: 0,
     amount: 0,
     purchaseType: '',
-    paymentType: ''
+    paymentType: '',
+    cardId: '',
+    bankAccountId: ''
   });
 
   // View Details Modals
@@ -76,6 +92,8 @@ const Purchases = () => {
     fetchPurchases();
     fetchSuppliers();
     fetchProducts();
+    fetchBankAccounts();
+    fetchCards();
   }, []);
 
   const fetchPurchases = async () => {
@@ -104,6 +122,80 @@ const Purchases = () => {
     } catch (error) {
       console.error('Error fetching products:', error);
     }
+  };
+
+  const fetchBankAccounts = async () => {
+    try {
+      const response = await api.get('/bank-accounts');
+      setBankAccounts(response.data.filter((acc: any) => acc.status === 'ACTIVE'));
+    } catch (error) {
+      console.error('Error fetching bank accounts:', error);
+    }
+  };
+
+  const fetchCards = async () => {
+    try {
+      const response = await api.get('/cards');
+      setCards(response.data.filter((card: any) => card.status === 'ACTIVE'));
+    } catch (error) {
+      console.error('Error fetching cards:', error);
+    }
+  };
+
+  const addAssociatedInvoice = () => {
+    if (!newAssociatedInvoice.supplierRnc || !newAssociatedInvoice.supplierName || !newAssociatedInvoice.tax) {
+      alert('Please enter Supplier RNC, Supplier Name, and Tax Amount');
+      return;
+    }
+    
+    if (!newAssociatedInvoice.paymentType) {
+      alert('Please select a payment type for the invoice');
+      return;
+    }
+    
+    // Validate card selection for card payment types
+    if ((newAssociatedInvoice.paymentType === 'DEBIT_CARD' || newAssociatedInvoice.paymentType === 'CREDIT_CARD') && !newAssociatedInvoice.cardId) {
+      alert('Please select a card for the selected payment type');
+      return;
+    }
+    
+    // Validate bank account selection for bank payment types
+    if ((newAssociatedInvoice.paymentType === 'BANK_TRANSFER' || newAssociatedInvoice.paymentType === 'CHEQUE' || newAssociatedInvoice.paymentType === 'DEPOSIT') && !newAssociatedInvoice.bankAccountId) {
+      alert('Please select a bank account for the selected payment type');
+      return;
+    }
+    
+    const totalAmount = newAssociatedInvoice.tax + newAssociatedInvoice.taxAmount;
+    setAssociatedInvoices([...associatedInvoices, {...newAssociatedInvoice, amount: totalAmount}]);
+    setNewAssociatedInvoice({
+      supplierRnc: '', 
+      supplierName: '', 
+      concept: '', 
+      ncf: '', 
+      date: new Date().toISOString().split('T')[0], 
+      tax: 0, 
+      taxAmount: 0, 
+      amount: 0, 
+      purchaseType: '',
+      paymentType: '',
+      cardId: '',
+      bankAccountId: ''
+    });
+    setShowInvoiceModal(false);
+  };
+
+  const removeAssociatedInvoice = (index: number) => {
+    setAssociatedInvoices(associatedInvoices.filter((_, i) => i !== index));
+  };
+
+  const calculateTotals = () => {
+    const productTotal = purchaseItems.reduce((sum, item) => sum + (Number(item.total) || 0), 0);
+    // Include both base amount (tax field) and tax amount (taxAmount field) in associated costs
+    const associatedTotal = associatedInvoices.reduce((sum, inv) => 
+      sum + (Number(inv.tax) || 0) + (Number(inv.taxAmount) || 0), 0
+    );
+    const grandTotal = productTotal + associatedTotal;
+    return { productTotal, associatedTotal, grandTotal };
   };
 
   const addProductToPurchase = () => {
@@ -174,42 +266,6 @@ const Purchases = () => {
     setPurchaseItems(updatedItems);
   };
 
-  const addAssociatedInvoice = () => {
-    if (!newAssociatedInvoice.supplierRnc || !newAssociatedInvoice.supplierName || !newAssociatedInvoice.tax) {
-      alert('Please enter Supplier RNC, Supplier Name, and Tax Amount');
-      return;
-    }
-    const totalAmount = newAssociatedInvoice.tax + newAssociatedInvoice.taxAmount;
-    setAssociatedInvoices([...associatedInvoices, {...newAssociatedInvoice, amount: totalAmount}]);
-    setNewAssociatedInvoice({
-      supplierRnc: '', 
-      supplierName: '', 
-      concept: '', 
-      ncf: '', 
-      date: new Date().toISOString().split('T')[0], 
-      tax: 0, 
-      taxAmount: 0, 
-      amount: 0, 
-      purchaseType: '',
-      paymentType: ''
-    });
-    setShowInvoiceModal(false);
-  };
-
-  const removeAssociatedInvoice = (index: number) => {
-    setAssociatedInvoices(associatedInvoices.filter((_, i) => i !== index));
-  };
-
-  const calculateTotals = () => {
-    const productTotal = purchaseItems.reduce((sum, item) => sum + (Number(item.total) || 0), 0);
-    // Include both base amount (tax field) and tax amount (taxAmount field) in associated costs
-    const associatedTotal = associatedInvoices.reduce((sum, inv) => 
-      sum + (Number(inv.tax) || 0) + (Number(inv.taxAmount) || 0), 0
-    );
-    const grandTotal = productTotal + associatedTotal;
-    return { productTotal, associatedTotal, grandTotal };
-  };
-
   // Calculate adjusted unit cost with associated costs
   const calculateAdjustedUnitCost = (item: PurchaseItem) => {
     const productSubtotal = purchaseItems.reduce((sum, i) => sum + (Number(i.subtotal) || 0), 0);
@@ -255,9 +311,65 @@ const Purchases = () => {
       return;
     }
     
+    // Phase 2: Validate payment-specific fields
+    const paymentType = formData.paymentType.toUpperCase();
+    
+    if (paymentType === 'CHEQUE') {
+      if (!formData.bankAccountId) {
+        alert('Please select a bank account for cheque payment');
+        return;
+      }
+      if (!formData.chequeNumber) {
+        alert('Please enter cheque number');
+        return;
+      }
+      if (!formData.chequeDate) {
+        alert('Please select cheque date');
+        return;
+      }
+    }
+    
+    if (paymentType === 'BANK_TRANSFER') {
+      if (!formData.bankAccountId) {
+        alert('Please select a bank account for bank transfer');
+        return;
+      }
+      if (!formData.transferNumber) {
+        alert('Please enter transfer number');
+        return;
+      }
+      if (!formData.transferDate) {
+        alert('Please select transfer date');
+        return;
+      }
+    }
+    
+    if (paymentType === 'CREDIT_CARD') {
+      if (!formData.cardId) {
+        alert('Please select a card');
+        return;
+      }
+      if (!formData.paymentReference) {
+        alert('Please enter payment reference/voucher number');
+        return;
+      }
+      if (!formData.voucherDate) {
+        alert('Please select voucher date');
+        return;
+      }
+    }
+    
     if (purchaseItems.length === 0) {
       alert('Please add at least one product');
       return;
+    }
+    
+    // Validate associated invoices
+    for (const invoice of associatedInvoices) {
+      if ((invoice.paymentType === 'DEBIT_CARD' || invoice.paymentType === 'CREDIT_CARD') && !invoice.cardId) {
+        alert(`Invoice "${invoice.concept || 'Associated cost'}" with ${invoice.paymentType} payment type requires a card to be selected`);
+        return;
+      }
     }
     
     setIsSubmitting(true);
@@ -266,23 +378,33 @@ const Purchases = () => {
       const totals = calculateTotals();
       const paidAmount = formData.paymentType === 'CREDIT' ? 0 : totals.grandTotal;
       
-      await api.post('/purchases', {
-        ...formData,
-        supplierId: parseInt(formData.supplierId),
-        supplierRnc: formData.supplierRnc || null,
-        ncf: formData.ncf || null,
-        productTotal: totals.productTotal,
-        additionalExpenses: totals.associatedTotal,
-        total: totals.grandTotal,
-        paidAmount: paidAmount,
-        balanceAmount: totals.grandTotal - paidAmount,
-        items: purchaseItems,
-        associatedInvoices: associatedInvoices.map(inv => ({
-          ...inv,
-          concept: inv.concept || 'Associated cost',
-          ncf: inv.ncf || 'N/A',
-        })),
-      });
+      // Use utility function to clean data
+      const cleanedData = cleanFormData(
+        {
+          ...formData,
+          supplierRnc: formData.supplierRnc || null,
+          ncf: formData.ncf || null,
+          productTotal: totals.productTotal,
+          additionalExpenses: totals.associatedTotal,
+          total: totals.grandTotal,
+          paidAmount: paidAmount,
+          balanceAmount: totals.grandTotal - paidAmount,
+          items: purchaseItems,
+          associatedInvoices: associatedInvoices.map(inv => ({
+            ...inv,
+            concept: inv.concept || 'Associated cost',
+            ncf: inv.ncf || 'N/A',
+            cardId: inv.cardId && inv.cardId !== '' ? parseInt(inv.cardId) : null, // Convert cardId to integer
+            bankAccountId: inv.bankAccountId && inv.bankAccountId !== '' ? parseInt(inv.bankAccountId) : null, // Convert bankAccountId to integer
+          })),
+        },
+        ['supplierId', 'bankAccountId', 'cardId']  // Integer fields
+      );
+      
+      console.log('🚀 FRONTEND - Submitting purchase data:', cleanedData);
+      console.log('🔍 Associated invoices being sent:', cleanedData.associatedInvoices);
+      
+      await api.post('/purchases', cleanedData);
       fetchPurchases();
       closeModal();
     } catch (error: any) {
@@ -301,9 +423,18 @@ const Purchases = () => {
       supplierRnc: '',
       ncf: '',
       purchaseType: 'Merchandise for sale or consumption',
-      paymentType: 'CASH',
+      paymentType: 'CREDIT', // Changed default from CASH
       paidAmount: 0,
       status: 'COMPLETED',
+      // Phase 2: Reset new fields
+      bankAccountId: '',
+      cardId: '',
+      chequeNumber: '',
+      chequeDate: '',
+      transferNumber: '',
+      transferDate: '',
+      paymentReference: '',
+      voucherDate: '',
     });
     setPurchaseItems([]);
     setAssociatedInvoices([]);
@@ -570,17 +701,195 @@ const Purchases = () => {
                     <select
                       required
                       value={formData.paymentType}
-                      onChange={(e) => setFormData({ ...formData, paymentType: e.target.value })}
+                      onChange={(e) => setFormData({ ...formData, paymentType: e.target.value, cardId: '' })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value="CASH">{t('cash')}</option>
                       <option value="CHEQUE">{t('cheque')}</option>
                       <option value="BANK_TRANSFER">{t('bankTransfer')}</option>
-                      <option value="DEPOSIT">{t('deposit')}</option>
+                      <option value="DEBIT_CARD">Debit Card</option>
                       <option value="CREDIT_CARD">{t('creditCard')}</option>
                       <option value="CREDIT">{t('credit')}</option>
                     </select>
                   </div>
+                  
+                  {/* Phase 2: Conditional Payment Fields */}
+                  {formData.paymentType === 'CHEQUE' && (
+                    <>
+                      <div className="col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Bank Account *</label>
+                        <select
+                          required
+                          value={formData.bankAccountId}
+                          onChange={(e) => setFormData({ ...formData, bankAccountId: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="">Select Bank Account</option>
+                          {bankAccounts.map((account: any) => (
+                            <option key={account.id} value={account.id}>
+                              {account.bankName} - {account.accountNumber} ({account.accountType})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Cheque Number *</label>
+                        <input
+                          type="text"
+                          required
+                          value={formData.chequeNumber}
+                          onChange={(e) => setFormData({ ...formData, chequeNumber: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          placeholder="Enter cheque number"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Cheque Date *</label>
+                        <input
+                          type="date"
+                          required
+                          value={formData.chequeDate}
+                          onChange={(e) => setFormData({ ...formData, chequeDate: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                    </>
+                  )}
+                  
+                  {formData.paymentType === 'BANK_TRANSFER' && (
+                    <>
+                      <div className="col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Bank Account *</label>
+                        <select
+                          required
+                          value={formData.bankAccountId}
+                          onChange={(e) => setFormData({ ...formData, bankAccountId: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="">Select Bank Account</option>
+                          {bankAccounts.map((account: any) => (
+                            <option key={account.id} value={account.id}>
+                              {account.bankName} - {account.accountNumber} ({account.accountType})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Transfer Number *</label>
+                        <input
+                          type="text"
+                          required
+                          value={formData.transferNumber}
+                          onChange={(e) => setFormData({ ...formData, transferNumber: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          placeholder="Enter transfer reference number"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Transfer Date *</label>
+                        <input
+                          type="date"
+                          required
+                          value={formData.transferDate}
+                          onChange={(e) => setFormData({ ...formData, transferDate: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                    </>
+                  )}
+                  
+                  {/* ✅ Debit Card Selection for DEBIT_CARD */}
+                  {formData.paymentType === 'DEBIT_CARD' && (
+                    <>
+                      <div className="col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Select Debit Card *</label>
+                        <select
+                          required
+                          value={formData.cardId}
+                          onChange={(e) => setFormData({ ...formData, cardId: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="">Select debit card...</option>
+                          {cards.filter((card: any) => card.cardType === 'DEBIT').map((card: any) => (
+                            <option key={card.id} value={card.id}>
+                              {card.cardBrand || 'Debit Card'} ****{card.cardNumberLast4}
+                              {card.BankAccount && ` - ${card.BankAccount.bankName} (Balance: $${Number(card.BankAccount.balance).toFixed(2)})`}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-xs text-gray-500 mt-1">
+                          💳 DEBIT: Money deducted from bank account immediately (Bank Register)
+                        </p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Payment Reference/Voucher *</label>
+                        <input
+                          type="text"
+                          required
+                          value={formData.paymentReference}
+                          onChange={(e) => setFormData({ ...formData, paymentReference: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          placeholder="Enter voucher/authorization number"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Voucher Date *</label>
+                        <input
+                          type="date"
+                          required
+                          value={formData.voucherDate}
+                          onChange={(e) => setFormData({ ...formData, voucherDate: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                    </>
+                  )}
+                  
+                  {/* ✅ Credit Card Selection for CREDIT_CARD */}
+                  {formData.paymentType === 'CREDIT_CARD' && (
+                    <>
+                      <div className="col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Select Credit Card *</label>
+                        <select
+                          required
+                          value={formData.cardId}
+                          onChange={(e) => setFormData({ ...formData, cardId: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="">Select credit card...</option>
+                          {cards.filter((card: any) => card.cardType === 'CREDIT').map((card: any) => (
+                            <option key={card.id} value={card.id}>
+                              {card.cardBrand || 'Credit Card'} ****{card.cardNumberLast4}
+                              {card.creditLimit && ` (Limit: $${Number(card.creditLimit).toFixed(2)}, Available: $${(Number(card.creditLimit) - Number(card.usedCredit || 0)).toFixed(2)})`}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-xs text-gray-500 mt-1">
+                          💳 CREDIT: Creates Accounts Payable - you pay card company later
+                        </p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Payment Reference/Voucher *</label>
+                        <input
+                          type="text"
+                          required
+                          value={formData.paymentReference}
+                          onChange={(e) => setFormData({ ...formData, paymentReference: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          placeholder="Enter voucher/authorization number"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Voucher Date *</label>
+                        <input
+                          type="date"
+                          required
+                          value={formData.voucherDate}
+                          onChange={(e) => setFormData({ ...formData, voucherDate: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 {/* Action Buttons */}
@@ -1029,19 +1338,84 @@ const Purchases = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">{t('paymentType')} *</label>
                     <select
                       value={newAssociatedInvoice.paymentType}
-                      onChange={(e) => setNewAssociatedInvoice({...newAssociatedInvoice, paymentType: e.target.value})}
+                      onChange={(e) => setNewAssociatedInvoice({...newAssociatedInvoice, paymentType: e.target.value, cardId: '', bankAccountId: ''})}
                       className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
                     >
                       <option value="">{t('selectType')}</option>
-                      <option value="CASH">{t('cash')}</option>
+                      {/* <option value="CASH">{t('cash')}</option> */}
                       <option value="CHEQUE">{t('cheque')}</option>
                       <option value="BANK_TRANSFER">{t('bankTransfer')}</option>
                       <option value="DEPOSIT">{t('deposit')}</option>
+                      <option value="DEBIT_CARD">Debit Card</option>
                       <option value="CREDIT_CARD">{t('creditCard')}</option>
                       <option value="CREDIT">{t('credit')}</option>
                     </select>
                   </div>
                 </div>
+
+                {/* Card Selection for Invoice Payment Types */}
+                {(newAssociatedInvoice.paymentType === 'DEBIT_CARD' || newAssociatedInvoice.paymentType === 'CREDIT_CARD') && (
+                  <div className="grid grid-cols-1 gap-3 mb-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {newAssociatedInvoice.paymentType === 'DEBIT_CARD' ? 'Select Debit Card *' : 'Select Credit Card *'}
+                      </label>
+                      <select
+                        required
+                        value={newAssociatedInvoice.cardId}
+                        onChange={(e) => setNewAssociatedInvoice({...newAssociatedInvoice, cardId: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-orange-500"
+                      >
+                        <option value="">
+                          {newAssociatedInvoice.paymentType === 'DEBIT_CARD' ? 'Select debit card...' : 'Select credit card...'}
+                        </option>
+                        {cards
+                          .filter((card: any) => card.cardType === (newAssociatedInvoice.paymentType === 'DEBIT_CARD' ? 'DEBIT' : 'CREDIT'))
+                          .map((card: any) => (
+                            <option key={card.id} value={card.id}>
+                              {card.cardBrand || (newAssociatedInvoice.paymentType === 'DEBIT_CARD' ? 'Debit Card' : 'Credit Card')} ****{card.cardNumberLast4}
+                              {newAssociatedInvoice.paymentType === 'DEBIT_CARD' && card.BankAccount && 
+                                ` - ${card.BankAccount.bankName} (Balance: $${Number(card.BankAccount.balance).toFixed(2)})`}
+                              {newAssociatedInvoice.paymentType === 'CREDIT_CARD' && card.creditLimit && 
+                                ` (Limit: $${Number(card.creditLimit).toFixed(2)}, Available: $${(Number(card.creditLimit) - Number(card.usedCredit || 0)).toFixed(2)})`}
+                            </option>
+                          ))}
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {newAssociatedInvoice.paymentType === 'DEBIT_CARD' 
+                          ? '💳 DEBIT: Money deducted from bank account immediately' 
+                          : '💳 CREDIT: Creates Accounts Payable - you pay card company later'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Bank Account Selection for Invoice Payment Types */}
+                {(newAssociatedInvoice.paymentType === 'BANK_TRANSFER' || newAssociatedInvoice.paymentType === 'CHEQUE' || newAssociatedInvoice.paymentType === 'DEPOSIT') && (
+                  <div className="grid grid-cols-1 gap-3 mb-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Select Bank Account *
+                      </label>
+                      <select
+                        required
+                        value={newAssociatedInvoice.bankAccountId || ''}
+                        onChange={(e) => setNewAssociatedInvoice({...newAssociatedInvoice, bankAccountId: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-orange-500"
+                      >
+                        <option value="">Select bank account...</option>
+                        {bankAccounts.map((account: any) => (
+                          <option key={account.id} value={account.id}>
+                            {account.bankName} - {account.accountNumber} ({account.accountType}) - Balance: $${Number(account.balance).toFixed(2)}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">
+                        💰 {newAssociatedInvoice.paymentType}: Money deducted from selected bank account
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex justify-end">
                   <button
@@ -1070,6 +1444,7 @@ const Purchases = () => {
                         <th className="px-3 py-2 text-right font-semibold">{t('totalAmount')}</th>
                         <th className="px-3 py-2 text-left font-semibold">{t('purchaseOf')}</th>
                         <th className="px-3 py-2 text-left font-semibold">{t('paymentType')}</th>
+                        <th className="px-3 py-2 text-left font-semibold">Card</th>
                         <th className="px-3 py-2"></th>
                       </tr>
                     </thead>
@@ -1086,6 +1461,14 @@ const Purchases = () => {
                           <td className="px-3 py-2 text-right font-semibold">{formatNumber(invoice.amount)}</td>
                           <td className="px-3 py-2">{invoice.purchaseType || '-'}</td>
                           <td className="px-3 py-2">{invoice.paymentType || '-'}</td>
+                          <td className="px-3 py-2">
+                            {invoice.cardId ? (
+                              (() => {
+                                const card = cards.find((c: any) => c.id === parseInt(invoice.cardId || '0'));
+                                return card ? `${card.cardBrand || 'Card'} ****${card.cardNumberLast4}` : 'Card not found';
+                              })()
+                            ) : '-'}
+                          </td>
                           <td className="px-3 py-2">
                             <button
                               type="button"
@@ -1110,7 +1493,7 @@ const Purchases = () => {
                         <td className="px-3 py-2 text-right">
                           {formatNumber(associatedInvoices.reduce((sum, inv) => sum + inv.amount, 0))}
                         </td>
-                        <td colSpan={2}></td>
+                        <td colSpan={3}></td>
                       </tr>
                     </tfoot>
                   </table>

@@ -15,6 +15,8 @@ import {
   BarChart3,
   FileText,
   CreditCard,
+  Landmark,
+  DollarSign,
 } from 'lucide-react';
 import LanguageSwitcher from './LanguageSwitcher';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -40,6 +42,10 @@ const Layout = ({ children }: LayoutProps) => {
     { path: '/accounts-payable', icon: CreditCard, label: 'Accounts Payable' },
     { path: '/cash-register', icon: Wallet, label: t('cashRegister') },
     { path: '/bank-register', icon: Building2, label: 'Bank Register' },
+    { path: '/bank-accounts', icon: Building2, label: t('bankAccounts') },
+    { path: '/cash-register-masters', icon: DollarSign, label: t('cashRegisters') },
+    { path: '/cards', icon: CreditCard, label: t('cards') },
+    { path: '/financers', icon: Landmark, label: t('financers') },
     { path: '/adjustments', icon: Settings, label: t('adjustments') },
     { path: '/reports', icon: BarChart3, label: t('reports') },
     // { path: '/investments', icon: Package, label: t('investments') },
