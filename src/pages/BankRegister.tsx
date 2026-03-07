@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { FaPlus, FaTrash, FaUniversity, FaArrowUp, FaArrowDown, FaSearch } from 'react-icons/fa';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import axios from '../api/axios';
 import { formatNumber } from '../utils/formatNumber';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -52,11 +52,20 @@ interface PendingInvoice {
   balanceAmount: number;
   invoiceDate: string;
   description: string;
+  // Additional invoice details
+  invoiceNumber?: string;
+  ncf?: string;
+  supplierRnc?: string;
+  purchaseType?: string;
+  paymentType?: string;
+  type?: string;
+  relatedDocumentType?: string;
 }
 
 const BankRegister = () => {
   const { t } = useLanguage();
   const location = useLocation();
+  const navigate = useNavigate();
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -92,6 +101,7 @@ const BankRegister = () => {
     // Handle pre-filled data from Accounts Payable
     if (location.state?.prefilledData && location.state?.fromAccountsPayable) {
       const prefilledData = location.state.prefilledData;
+      console.log("prefilledData:",prefilledData);
       setFormData(prev => ({
         ...prev,
         transactionType: prefilledData.transactionType,
@@ -174,7 +184,7 @@ const BankRegister = () => {
     setIsSubmitting(true);
     
     try {
-      const submitData = {
+      const submitData: any = {
         ...formData,
         bankAccountId: formData.bankAccountId ? parseInt(formData.bankAccountId) : undefined,
         supplierId: formData.supplierId ? parseInt(formData.supplierId) : undefined,
@@ -612,22 +622,49 @@ const BankRegister = () => {
               {formData.transactionType === 'OUTFLOW' && formData.supplierId && pendingInvoices.length > 0 && (
                 <div className="mt-4 p-4 bg-gray-50 rounded-lg">
                   <h3 className="text-lg font-semibold mb-3">{t('selectInvoicesToPay')}</h3>
+                  <p className="text-sm text-gray-600 mb-3">
+                    💡 Select the specific invoices/purchases you want to pay. Each item shows detailed invoice information.
+                  </p>
                   <div className="space-y-2 max-h-60 overflow-y-auto">
                     {pendingInvoices.map(invoice => (
-                      <label key={invoice.id} className="flex items-center gap-3 p-3 bg-white rounded border hover:bg-blue-50 cursor-pointer">
+                      <label key={invoice.id} className="flex items-start gap-3 p-3 bg-white rounded border hover:bg-blue-50 cursor-pointer">
                         <input
                           type="checkbox"
                           checked={selectedInvoices.includes(invoice.id)}
                           onChange={() => toggleInvoiceSelection(invoice.id)}
-                          className="w-4 h-4"
+                          className="w-4 h-4 mt-1"
                         />
                         <div className="flex-1">
-                          <div className="flex justify-between">
-                            <span className="font-medium">{invoice.registrationNumber}</span>
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <span className="font-medium text-blue-700">{invoice.registrationNumber}</span>
+                              {invoice.invoiceNumber && invoice.invoiceNumber !== invoice.registrationNumber && (
+                                <span className="ml-2 text-sm text-gray-600">({invoice.invoiceNumber})</span>
+                              )}
+                              {invoice.type && (
+                                <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded">
+                                  {invoice.type}
+                                </span>
+                              )}
+                            </div>
                             <span className="font-bold text-blue-600">{formatNumber(invoice.balanceAmount)}</span>
                           </div>
-                          <div className="text-sm text-gray-600">
-                            {new Date(invoice.invoiceDate).toLocaleDateString()} - {invoice.description}
+                          <div className="text-sm text-gray-600 mt-1">
+                            <div className="flex flex-wrap gap-4">
+                              <span>📅 {new Date(invoice.invoiceDate).toLocaleDateString()}</span>
+                              {invoice.ncf && <span>📄 NCF: {invoice.ncf}</span>}
+                              {invoice.supplierRnc && <span>🏢 RNC: {invoice.supplierRnc}</span>}
+                            </div>
+                            <div className="mt-1 text-gray-700">
+                              {invoice.description}
+                            </div>
+                            {invoice.paymentType && (
+                              <div className="mt-1">
+                                <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded">
+                                  Payment: {invoice.paymentType}
+                                </span>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </label>
@@ -636,7 +673,7 @@ const BankRegister = () => {
                   {selectedInvoices.length > 0 && (
                     <div className="mt-3 p-3 bg-blue-100 rounded">
                       <div className="flex justify-between font-semibold">
-                        <span>{t('selectedInvoicesTotal')}:</span>
+                        <span>{t('selectedInvoicesTotal')} ({selectedInvoices.length} invoice{selectedInvoices.length !== 1 ? 's' : ''}):</span>
                         <span className="text-blue-700">{formatNumber(calculateSelectedInvoicesTotal())}</span>
                       </div>
                     </div>

@@ -19,10 +19,22 @@ const AccountsReceivablePage = () => {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedAR, setSelectedAR] = useState<AccountsReceivable | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
+  const [bankAccounts, setBankAccounts] = useState<any[]>([]);
+  const [selectedBankAccountId, setSelectedBankAccountId] = useState('');
 
   useEffect(() => {
     fetchAccountsReceivable();
+    fetchBankAccounts();
   }, []);
+
+  const fetchBankAccounts = async () => {
+    try {
+      const response = await api.get('/bank-accounts');
+      setBankAccounts(response.data);
+    } catch (error) {
+      console.error('Error fetching bank accounts:', error);
+    }
+  };
 
   const fetchAccountsReceivable = async () => {
     setIsLoading(true);
@@ -62,6 +74,7 @@ const AccountsReceivablePage = () => {
   const handleRecordPayment = (ar: AccountsReceivable) => {
     setSelectedAR(ar);
     setPaymentAmount(ar.balanceAmount.toString());
+    setSelectedBankAccountId(''); // Reset bank account selection
     setShowPaymentModal(true);
   };
 
@@ -96,15 +109,32 @@ const AccountsReceivablePage = () => {
   const submitPayment = async () => {
     if (!selectedAR || !paymentAmount) return;
     
+    // Check if this is a credit card sale that needs bank account selection
+    const isCardSale = selectedAR.type === 'CREDIT_CARD_SALE' || selectedAR.type === 'DEBIT_CARD_SALE';
+    
+    if (isCardSale && !selectedBankAccountId) {
+      alert('Please select a bank account for credit card collection');
+      return;
+    }
+    
     try {
-      await api.post(`/accounts-receivable/${selectedAR.id}/record-payment`, {
+      const paymentData: any = {
         amount: parseFloat(paymentAmount),
         receivedDate: new Date(),
-      });
+      };
+      
+      // For credit card sales, include bank account information
+      if (isCardSale) {
+        paymentData.bankAccountId = parseInt(selectedBankAccountId);
+        paymentData.isCardSale = true;
+      }
+      
+      await api.post(`/accounts-receivable/${selectedAR.id}/record-payment`, paymentData);
       notify.success('Payment recorded successfully');
       setShowPaymentModal(false);
       setSelectedAR(null);
       setPaymentAmount('');
+      setSelectedBankAccountId('');
       fetchAccountsReceivable();
     } catch (error) {
       handleApiError(error, 'Recording payment');
@@ -210,10 +240,9 @@ const AccountsReceivablePage = () => {
                   <td className="px-6 py-4 text-center">
                     {ar.status !== 'Received' && (
                       <>
-                        {/* Show different buttons based on sale type and available customer info */}
-                        {(ar.type === 'CREDIT_SALE' || ar.type === 'CLIENT_CREDIT') || 
-                         (ar.clientName && ar.clientId && (ar.type === 'CREDIT_CARD_SALE' || ar.type === 'DEBIT_CARD_SALE')) ? (
-                          // Credit Sale OR Credit Card Sale with customer info - Navigate to Cash Register
+                        {/* Show different buttons based on sale type */}
+                        {ar.type === 'CREDIT_SALE' || ar.type === 'CLIENT_CREDIT' ? (
+                          // Credit Sale - Navigate to Cash Register
                           <button
                             onClick={() => handleCreditSaleCollection(ar)}
                             className="inline-flex items-center gap-1 px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
@@ -221,11 +250,20 @@ const AccountsReceivablePage = () => {
                             <Plus size={16} />
                             Collect via Cash
                           </button>
-                        ) : (
-                          // Credit Card Sale without customer info - Show modal
+                        ) : ar.type === 'CREDIT_CARD_SALE' || ar.type === 'DEBIT_CARD_SALE' ? (
+                          // Credit Card Sale - Show modal with bank account selection
                           <button
                             onClick={() => handleRecordPayment(ar)}
                             className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                          >
+                            <Plus size={16} />
+                            {t('collect')}
+                          </button>
+                        ) : (
+                          // Other types - Show generic collect button
+                          <button
+                            onClick={() => handleRecordPayment(ar)}
+                            className="inline-flex items-center gap-1 px-3 py-1 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm"
                           >
                             <Plus size={16} />
                             {t('collect')}
@@ -394,15 +432,49 @@ const AccountsReceivablePage = () => {
             animate={{ opacity: 1, scale: 1 }}
             className="bg-white rounded-xl p-6 max-w-md w-full mx-4"
           >
-            <h3 className="text-xl font-bold mb-4">{t('recordPayment')}</h3>
+            <h3 className="text-xl font-bold mb-4">
+              {(selectedAR.type === 'CREDIT_CARD_SALE' || selectedAR.type === 'DEBIT_CARD_SALE') 
+                ? 'Collect Credit Card Payment' 
+                : t('recordPayment')
+              }
+            </h3>
             <div className="space-y-4">
               <div>
                 <p className="text-sm text-gray-600">{t('document')}: {selectedAR.relatedDocumentNumber}</p>
                 <p className="text-sm text-gray-600">{t('client')}: {selectedAR.clientName || selectedAR.cardNetwork}</p>
+                {selectedAR.cardNetwork && (
+                  <p className="text-sm text-gray-600">Card Network: {selectedAR.cardNetwork}</p>
+                )}
                 <p className="text-sm text-gray-600">{t('totalAmount')}: {Number(selectedAR.amount).toFixed(2)}</p>
                 <p className="text-sm text-gray-600">{t('alreadyPaid')}: {Number(selectedAR.receivedAmount).toFixed(2)}</p>
                 <p className="text-sm font-semibold text-orange-600">{t('balance')}: {Number(selectedAR.balanceAmount).toFixed(2)}</p>
               </div>
+              
+              {/* Bank Account Selection for Credit Card Sales */}
+              {(selectedAR.type === 'CREDIT_CARD_SALE' || selectedAR.type === 'DEBIT_CARD_SALE') && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Select Business Bank Account *
+                  </label>
+                  <select
+                    value={selectedBankAccountId}
+                    onChange={(e) => setSelectedBankAccountId(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    required
+                  >
+                    <option value="">Select Bank Account</option>
+                    {bankAccounts.map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {account.bankName} - {account.accountNumber} (Balance: {Number(account.balance).toFixed(2)})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-blue-600 mt-1">
+                    💳 Credit card payments will be deposited to the selected bank account
+                  </p>
+                </div>
+              )}
+              
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   {t('paymentAmount')}
@@ -421,13 +493,17 @@ const AccountsReceivablePage = () => {
                   onClick={submitPayment}
                   className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors"
                 >
-                  {t('confirmPayment')}
+                  {(selectedAR.type === 'CREDIT_CARD_SALE' || selectedAR.type === 'DEBIT_CARD_SALE') 
+                    ? 'Collect to Bank Account' 
+                    : t('confirmPayment')
+                  }
                 </button>
                 <button
                   onClick={() => {
                     setShowPaymentModal(false);
                     setSelectedAR(null);
                     setPaymentAmount('');
+                    setSelectedBankAccountId('');
                   }}
                   className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300 transition-colors"
                 >
