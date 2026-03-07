@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { FaPlus, FaTrash, FaWallet, FaArrowUp, FaArrowDown, FaSearch } from 'react-icons/fa';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -24,7 +24,6 @@ const CashRegister = () => {
   const [cashRegisterMasters, setCashRegisterMasters] = useState<any[]>([]);
   const [bankAccounts, setBankAccounts] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
-  const [financers, setFinancers] = useState<any[]>([]);
   const [activeAgreements, setActiveAgreements] = useState<any[]>([]);
   const [pendingCreditSales, setPendingCreditSales] = useState<any[]>([]);
   const [selectedInvoices, setSelectedInvoices] = useState<number[]>([]);
@@ -65,7 +64,6 @@ const CashRegister = () => {
     fetchCashRegisterMasters();
     fetchBankAccounts();
     fetchCustomers();
-    fetchFinancers();
     fetchActiveAgreements();
   }, []);
 
@@ -145,17 +143,6 @@ const CashRegister = () => {
       setCustomers(activeCustomers);
     } catch (error) {
       console.error('Error fetching customers:', error);
-    }
-  };
-
-  // Phase 3: Fetch financers
-  const fetchFinancers = async () => {
-    try {
-      const response = await axios.get('/financers');
-      const activeFinancers = response.data.filter((f: any) => f.status === 'ACTIVE');
-      setFinancers(activeFinancers);
-    } catch (error) {
-      console.error('Error fetching financers:', error);
     }
   };
 

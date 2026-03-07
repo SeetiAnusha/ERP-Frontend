@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, TrendingUp, DollarSign, Users, Building2, RefreshCw, Filter } from 'lucide-react';
+import { Calendar, DollarSign, Users, Building2, RefreshCw, Filter } from 'lucide-react';
 import api from '../api/axios';
-import { useLanguage } from '../contexts/LanguageContext';
 import { formatNumber } from '../utils/formatNumber';
 
 interface Activity {
@@ -48,7 +47,6 @@ interface ActivityStatistics {
 }
 
 const RecentActivity = () => {
-  const { t } = useLanguage();
   const [activities, setActivities] = useState<Activity[]>([]);
   const [statistics, setStatistics] = useState<ActivityStatistics | null>(null);
   const [loading, setLoading] = useState(true);

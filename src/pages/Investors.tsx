@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Users, TrendingUp, DollarSign, Calendar, MapPin, Phone, Mail, RefreshCw, CheckCircle, Edit } from 'lucide-react';
 import api from '../api/axios';
-import { useLanguage } from '../contexts/LanguageContext';
 import { formatNumber } from '../utils/formatNumber';
 import { toast } from 'sonner';
 
@@ -58,7 +57,6 @@ interface FinancerSummary {
 }
 
 const Investors = () => {
-  const { t } = useLanguage();
   const [financers, setFinancers] = useState<Financer[]>([]);
   const [summary, setSummary] = useState<FinancerSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -222,7 +220,7 @@ const Investors = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-blue-600 text-sm font-medium">Total Invested</p>
-                <p className="text-2xl font-bold text-blue-700">{formatNumber(summary.totalInvested)}</p>
+                <p className="text-2xl font-bold text-blue-700">{formatNumber(summary.totalProvided)}</p>
               </div>
               <TrendingUp className="text-blue-400 text-3xl" />
             </div>
@@ -242,7 +240,7 @@ const Investors = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-orange-600 text-sm font-medium">Average Investment</p>
-                <p className="text-2xl font-bold text-orange-700">{formatNumber(summary.averageInvestment)}</p>
+                <p className="text-2xl font-bold text-orange-700">{formatNumber(summary.averageProvided)}</p>
               </div>
               <Calendar className="text-orange-400 text-3xl" />
             </div>

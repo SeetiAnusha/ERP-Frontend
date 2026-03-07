@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Building2, TrendingUp, DollarSign, Calendar, MapPin, Phone, Mail, RefreshCw } from 'lucide-react';
 import api from '../api/axios';
-import { useLanguage } from '../contexts/LanguageContext';
 import { formatNumber } from '../utils/formatNumber';
 
 interface Bank {
@@ -47,7 +46,6 @@ interface BankSummary {
 }
 
 const Banks = () => {
-  const { t } = useLanguage();
   const [banks, setBanks] = useState<Bank[]>([]);
   const [summary, setSummary] = useState<BankSummary | null>(null);
   const [loading, setLoading] = useState(true);
