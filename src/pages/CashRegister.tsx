@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { FaPlus, FaTrash, FaWallet, FaArrowUp, FaArrowDown, FaSearch } from 'react-icons/fa';
+import { useLocation, useNavigate } from 'react-router-dom';
 import axios from '../api/axios';
 import { CashTransaction } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -9,20 +10,23 @@ import { cleanFormData } from '../utils/cleanFormData';  // Import utility
 
 const CashRegister = () => {
   const { t } = useLanguage();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [transactions, setTransactions] = useState<CashTransaction[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('All');
-  const [cashBalance, setCashBalance] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);  // Add loading state
 
   // Phase 3: New state
   const [cashRegisterMasters, setCashRegisterMasters] = useState<any[]>([]);
   const [bankAccounts, setBankAccounts] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
-  const [pendingInvoices, setPendingInvoices] = useState<any[]>([]);
+  const [financers, setFinancers] = useState<any[]>([]);
+  const [activeAgreements, setActiveAgreements] = useState<any[]>([]);
+  const [pendingCreditSales, setPendingCreditSales] = useState<any[]>([]);
   const [selectedInvoices, setSelectedInvoices] = useState<number[]>([]);
 
   const [formData, setFormData] = useState({
@@ -42,6 +46,8 @@ const CashRegister = () => {
     chequeNumber: '',
     receiptNumber: '',
     customerId: '',
+    financerId: '',
+    investmentAgreementId: '',
   });
 
   const [depositData, setDepositData] = useState({
@@ -56,11 +62,47 @@ const CashRegister = () => {
 
   useEffect(() => {
     fetchTransactions();
-    fetchBalance();
     fetchCashRegisterMasters();
     fetchBankAccounts();
     fetchCustomers();
+    fetchFinancers();
+    fetchActiveAgreements();
   }, []);
+
+  // Clear financer selection when document type changes
+  useEffect(() => {
+    if (formData.relatedDocumentType === 'CONTRIBUTION' || formData.relatedDocumentType === 'LOAN') {
+      // Clear financer selection when switching between CONTRIBUTION and LOAN
+      setFormData(prev => ({ ...prev, financerId: '' }));
+    }
+  }, [formData.relatedDocumentType]);
+
+  // Handle pre-filled data from Accounts Receivable
+  useEffect(() => {
+    if (location.state?.prefilledData && location.state?.fromAccountsReceivable) {
+      const prefilledData = location.state.prefilledData;
+      setFormData(prev => ({
+        ...prev,
+        transactionType: prefilledData.transactionType,
+        relatedDocumentType: prefilledData.relatedDocumentType,
+        amount: prefilledData.amount,
+        description: prefilledData.description,
+        customerId: prefilledData.customerId?.toString() || '',
+      }));
+      
+      // For Accounts Receivable collections, pre-select the AR record as an invoice
+      if (prefilledData.accountsReceivableId) {
+        setSelectedInvoices([prefilledData.accountsReceivableId]);
+      }
+      
+      // Fetch pending credit sales for the customer
+      if (prefilledData.customerId) {
+        fetchPendingCreditSales(prefilledData.customerId.toString());
+      }
+      
+      setShowModal(true); // Automatically open the modal
+    }
+  }, [location.state]);
 
   const fetchTransactions = async () => {
     try {
@@ -71,20 +113,13 @@ const CashRegister = () => {
     }
   };
 
-  const fetchBalance = async () => {
-    try {
-      const response = await axios.get('/cash-register/balance');
-      setCashBalance(response.data.balance);
-    } catch (error) {
-      console.error('Error fetching balance:', error);
-    }
-  };
-
   // Phase 3: Fetch cash register masters
   const fetchCashRegisterMasters = async () => {
     try {
       const response = await axios.get('/cash-register-masters');
+      console.log('Cash Register Masters Response:', response.data);
       const activeRegisters = response.data.filter((r: any) => r.status === 'ACTIVE');
+      console.log('Active Cash Registers:', activeRegisters);
       setCashRegisterMasters(activeRegisters);
     } catch (error) {
       console.error('Error fetching cash registers:', error);
@@ -113,19 +148,40 @@ const CashRegister = () => {
     }
   };
 
-  // Phase 3: Fetch pending AR invoices for selected customer
-  const fetchPendingInvoices = async (customerId: string) => {
+  // Phase 3: Fetch financers
+  const fetchFinancers = async () => {
+    try {
+      const response = await axios.get('/financers');
+      const activeFinancers = response.data.filter((f: any) => f.status === 'ACTIVE');
+      setFinancers(activeFinancers);
+    } catch (error) {
+      console.error('Error fetching financers:', error);
+    }
+  };
+
+  // Fetch active investment agreements
+  const fetchActiveAgreements = async () => {
+    try {
+      const response = await axios.get('/investment-agreements/active');
+      setActiveAgreements(response.data);
+    } catch (error) {
+      console.error('Error fetching active agreements:', error);
+    }
+  };
+
+  // Fetch pending Credit Sale and Credit Card Sale invoices for selected customer
+  const fetchPendingCreditSales = async (customerId: string) => {
     if (!customerId) {
-      setPendingInvoices([]);
+      setPendingCreditSales([]);
       return;
     }
     
     try {
-      const response = await axios.get(`/cash-register/pending-invoices/${customerId}`);
-      setPendingInvoices(response.data);
+      const response = await axios.get(`/cash-register/pending-credit-sales/${customerId}`);
+      setPendingCreditSales(response.data);
     } catch (error) {
-      console.error('Error fetching pending invoices:', error);
-      setPendingInvoices([]);
+      console.error('Error fetching pending credit sales:', error);
+      setPendingCreditSales([]);
     }
   };
 
@@ -139,14 +195,22 @@ const CashRegister = () => {
     }
 
     if (formData.transactionType === 'INFLOW') {
-      // INFLOW validations
+      // INFLOW validations - AR_COLLECTION (Credit Sales and Credit Card Sales), CONTRIBUTION, LOAN
       if (formData.relatedDocumentType === 'AR_COLLECTION') {
         if (!formData.customerId) {
           alert(t('selectCustomer') || 'Please select a customer');
           return;
         }
-        if (selectedInvoices.length === 0) {
-          alert(t('selectInvoices') || 'Please select at least one invoice');
+        // Skip invoice selection validation if coming from AR with pre-selected invoice
+        if (selectedInvoices.length === 0 && !location.state?.fromAccountsReceivable) {
+          alert(t('selectInvoices') || 'Please select at least one credit sale invoice');
+          return;
+        }
+      }
+      
+      if (formData.relatedDocumentType === 'CONTRIBUTION' || formData.relatedDocumentType === 'LOAN') {
+        if (!formData.investmentAgreementId) {
+          alert('Please select an investment/loan agreement');
           return;
         }
       }
@@ -172,9 +236,19 @@ const CashRegister = () => {
       
       await axios.post('/cash-register', cleanedData);
       await fetchTransactions();
-      await fetchBalance();
+      await fetchCashRegisterMasters(); // Refresh cash register balances
+      
       resetForm();
-      alert(t('transactionCreated') || 'Transaction created successfully!');
+      
+      if (location.state?.fromAccountsReceivable) {
+        alert('Customer invoice collection completed successfully! The Accounts Receivable status has been updated.');
+        // Navigate back to Accounts Receivable to see the updated status
+        setTimeout(() => {
+          navigate('/accounts-receivable');
+        }, 1000);
+      } else {
+        alert(t('transactionCreated') || 'Transaction created successfully!');
+      }
     } catch (error: any) {
       console.error('Error saving transaction:', error);
       alert(error.response?.data?.error || 'Error saving transaction');
@@ -188,7 +262,6 @@ const CashRegister = () => {
       try {
         await axios.delete(`/cash-register/${id}`);
         fetchTransactions();
-        fetchBalance();
       } catch (error) {
         console.error('Error deleting transaction:', error);
         alert('Error deleting transaction');
@@ -202,7 +275,7 @@ const CashRegister = () => {
       transactionType: 'INFLOW',
       amount: '',
       paymentMethod: 'CASH',
-      relatedDocumentType: 'SALE',
+      relatedDocumentType: 'AR_COLLECTION',
       relatedDocumentNumber: '',
       clientRnc: '',
       clientName: '',
@@ -213,10 +286,17 @@ const CashRegister = () => {
       chequeNumber: '',
       receiptNumber: '',
       customerId: '',
+      financerId: '',
+      investmentAgreementId: '',
     });
     setSelectedInvoices([]);
-    setPendingInvoices([]);
+    setPendingCreditSales([]);
     setShowModal(false);
+    
+    // Clear the location state to prevent auto-opening again
+    if (location.state?.fromAccountsReceivable) {
+      window.history.replaceState({}, document.title);
+    }
   };
 
   const handleDeposit = async (e: React.FormEvent) => {
@@ -248,7 +328,7 @@ const CashRegister = () => {
       
       alert('Bank deposit recorded successfully! Cash register balance decreased and bank account increased.');
       fetchTransactions();
-      fetchBalance();
+      fetchCashRegisterMasters(); // Refresh cash register balances
       resetDepositForm();
     } catch (error: any) {
       console.error('Error recording deposit:', error);
@@ -267,14 +347,14 @@ const CashRegister = () => {
     setShowDepositModal(false);
   };
 
-  // Phase 3: Handle customer selection for AR collection
+  // Handle customer selection for AR collection (Credit Sales and Credit Card Sales)
   const handleCustomerChange = (customerId: string) => {
     setFormData({ ...formData, customerId });
     setSelectedInvoices([]);
-    fetchPendingInvoices(customerId);
+    fetchPendingCreditSales(customerId);
   };
 
-  // Phase 3: Toggle invoice selection
+  // Toggle invoice selection for Credit Sales
   const toggleInvoiceSelection = (invoiceId: number) => {
     if (selectedInvoices.includes(invoiceId)) {
       setSelectedInvoices(selectedInvoices.filter(id => id !== invoiceId));
@@ -366,26 +446,17 @@ const CashRegister = () => {
           </div>
         </div>
 
-        {/* Summary Cards */}
+        {/* Summary Cards - SIMPLIFIED: Show inflow, outflow, and net position */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-          <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-blue-600 text-sm font-medium">{t('currentBalance')}</p>
-                <p className="text-2xl font-bold text-blue-700">
-                  {formatNumber(cashBalance)}
-                </p>
-              </div>
-              <FaWallet className="text-blue-400 text-3xl" />
-            </div>
-          </div>
-
           <div className="bg-green-50 p-4 rounded-lg border border-green-200">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-green-600 text-sm font-medium">{t('totalInflow')}</p>
                 <p className="text-2xl font-bold text-green-700">
                   {formatNumber(totalInflow)}
+                </p>
+                <p className="text-xs text-green-500 mt-1">
+                  {transactions.filter(t => t.transactionType === 'INFLOW').length} transactions
                 </p>
               </div>
               <FaArrowUp className="text-green-400 text-3xl" />
@@ -399,8 +470,26 @@ const CashRegister = () => {
                 <p className="text-2xl font-bold text-red-700">
                   {formatNumber(totalOutflow)}
                 </p>
+                <p className="text-xs text-red-500 mt-1">
+                  {transactions.filter(t => t.transactionType === 'OUTFLOW').length} transactions
+                </p>
               </div>
               <FaArrowDown className="text-red-400 text-3xl" />
+            </div>
+          </div>
+
+          <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-blue-600 text-sm font-medium">{t('netCashPosition')}</p>
+                <p className={`text-2xl font-bold ${totalInflow - totalOutflow >= 0 ? 'text-blue-700' : 'text-red-700'}`}>
+                  {formatNumber(totalInflow - totalOutflow)}
+                </p>
+                <p className="text-xs text-blue-500 mt-1">
+                  Inflow - Outflow
+                </p>
+              </div>
+              <FaWallet className="text-blue-400 text-3xl" />
             </div>
           </div>
         </div>
@@ -456,9 +545,6 @@ const CashRegister = () => {
                 <th className="px-6 py-3 text-right text-sm font-bold text-gray-800 uppercase tracking-wider">
                   {t('amount')}
                 </th>
-                <th className="px-6 py-3 text-right text-sm font-bold text-gray-800 uppercase tracking-wider">
-                  {t('balance')}
-                </th>
                 <th className="px-6 py-3 text-center text-sm font-bold text-gray-800 uppercase tracking-wider">
                   {t('actions')}
                 </th>
@@ -494,9 +580,6 @@ const CashRegister = () => {
                       {formatNumber(transaction.amount)}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-gray-900">
-                    {formatNumber(transaction.balance)}
-                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                     <button
                       onClick={() => handleDelete(transaction.id)}
@@ -521,9 +604,44 @@ const CashRegister = () => {
             className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
           >
             <div className="p-6">
-              <h3 className="text-2xl font-bold mb-6">{t('newCashTransaction')}</h3>
+              <h3 className="text-2xl font-bold mb-6">
+                {t('newCashTransaction')}
+                {location.state?.fromAccountsReceivable && (
+                  <span className="text-sm bg-green-100 text-green-800 px-3 py-1 rounded-full font-medium ml-3">
+                    From Accounts Receivable
+                  </span>
+                )}
+              </h3>
 
               <form onSubmit={handleSubmit} className="space-y-4">
+                {location.state?.fromAccountsReceivable && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                    <div className="flex items-start gap-3">
+                      <div className="text-2xl">💰</div>
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-green-900 mb-1">
+                          Customer Invoice Collection
+                        </p>
+                        <p className="text-xs text-green-700 mb-2">
+                          This transaction will collect payment for customer invoices (credit sales or credit card sales). The form has been pre-filled with the collection details.
+                          <strong> Please keep Transaction Type as "INFLOW" and Document Type as "AR_COLLECTION".</strong>
+                        </p>
+                        <div className="bg-white rounded p-2 text-xs">
+                          <p className="text-gray-600">
+                            <strong>Customer:</strong> {location.state.prefilledData?.clientName}
+                          </p>
+                          <p className="text-gray-600">
+                            <strong>Amount:</strong> ${location.state.prefilledData?.amount}
+                          </p>
+                          <p className="text-gray-600">
+                            <strong>AR ID:</strong> #{location.state.prefilledData?.accountsReceivableId}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Cash Register Selection - REQUIRED */}
                   <div className="md:col-span-2">
@@ -537,11 +655,14 @@ const CashRegister = () => {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="">{t('selectCashRegister')}</option>
-                      {cashRegisterMasters.map((register) => (
-                        <option key={register.id} value={register.id}>
-                          {register.code} - {register.name} ({register.location}) - Balance: {formatNumber(register.balance)}
-                        </option>
-                      ))}
+                      {cashRegisterMasters.map((register) => {
+                        console.log('Rendering register:', register);
+                        return (
+                          <option key={register.id} value={register.id}>
+                            {register.code} - {register.name} ({register.location}) - Balance: {Number(register.balance || 0).toFixed(2)}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
 
@@ -619,8 +740,7 @@ const CashRegister = () => {
                           onChange={(e) => setFormData({ ...formData, relatedDocumentType: e.target.value })}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         >
-                          <option value="SALE">{t('sale')}</option>
-                          <option value="AR_COLLECTION">{t('arCollection')}</option>
+                          <option value="AR_COLLECTION">{t('creditSaleCollection')} (Credit & Card Sales)</option>
                           <option value="CONTRIBUTION">{t('contribution')}</option>
                           <option value="LOAN">{t('loan')}</option>
                         </select>
@@ -648,13 +768,13 @@ const CashRegister = () => {
                             </select>
                           </div>
 
-                          {pendingInvoices.length > 0 && (
+                          {pendingCreditSales.length > 0 && (
                             <div className="md:col-span-2">
                               <label className="block text-sm font-medium text-gray-700 mb-2">
-                                {t('selectInvoices')} *
+                                Select Customer Invoices * (Credit sales and credit card sales)
                               </label>
                               <div className="border border-gray-300 rounded-lg p-4 max-h-60 overflow-y-auto">
-                                {pendingInvoices.map((invoice) => (
+                                {pendingCreditSales.map((invoice) => (
                                   <div key={invoice.id} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded">
                                     <input
                                       type="checkbox"
@@ -663,19 +783,77 @@ const CashRegister = () => {
                                       className="w-4 h-4"
                                     />
                                     <div className="flex-1">
-                                      <p className="text-sm font-medium">
-                                        {invoice.registrationNumber} - {formatNumber(invoice.balanceAmount)}
-                                      </p>
+                                      <div className="flex items-center gap-2">
+                                        <p className="text-sm font-medium">
+                                          {invoice.registrationNumber} - {formatNumber(invoice.balanceAmount)}
+                                        </p>
+                                        {(invoice.type === 'CREDIT_CARD_SALE' || invoice.type === 'DEBIT_CARD_SALE') && (
+                                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                                            💳 Card Sale
+                                          </span>
+                                        )}
+                                      </div>
                                       <p className="text-xs text-gray-500">
-                                        {new Date(invoice.registrationDate).toLocaleDateString()}
+                                        {invoice.type === 'CREDIT_CARD_SALE' || invoice.type === 'DEBIT_CARD_SALE' 
+                                          ? `Credit Card Sale${invoice.cardNetwork ? ` via ${invoice.cardNetwork}` : ''} - ${new Date(invoice.registrationDate).toLocaleDateString()}`
+                                          : `Credit Sale - ${new Date(invoice.registrationDate).toLocaleDateString()}`
+                                        }
                                       </p>
                                     </div>
                                   </div>
                                 ))}
                               </div>
+                              <p className="text-xs text-blue-600 mt-2">
+                                ℹ️ Credit Sales and Credit Card Sales with customer information are shown here.
+                              </p>
                             </div>
                           )}
                         </>
+                      )}
+
+                      {/* CONTRIBUTION/LOAN: Show investment agreement selection */}
+                      {(formData.relatedDocumentType === 'CONTRIBUTION' || formData.relatedDocumentType === 'LOAN') && (
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            {formData.relatedDocumentType === 'CONTRIBUTION' ? 'Select Investment Agreement' : 'Select Loan Agreement'} *
+                          </label>
+                          <select
+                            required
+                            value={formData.investmentAgreementId || ''}
+                            onChange={(e) => setFormData({ ...formData, investmentAgreementId: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          >
+                            <option value="">
+                              {formData.relatedDocumentType === 'CONTRIBUTION' ? 'Select Investment Agreement' : 'Select Loan Agreement'}
+                            </option>
+                            {activeAgreements
+                              .filter((agreement) => {
+                                // Filter agreements based on document type
+                                if (formData.relatedDocumentType === 'CONTRIBUTION') {
+                                  return agreement.agreementType === 'INVESTMENT';
+                                } else if (formData.relatedDocumentType === 'LOAN') {
+                                  return agreement.agreementType === 'LOAN';
+                                }
+                                return false;
+                              })
+                              .map((agreement) => (
+                                <option key={agreement.id} value={agreement.id}>
+                                  {agreement.agreementNumber} - {agreement.investorName} 
+                                  (Balance: {formatNumber(agreement.balanceAmount)})
+                                </option>
+                              ))}
+                          </select>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {formData.relatedDocumentType === 'CONTRIBUTION' 
+                              ? '💰 Showing active investment agreements with remaining balance'
+                              : '🏦 Showing active loan agreements with remaining balance'
+                            }
+                          </p>
+                          <p className="text-xs text-blue-600 mt-1">
+                            ⚠️ You can only receive money up to the remaining agreement balance. 
+                            Create agreements first in Investment Agreements page.
+                          </p>
+                        </div>
                       )}
 
                       {/* Cheque Number for Bank Cheque */}
@@ -838,7 +1016,7 @@ const CashRegister = () => {
                     <option value="">{t('selectCashRegister')}</option>
                     {cashRegisterMasters.map((register) => (
                       <option key={register.id} value={register.id}>
-                        {register.code} - {register.name} ({register.location}) - Balance: {formatNumber(register.balance)}
+                        {register.code} - {register.name} ({register.location}) - Balance: {Number(register.balance || 0).toFixed(2)}
                       </option>
                     ))}
                   </select>

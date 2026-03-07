@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { FaPlus, FaTrash, FaUniversity, FaArrowUp, FaArrowDown, FaSearch } from 'react-icons/fa';
+import { useLocation } from 'react-router-dom';
 import axios from '../api/axios';
 import { formatNumber } from '../utils/formatNumber';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -55,6 +56,7 @@ interface PendingInvoice {
 
 const BankRegister = () => {
   const { t } = useLanguage();
+  const location = useLocation();
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -86,7 +88,27 @@ const BankRegister = () => {
     fetchTransactions();
     fetchBankAccounts();
     fetchSuppliers();
-  }, []);
+    
+    // Handle pre-filled data from Accounts Payable
+    if (location.state?.prefilledData && location.state?.fromAccountsPayable) {
+      const prefilledData = location.state.prefilledData;
+      setFormData(prev => ({
+        ...prev,
+        transactionType: prefilledData.transactionType,
+        amount: prefilledData.amount,
+        description: prefilledData.description,
+        supplierId: prefilledData.supplierId?.toString() || '',
+      }));
+      
+      // For Accounts Payable payments, we don't need to fetch pending invoices
+      // Instead, we'll handle this as a direct payment by pre-selecting the AP record as an invoice
+      if (prefilledData.accountsPayableId) {
+        setSelectedInvoices([prefilledData.accountsPayableId]);
+      }
+      
+      setShowModal(true); // Automatically open the modal
+    }
+  }, [location.state]);
 
   useEffect(() => {
     if (formData.supplierId) {
@@ -143,8 +165,8 @@ const BankRegister = () => {
     
     if (isSubmitting) return;
     
-    // Validation for OUTFLOW with supplier
-    if (formData.transactionType === 'OUTFLOW' && formData.supplierId && selectedInvoices.length === 0) {
+    // Validation for OUTFLOW with supplier (skip if coming from Accounts Payable with pre-selected invoice)
+    if (formData.transactionType === 'OUTFLOW' && formData.supplierId && selectedInvoices.length === 0 && !location.state?.fromAccountsPayable) {
       alert('Please select at least one invoice to pay');
       return;
     }
@@ -156,15 +178,31 @@ const BankRegister = () => {
         ...formData,
         bankAccountId: formData.bankAccountId ? parseInt(formData.bankAccountId) : undefined,
         supplierId: formData.supplierId ? parseInt(formData.supplierId) : undefined,
-        invoiceIds: selectedInvoices.length > 0 ? JSON.stringify(selectedInvoices) : undefined,
         amount: parseFloat(formData.amount),
       };
+      
+      // Handle invoice IDs - either from selected invoices or from Accounts Payable
+      if (selectedInvoices.length > 0) {
+        submitData.invoiceIds = JSON.stringify(selectedInvoices);
+      } else if (location.state?.prefilledData?.accountsPayableId) {
+        // When coming from Accounts Payable, use the AP ID as the invoice ID
+        submitData.invoiceIds = JSON.stringify([location.state.prefilledData.accountsPayableId]);
+      }
       
       await axios.post('/bank-register', submitData);
       fetchTransactions();
       fetchBankAccounts(); // Refresh bank account balances
       resetForm();
-      alert('Transaction created successfully!');
+      
+      if (location.state?.fromAccountsPayable) {
+        alert('Payment completed successfully! The Accounts Payable status has been updated.');
+        // Navigate back to Accounts Payable to see the updated status
+        setTimeout(() => {
+          navigate('/accounts-payable');
+        }, 1000);
+      } else {
+        alert('Transaction created successfully!');
+      }
     } catch (error: any) {
       console.error('Error saving transaction:', error);
       alert(error.response?.data?.message || 'Error saving transaction');
@@ -204,6 +242,11 @@ const BankRegister = () => {
     setSelectedInvoices([]);
     setPendingInvoices([]);
     setShowModal(false);
+    
+    // Clear the location state to prevent auto-opening again
+    if (location.state?.fromAccountsPayable) {
+      window.history.replaceState({}, document.title);
+    }
   };
 
   const toggleInvoiceSelection = (invoiceId: number) => {
@@ -428,9 +471,42 @@ const BankRegister = () => {
             <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
               <FaUniversity className="text-blue-600" />
               {t('newBankTransaction')}
+              {location.state?.fromAccountsPayable && (
+                <span className="text-sm bg-green-100 text-green-800 px-3 py-1 rounded-full font-medium">
+                  From Accounts Payable
+                </span>
+              )}
             </h2>
 
             <form onSubmit={handleSubmit} className="space-y-4">
+              {location.state?.fromAccountsPayable && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                  <div className="flex items-start gap-3">
+                    <div className="text-2xl">💳</div>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-green-900 mb-1">
+                        Credit Purchase Payment
+                      </p>
+                      <p className="text-xs text-green-700 mb-2">
+                        This transaction will pay the credit purchase debt. The form has been pre-filled with the payment details.
+                        <strong> Please keep Transaction Type as "OUTFLOW" for payment.</strong>
+                      </p>
+                      <div className="bg-white rounded p-2 text-xs">
+                        <p className="text-gray-600">
+                          <strong>Supplier:</strong> {location.state.prefilledData?.supplierName}
+                        </p>
+                        <p className="text-gray-600">
+                          <strong>Amount:</strong> ${location.state.prefilledData?.amount}
+                        </p>
+                        <p className="text-gray-600">
+                          <strong>AP ID:</strong> #{location.state.prefilledData?.accountsPayableId}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">{t('date')} *</label>

@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, Eye, CheckCircle, Clock, XCircle, X, Trash2, ShoppingCart, Package } from 'lucide-react';
+import { Plus, Search, Eye, CheckCircle, Clock, XCircle, X, Trash2, ShoppingCart, Package, CreditCard } from 'lucide-react';
 import api from '../api/axios';
 import { Sale, Client, Product } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { notify, handleApiError } from '../utils/notifications';
 import { formatNumber } from '../utils/formatNumber';
+import CardPaymentModal from '../components/CardPaymentModal.tsx';
 
 interface SaleItem {
   productId: number;
@@ -27,6 +28,7 @@ const Sales = () => {
   const [cards, setCards] = useState<any[]>([]);
   const [cashRegisters, setCashRegisters] = useState<any[]>([]);
   const [bankAccounts, setBankAccounts] = useState<any[]>([]);
+  const [paymentNetworks, setPaymentNetworks] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -39,7 +41,7 @@ const Sales = () => {
     saleType: 'Merchandise for sale',
     paymentType: 'CASH',
     cashRegisterId: '',
-    cardId: '',
+    cardPaymentNetworkId: '', // Changed from cardId
     bankAccountId: '',
     paidAmount: 0,
     status: 'COMPLETED',
@@ -52,6 +54,7 @@ const Sales = () => {
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [viewDetailsModal, setViewDetailsModal] = useState(false);
   const [viewProductsModal, setViewProductsModal] = useState(false);
+  const [cardPaymentModal, setCardPaymentModal] = useState(false);
 
   useEffect(() => {
     fetchSales();
@@ -60,6 +63,7 @@ const Sales = () => {
     fetchCards();
     fetchCashRegisters();
     fetchBankAccounts();
+    fetchPaymentNetworks();
   }, []);
 
   const fetchBankAccounts = async () => {
@@ -86,6 +90,15 @@ const Sales = () => {
       setCashRegisters(response.data);
     } catch (error) {
       console.error('Error fetching cash registers:', error);
+    }
+  };
+
+  const fetchPaymentNetworks = async () => {
+    try {
+      const response = await api.get('/card-payment-networks');
+      setPaymentNetworks(response.data);
+    } catch (error) {
+      console.error('Error fetching payment networks:', error);
     }
   };
 
@@ -180,9 +193,9 @@ const Sales = () => {
       return;
     }
     
-    // ✅ Validation: Check card for DEBIT_CARD
-    if (formData.paymentType === 'DEBIT_CARD' && !formData.cardId) {
-      notify.warning('Debit Card Required', 'Please select a debit card');
+    // ✅ Validation: Check payment network for DEBIT_CARD/CREDIT_CARD
+    if ((formData.paymentType === 'DEBIT_CARD' || formData.paymentType === 'CREDIT_CARD') && !formData.cardPaymentNetworkId) {
+      notify.warning('Payment Network Required', `Please select a ${formData.paymentType.toLowerCase().replace('_', ' ')} payment network`);
       return;
     }
     
@@ -202,7 +215,7 @@ const Sales = () => {
         ...formData,
         clientId: parseInt(formData.clientId),
         cashRegisterId: formData.cashRegisterId ? parseInt(formData.cashRegisterId) : undefined,
-        cardId: formData.cardId ? parseInt(formData.cardId) : undefined,
+        cardPaymentNetworkId: formData.cardPaymentNetworkId ? parseInt(formData.cardPaymentNetworkId) : undefined,
         bankAccountId: formData.bankAccountId ? parseInt(formData.bankAccountId) : undefined,
         subtotal: totals.subtotal,
         tax: totals.tax,
@@ -235,7 +248,7 @@ const Sales = () => {
       saleType: 'Merchandise for sale',
       paymentType: 'CASH',
       cashRegisterId: '',
-      cardId: '',
+      cardPaymentNetworkId: '',
       bankAccountId: '',
       paidAmount: 0,
       status: 'COMPLETED',
@@ -247,6 +260,11 @@ const Sales = () => {
   const closeModal = () => {
     setShowModal(false);
     setSaleItems([]);
+  };
+
+  const handleCardPaymentSuccess = () => {
+    notify.success('Card payment processed', 'Payment has been recorded successfully');
+    fetchSales(); // Refresh sales list to show updated collection status
   };
 
   const getStatusBadge = (status: string) => {
@@ -406,6 +424,21 @@ const Sales = () => {
                     >
                       <Package size={18} />
                     </motion.button>
+                    {/* Card Payment Button - Only show if sale has balance */}
+                    {sale.balanceAmount && Number(sale.balanceAmount) > 0 && (
+                      <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => {
+                          setSelectedSale(sale);
+                          setCardPaymentModal(true);
+                        }}
+                        className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg"
+                        title="Process Card Payment"
+                      >
+                        <CreditCard size={18} />
+                      </motion.button>
+                    )}
                   </div>
                 </td>
               </motion.tr>
@@ -536,7 +569,7 @@ const Sales = () => {
                     <select
                       required
                       value={formData.paymentType}
-                      onChange={(e) => setFormData({ ...formData, paymentType: e.target.value, cashRegisterId: '', cardId: '', bankAccountId: '' })}
+                      onChange={(e) => setFormData({ ...formData, paymentType: e.target.value, cashRegisterId: '', cardPaymentNetworkId: '', bankAccountId: '' })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="CASH">Cash</option>
@@ -579,15 +612,15 @@ const Sales = () => {
                   {formData.paymentType === 'DEBIT_CARD' && (
                     <div className="col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Select Debit Card *
+                        Select Debit Card Network *
                       </label>
                       <select
                         required
-                        value={formData.cardId}
-                        onChange={(e) => setFormData({ ...formData, cardId: e.target.value })}
+                        value={formData.cardPaymentNetworkId}
+                        onChange={(e) => setFormData({ ...formData, cardPaymentNetworkId: e.target.value })}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                       >
-                        <option value="">Select debit card...</option>
+                        <option value="">Select payment network...</option>
                         {cards.filter(card => card.cardType === 'DEBIT').map(card => (
                           <option key={card.id} value={card.id}>
                             {card.cardName ? card.cardName : `${card.cardBrand || 'Debit Card'} ****${card.cardNumberLast4}`}
@@ -596,7 +629,32 @@ const Sales = () => {
                         ))}
                       </select>
                       <p className="text-xs text-gray-500 mt-1">
-                        💳 DEBIT: Money goes to your bank account immediately (Bank Register)
+                        💳 DEBIT: Creates Accounts Receivable from selected payment network
+                      </p>
+                    </div>
+                  )}
+
+                  {/* ✅ Payment Network Selection for CREDIT_CARD */}
+                  {formData.paymentType === 'CREDIT_CARD' && (
+                    <div className="col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Select Credit Card Network *
+                      </label>
+                      <select
+                        required
+                        value={formData.cardPaymentNetworkId}
+                        onChange={(e) => setFormData({ ...formData, cardPaymentNetworkId: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Select payment network...</option>
+                        {paymentNetworks.filter(network => network.type === 'CREDIT' && network.isActive).map(network => (
+                          <option key={network.id} value={network.id}>
+                            {network.name} - Fee: {(Number(network.processingFee) * 100).toFixed(2)}% - Settlement: {network.settlementDays} day{network.settlementDays !== 1 ? 's' : ''}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">
+                        💳 CREDIT: Creates Accounts Receivable from selected payment network
                       </p>
                     </div>
                   )}
@@ -960,6 +1018,19 @@ const Sales = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Card Payment Modal */}
+      {selectedSale && (
+        <CardPaymentModal
+          isOpen={cardPaymentModal}
+          onClose={() => setCardPaymentModal(false)}
+          saleId={selectedSale.id}
+          saleAmount={Number(selectedSale.balanceAmount || selectedSale.total)}
+          saleNumber={selectedSale.registrationNumber}
+          cashRegisterId={cashRegisters[0]?.id || 1}
+          onPaymentSuccess={handleCardPaymentSuccess}
+        />
+      )}
     </div>
   );
 };

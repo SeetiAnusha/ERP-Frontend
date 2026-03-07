@@ -462,6 +462,9 @@ const translations = {
     selectCashRegister: 'Select Cash Register',
     selectBankAccount: 'Select Bank Account',
     selectCustomer: 'Select Customer',
+    selectFinancer: 'Select Financer',
+    selectContributor: 'Select Contributor',
+    selectLender: 'Select Lender',
     selectInvoices: 'Select Invoices',
     arCollection: 'AR Collection',
     contribution: 'Contribution',
@@ -474,6 +477,7 @@ const translations = {
     transactionCreated: 'Transaction created successfully!',
     corrections: 'Corrections',
     sale: 'Sale',
+    netCashPosition: 'Net Cash Position',
     
     // Phase 4 - Bank Register Updates
     chequeTransferNumber: 'Cheque/Transfer #',
@@ -943,6 +947,9 @@ const translations = {
     selectCashRegister: 'Seleccionar Caja',
     selectBankAccount: 'Seleccionar Cuenta Bancaria',
     selectCustomer: 'Seleccionar Cliente',
+    selectFinancer: 'Seleccionar Financiador',
+    selectContributor: 'Seleccionar Contribuyente',
+    selectLender: 'Seleccionar Prestamista',
     selectInvoices: 'Seleccionar Facturas',
     arCollection: 'Cobro de CxC',
     contribution: 'Aporte',
@@ -955,6 +962,7 @@ const translations = {
     transactionCreated: '¡Transacción creada exitosamente!',
     corrections: 'Correcciones',
     sale: 'Venta',
+    netCashPosition: 'Posición Neta de Efectivo',
     
     // Phase 4 - Bank Register Updates
     chequeTransferNumber: 'Cheque/Transferencia #',

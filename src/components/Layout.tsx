@@ -17,6 +17,8 @@ import {
   CreditCard,
   Landmark,
   DollarSign,
+  UserCheck,
+  Clock,
 } from 'lucide-react';
 import LanguageSwitcher from './LanguageSwitcher';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -45,10 +47,15 @@ const Layout = ({ children }: LayoutProps) => {
     { path: '/bank-accounts', icon: Building2, label: t('bankAccounts') },
     { path: '/cash-register-masters', icon: DollarSign, label: t('cashRegisters') },
     { path: '/cards', icon: CreditCard, label: t('cards') },
+    { path: '/card-payment-networks', icon: CreditCard, label: 'Payment Networks' },
     { path: '/financers', icon: Landmark, label: t('financers') },
+    { path: '/investors', icon: UserCheck, label: 'Investors' },
+    { path: '/banks', icon: Building2, label: 'Banks' },
+    { path: '/recent-activity', icon: Clock, label: 'Recent Activity' },
+    { path: '/investment-agreements', icon: FileText, label: 'Investment Agreements' },
     { path: '/adjustments', icon: Settings, label: t('adjustments') },
     { path: '/reports', icon: BarChart3, label: t('reports') },
-    // { path: '/investments', icon: Package, label: t('investments') },
+    //  { path: '/investments', icon: Package, label: t('investments') },
     // { path: '/prepaid-expenses', icon: Package, label: t('prepaidExpenses') },
   ];
 

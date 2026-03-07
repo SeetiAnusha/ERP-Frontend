@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Search, DollarSign, CheckCircle, Clock, XCircle, Plus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { AccountsPayable } from '../types/accountsTypes';
 import { notify, handleApiError } from '../utils/notifications';
@@ -9,6 +10,7 @@ import { formatNumber } from '../utils/formatNumber';
 
 const AccountsPayablePage = () => {
   const { t } = useLanguage();
+  const navigate = useNavigate();
   const [accountsPayable, setAccountsPayable] = useState<AccountsPayable[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('All');
@@ -105,6 +107,27 @@ const AccountsPayablePage = () => {
     setPaymentAmount(ap.balanceAmount.toString());
     setSelectedCardId('');
     setShowPaymentModal(true);
+  };
+
+  const handlePayCreditPurchase = (ap: AccountsPayable) => {
+    // Navigate to Bank Register with pre-filled data for credit purchase payment
+    const paymentData = {
+      transactionType: 'OUTFLOW',
+      amount: ap.balanceAmount.toString(),
+      description: `Payment for Credit Purchase - ${ap.relatedDocumentNumber || 'N/A'} - ${ap.supplierName}`,
+      supplierId: ap.supplierId,
+      supplierName: ap.supplierName,
+      accountsPayableId: ap.id, // Pass the AP ID
+      paymentType: 'Credit Purchase Payment'
+    };
+    
+    // Navigate to Bank Register with state
+    navigate('/bank-register', { 
+      state: { 
+        prefilledData: paymentData,
+        fromAccountsPayable: true 
+      } 
+    });
   };
 
   const submitPayment = async () => {
@@ -383,13 +406,28 @@ const AccountsPayablePage = () => {
                   <td className="px-4 py-4 text-center whitespace-nowrap">{getStatusBadge(ap.status)}</td>
                   <td className="px-4 py-4 text-center whitespace-nowrap">
                     {ap.status !== 'Paid' && (
-                      <button
-                        onClick={() => handleRecordPayment(ap)}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                      >
-                        <Plus size={14} />
-                        {t('pay')}
-                      </button>
+                      <>
+                        {/* Show Pay via Bank button for Credit payment type only */}
+                        {((ap.paymentType === 'CREDIT' || ap.paymentType === 'Credit') || 
+                          (ap.type === 'CREDIT' || ap.type === 'Credit')) ? (
+                          <button
+                            onClick={() => handlePayCreditPurchase(ap)}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                          >
+                            <Plus size={14} />
+                            Pay via Bank
+                          </button>
+                        ) : (
+                          /* Regular Pay button for all other types */
+                          <button
+                            onClick={() => handleRecordPayment(ap)}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                          >
+                            <Plus size={14} />
+                            {t('pay')}
+                          </button>
+                        )}
+                      </>
                     )}
                   </td>
                 </motion.tr>

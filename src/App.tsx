@@ -25,6 +25,11 @@ import BankAccounts from './pages/BankAccounts';
 import CashRegisterMasters from './pages/CashRegisterMasters';
 import Cards from './pages/Cards';
 import Financers from './pages/Financers';
+import Investors from './pages/Investors';
+import Banks from './pages/Banks';
+import RecentActivity from './pages/RecentActivity';
+import InvestmentAgreements from './pages/InvestmentAgreements';
+import CardPaymentNetworks from './pages/CardPaymentNetworks';
 
 function App() {
   return (
@@ -67,6 +72,11 @@ function App() {
             <Route path="/cash-register-masters" element={<CashRegisterMasters />} />
             <Route path="/cards" element={<Cards />} />
             <Route path="/financers" element={<Financers />} />
+            <Route path="/investors" element={<Investors />} />
+            <Route path="/banks" element={<Banks />} />
+            <Route path="/recent-activity" element={<RecentActivity />} />
+            <Route path="/investment-agreements" element={<InvestmentAgreements />} />
+            <Route path="/card-payment-networks" element={<CardPaymentNetworks />} />
           </Routes>
         </Layout>
       </Router>

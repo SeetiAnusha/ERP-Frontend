@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Search, DollarSign, CheckCircle, Clock, XCircle, Plus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { AccountsReceivable } from '../types/accountsTypes';
 import { notify, handleApiError } from '../utils/notifications';
@@ -9,6 +10,7 @@ import { formatNumber } from '../utils/formatNumber';
 
 const AccountsReceivablePage = () => {
   const { t } = useLanguage();
+  const navigate = useNavigate();
   const [accountsReceivable, setAccountsReceivable] = useState<AccountsReceivable[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('All');
@@ -61,6 +63,34 @@ const AccountsReceivablePage = () => {
     setSelectedAR(ar);
     setPaymentAmount(ar.balanceAmount.toString());
     setShowPaymentModal(true);
+  };
+
+  const handleCreditSaleCollection = (ar: AccountsReceivable) => {
+    // Navigate to Cash Register with pre-filled data for credit sale or credit card sale collection
+    const isCardSale = ar.type === 'CREDIT_CARD_SALE' || ar.type === 'DEBIT_CARD_SALE';
+    const collectionType = isCardSale ? 'Credit Card Collection' : 'Credit Sale Collection';
+    const description = isCardSale 
+      ? `Credit Card Collection - ${ar.relatedDocumentNumber} - ${ar.clientName} (${ar.cardNetwork})`
+      : `Credit Sale Collection - ${ar.relatedDocumentNumber} - ${ar.clientName}`;
+    
+    const collectionData = {
+      transactionType: 'INFLOW',
+      relatedDocumentType: 'AR_COLLECTION',
+      amount: ar.balanceAmount.toString(),
+      description,
+      customerId: ar.clientId,
+      clientName: ar.clientName,
+      accountsReceivableId: ar.id,
+      collectionType
+    };
+    
+    // Navigate to Cash Register with state
+    navigate('/cash-register', { 
+      state: { 
+        prefilledData: collectionData,
+        fromAccountsReceivable: true 
+      } 
+    });
   };
 
   const submitPayment = async () => {
@@ -130,7 +160,15 @@ const AccountsReceivablePage = () => {
                   <td className="px-6 py-4 text-sm">{new Date(ar.registrationDate).toLocaleDateString()}</td>
                   <td className="px-6 py-4 text-sm">{ar.type}</td>
                   <td className="px-6 py-4 text-sm">
-                    {ar.clientName && !ar.cardNetwork ? (
+                    {ar.clientName && ar.cardNetwork ? (
+                      <div>
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mb-1">
+                          👤 Customer
+                        </span>
+                        <div className="text-sm font-medium text-gray-900">{ar.clientName}</div>
+                        <div className="text-xs text-purple-600 mt-1">via {ar.cardNetwork}</div>
+                      </div>
+                    ) : ar.clientName && !ar.cardNetwork ? (
                       <div>
                         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mb-1">
                           👤 Customer
@@ -171,13 +209,29 @@ const AccountsReceivablePage = () => {
                   <td className="px-6 py-4 text-center">{getStatusBadge(ar.status)}</td>
                   <td className="px-6 py-4 text-center">
                     {ar.status !== 'Received' && (
-                      <button
-                        onClick={() => handleRecordPayment(ar)}
-                        className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
-                      >
-                        <Plus size={16} />
-                        {t('collect')}
-                      </button>
+                      <>
+                        {/* Show different buttons based on sale type and available customer info */}
+                        {(ar.type === 'CREDIT_SALE' || ar.type === 'CLIENT_CREDIT') || 
+                         (ar.clientName && ar.clientId && (ar.type === 'CREDIT_CARD_SALE' || ar.type === 'DEBIT_CARD_SALE')) ? (
+                          // Credit Sale OR Credit Card Sale with customer info - Navigate to Cash Register
+                          <button
+                            onClick={() => handleCreditSaleCollection(ar)}
+                            className="inline-flex items-center gap-1 px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
+                          >
+                            <Plus size={16} />
+                            Collect via Cash
+                          </button>
+                        ) : (
+                          // Credit Card Sale without customer info - Show modal
+                          <button
+                            onClick={() => handleRecordPayment(ar)}
+                            className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                          >
+                            <Plus size={16} />
+                            {t('collect')}
+                          </button>
+                        )}
+                      </>
                     )}
                   </td>
                 </motion.tr>
@@ -199,8 +253,8 @@ const AccountsReceivablePage = () => {
 
   // Group AR by type if grouping is enabled
   const groupedAR = groupByType ? {
-    customers: filteredAR.filter(ar => ar.clientName && !ar.cardNetwork),
-    cards: filteredAR.filter(ar => ar.cardNetwork || ar.type === 'CREDIT_CARD_SALE'),
+    customers: filteredAR.filter(ar => ar.clientName && ar.clientId), // All records with customer info
+    cards: filteredAR.filter(ar => ar.cardNetwork && !ar.clientId), // Only card company records without customer info
   } : null;
 
   const totalAmount = filteredAR.reduce((sum, ar) => sum + Number(ar.amount), 0);
