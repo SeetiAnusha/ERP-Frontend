@@ -234,7 +234,7 @@ const Products = () => {
                         whileTap={{ scale: 0.9 }}
                         onClick={() => openModal(product)}
                         className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
-                        title="Edit Product"
+                        title={t('editProduct')}
                       >
                         <Edit size={18} />
                       </motion.button>
@@ -243,7 +243,7 @@ const Products = () => {
                         whileTap={{ scale: 0.9 }}
                         onClick={() => handleDelete(product.id)}
                         className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                        title="Delete Product"
+                        title={t('deleteProduct')}
                       >
                         <Trash2 size={18} />
                       </motion.button>

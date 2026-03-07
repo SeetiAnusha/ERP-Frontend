@@ -408,7 +408,7 @@ const Sales = () => {
                         setViewDetailsModal(true);
                       }}
                       className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
-                      title="Sale Details"
+                      title={t('saleDetails')}
                     >
                       <Eye size={18} />
                     </motion.button>
@@ -420,7 +420,7 @@ const Sales = () => {
                         setViewProductsModal(true);
                       }}
                       className="p-2 text-green-600 hover:bg-green-50 rounded-lg"
-                      title="Product Details"
+                      title={t('productDetails')}
                     >
                       <Package size={18} />
                     </motion.button>
@@ -434,7 +434,7 @@ const Sales = () => {
                           setCardPaymentModal(true);
                         }}
                         className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg"
-                        title="Process Card Payment"
+                        title={t('processCardPayment')}
                       >
                         <CreditCard size={18} />
                       </motion.button>

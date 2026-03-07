@@ -101,7 +101,7 @@ const BankRegister = () => {
     // Handle pre-filled data from Accounts Payable
     if (location.state?.prefilledData && location.state?.fromAccountsPayable) {
       const prefilledData = location.state.prefilledData;
-      console.log("prefilledData:",prefilledData);
+      console.log("Prefilled data:", prefilledData);
       setFormData(prev => ({
         ...prev,
         transactionType: prefilledData.transactionType,
@@ -177,7 +177,7 @@ const BankRegister = () => {
     
     // Validation for OUTFLOW with supplier (skip if coming from Accounts Payable with pre-selected invoice)
     if (formData.transactionType === 'OUTFLOW' && formData.supplierId && selectedInvoices.length === 0 && !location.state?.fromAccountsPayable) {
-      alert('Please select at least one invoice to pay');
+      alert(t('pleaseSelectAtLeastOneInvoice'));
       return;
     }
     
@@ -215,20 +215,20 @@ const BankRegister = () => {
       }
     } catch (error: any) {
       console.error('Error saving transaction:', error);
-      alert(error.response?.data?.message || 'Error saving transaction');
+      alert(error.response?.data?.message || t('errorSavingTransaction'));
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleDelete = async (id: number) => {
-    if (window.confirm('Are you sure you want to delete this transaction?')) {
+    if (window.confirm(t('deleteTransactionConfirm'))) {
       try {
         await axios.delete(`/bank-register/${id}`);
         fetchTransactions();
       } catch (error) {
         console.error('Error deleting transaction:', error);
-        alert('Error deleting transaction');
+        alert(t('errorDeletingTransaction'));
       }
     }
   };
@@ -457,7 +457,7 @@ const BankRegister = () => {
                       <button
                         onClick={() => handleDelete(transaction.id)}
                         className="text-red-600 hover:text-red-800 p-2 hover:bg-red-50 rounded"
-                        title="Delete"
+                        title={t('delete')}
                       >
                         <FaTrash />
                       </button>
@@ -483,7 +483,7 @@ const BankRegister = () => {
               {t('newBankTransaction')}
               {location.state?.fromAccountsPayable && (
                 <span className="text-sm bg-green-100 text-green-800 px-3 py-1 rounded-full font-medium">
-                  From Accounts Payable
+                  {t('fromAccountsPayable')}
                 </span>
               )}
             </h2>
@@ -495,18 +495,18 @@ const BankRegister = () => {
                     <div className="text-2xl">💳</div>
                     <div className="flex-1">
                       <p className="text-sm font-semibold text-green-900 mb-1">
-                        Credit Purchase Payment
+                        {t('creditPurchasePayment')}
                       </p>
                       <p className="text-xs text-green-700 mb-2">
-                        This transaction will pay the credit purchase debt. The form has been pre-filled with the payment details.
-                        <strong> Please keep Transaction Type as "OUTFLOW" for payment.</strong>
+                        {t('thisTransactionWillPay')}
+                        <strong> {t('pleaseKeepTransactionType')}</strong>
                       </p>
                       <div className="bg-white rounded p-2 text-xs">
                         <p className="text-gray-600">
-                          <strong>Supplier:</strong> {location.state.prefilledData?.supplierName}
+                          <strong>{t('supplier')}:</strong> {location.state.prefilledData?.supplierName}
                         </p>
                         <p className="text-gray-600">
-                          <strong>Amount:</strong> ${location.state.prefilledData?.amount}
+                          <strong>{t('amount')}:</strong> ${location.state.prefilledData?.amount}
                         </p>
                         <p className="text-gray-600">
                           <strong>AP ID:</strong> #{location.state.prefilledData?.accountsPayableId}
@@ -623,7 +623,7 @@ const BankRegister = () => {
                 <div className="mt-4 p-4 bg-gray-50 rounded-lg">
                   <h3 className="text-lg font-semibold mb-3">{t('selectInvoicesToPay')}</h3>
                   <p className="text-sm text-gray-600 mb-3">
-                    💡 Select the specific invoices/purchases you want to pay. Each item shows detailed invoice information.
+                    💡 {t('selectSpecificInvoices')}
                   </p>
                   <div className="space-y-2 max-h-60 overflow-y-auto">
                     {pendingInvoices.map(invoice => (
@@ -661,7 +661,7 @@ const BankRegister = () => {
                             {invoice.paymentType && (
                               <div className="mt-1">
                                 <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded">
-                                  Payment: {invoice.paymentType}
+                                  {t('paymentColon')} {invoice.paymentType}
                                 </span>
                               </div>
                             )}
@@ -673,7 +673,7 @@ const BankRegister = () => {
                   {selectedInvoices.length > 0 && (
                     <div className="mt-3 p-3 bg-blue-100 rounded">
                       <div className="flex justify-between font-semibold">
-                        <span>{t('selectedInvoicesTotal')} ({selectedInvoices.length} invoice{selectedInvoices.length !== 1 ? 's' : ''}):</span>
+                        <span>{t('selectedInvoicesTotal')} ({selectedInvoices.length} {selectedInvoices.length !== 1 ? t('invoicesLowercase') : t('invoice')}):</span>
                         <span className="text-blue-700">{formatNumber(calculateSelectedInvoicesTotal())}</span>
                       </div>
                     </div>
