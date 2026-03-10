@@ -33,7 +33,7 @@ const CashRegister = () => {
     transactionType: 'INFLOW',
     amount: '',
     paymentMethod: 'CASH',
-    relatedDocumentType: 'SALE',
+    relatedDocumentType: 'AR_COLLECTION', // Fixed: Changed from 'SALE' to 'AR_COLLECTION' to match dropdown options
     relatedDocumentNumber: '',
     clientRnc: '',
     clientName: '',
@@ -67,11 +67,24 @@ const CashRegister = () => {
     fetchActiveAgreements();
   }, []);
 
-  // Clear financer selection when document type changes
+  // Clear related fields when document type changes
   useEffect(() => {
     if (formData.relatedDocumentType === 'CONTRIBUTION' || formData.relatedDocumentType === 'LOAN') {
-      // Clear financer selection when switching between CONTRIBUTION and LOAN
-      setFormData(prev => ({ ...prev, financerId: '' }));
+      // Clear customer-related fields when switching to CONTRIBUTION/LOAN
+      setFormData(prev => ({ 
+        ...prev, 
+        customerId: '',
+        financerId: '' 
+      }));
+      setSelectedInvoices([]);
+      setPendingCreditSales([]);
+    } else if (formData.relatedDocumentType === 'AR_COLLECTION') {
+      // Clear investment-related fields when switching to AR_COLLECTION
+      setFormData(prev => ({ 
+        ...prev, 
+        investmentAgreementId: '',
+        financerId: '' 
+      }));
     }
   }, [formData.relatedDocumentType]);
 
@@ -262,7 +275,7 @@ const CashRegister = () => {
       transactionType: 'INFLOW',
       amount: '',
       paymentMethod: 'CASH',
-      relatedDocumentType: 'AR_COLLECTION',
+      relatedDocumentType: 'AR_COLLECTION', // Fixed: Changed from 'AR_COLLECTION' to match default state
       relatedDocumentNumber: '',
       clientRnc: '',
       clientName: '',
