@@ -175,6 +175,21 @@ const BankRegister = () => {
     
     if (isSubmitting) return;
     
+    // ✅ CRITICAL VALIDATION: Check bank account balance for OUTFLOW transactions
+    if (formData.transactionType === 'OUTFLOW') {
+      const selectedBankAccount = bankAccounts.find(account => account.id === parseInt(formData.bankAccountId));
+      const outflowAmount = parseFloat(formData.amount);
+      
+      if (selectedBankAccount && selectedBankAccount.balance < outflowAmount) {
+        alert(
+          `Insufficient balance in bank account "${selectedBankAccount.bankName} - ${selectedBankAccount.accountNumber}". ` +
+          `Available: ${selectedBankAccount.balance.toFixed(2)}, Required: ${outflowAmount.toFixed(2)}. ` +
+          `Cannot perform transaction that would result in negative balance.`
+        );
+        return;
+      }
+    }
+    
     // Validation for OUTFLOW with supplier (skip if coming from Accounts Payable with pre-selected invoice)
     if (formData.transactionType === 'OUTFLOW' && formData.supplierId && selectedInvoices.length === 0 && !location.state?.fromAccountsPayable) {
       alert(t('pleaseSelectAtLeastOneInvoice'));
@@ -603,6 +618,28 @@ const BankRegister = () => {
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     placeholder="0.00"
                   />
+                  {/* ✅ Real-time balance warning for OUTFLOW */}
+                  {formData.transactionType === 'OUTFLOW' && formData.bankAccountId && formData.amount && (
+                    (() => {
+                      const selectedBankAccount = bankAccounts.find(account => account.id === parseInt(formData.bankAccountId));
+                      const enteredAmount = parseFloat(formData.amount);
+                      
+                      if (selectedBankAccount && enteredAmount > selectedBankAccount.balance) {
+                        return (
+                          <p className="text-xs text-red-600 mt-1 font-medium">
+                            ⚠️ Insufficient balance! Available: {formatNumber(selectedBankAccount.balance)}, Required: {formatNumber(enteredAmount)}
+                          </p>
+                        );
+                      } else if (selectedBankAccount) {
+                        return (
+                          <p className="text-xs text-green-600 mt-1">
+                            ✅ Available balance: {formatNumber(selectedBankAccount.balance)}
+                          </p>
+                        );
+                      }
+                      return null;
+                    })()
+                  )}
                 </div>
 
                 <div className="col-span-2">
