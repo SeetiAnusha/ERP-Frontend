@@ -27,6 +27,9 @@ const CashRegister = () => {
   const [activeAgreements, setActiveAgreements] = useState<any[]>([]);
   const [pendingCreditSales, setPendingCreditSales] = useState<any[]>([]);
   const [selectedInvoices, setSelectedInvoices] = useState<number[]>([]);
+  // New state for dynamic payment method dropdowns
+  const [cards, setCards] = useState<any[]>([]);
+  const [paymentNetworks, setPaymentNetworks] = useState<any[]>([]);
 
   const [formData, setFormData] = useState({
     registrationDate: new Date().toISOString().split('T')[0],
@@ -47,6 +50,9 @@ const CashRegister = () => {
     customerId: '',
     financerId: '',
     investmentAgreementId: '',
+    // New fields for dynamic payment method dropdowns
+    cardId: '',
+    cardPaymentNetworkId: '',
   });
 
   const [depositData, setDepositData] = useState({
@@ -65,6 +71,8 @@ const CashRegister = () => {
     fetchBankAccounts();
     fetchCustomers();
     fetchActiveAgreements();
+    fetchCards();
+    fetchPaymentNetworks();
   }, []);
 
   // Clear related fields when document type changes
@@ -168,6 +176,25 @@ const CashRegister = () => {
       console.error('Error fetching active agreements:', error);
     }
   };
+  // Fetch cards for debit card selection
+  const fetchCards = async () => {
+    try {
+      const response = await axios.get('/cards');
+      setCards(response.data);
+    } catch (error) {
+      console.error('Error fetching cards:', error);
+    }
+  };
+
+  // Fetch payment networks for credit card selection
+  const fetchPaymentNetworks = async () => {
+    try {
+      const response = await axios.get('/card-payment-networks');
+      setPaymentNetworks(response.data);
+    } catch (error) {
+      console.error('Error fetching payment networks:', error);
+    }
+  };
 
   // Fetch pending Credit Sale and Credit Card Sale invoices for selected customer
   const fetchPendingCreditSales = async (customerId: string) => {
@@ -188,8 +215,13 @@ const CashRegister = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Phase 3: Validation
-    if (!formData.cashRegisterId) {
+    // Phase 3: Conditional Cash Register Validation
+    const needsCashRegister = 
+      formData.relatedDocumentType === 'CONTRIBUTION' || 
+      formData.relatedDocumentType === 'LOAN' ||
+      (formData.relatedDocumentType === 'AR_COLLECTION' && formData.paymentMethod === 'CASH');
+    
+    if (needsCashRegister && !formData.cashRegisterId) {
       alert(t('selectCashRegister') || 'Please select a cash register');
       return;
     }
@@ -214,6 +246,22 @@ const CashRegister = () => {
           return;
         }
       }
+
+      // Payment method validations
+      if (formData.paymentMethod === 'DEBIT_CARD' && !formData.cardId) {
+        alert('Please select a debit card');
+        return;
+      }
+      
+      if (formData.paymentMethod === 'CREDIT_CARD' && !formData.cardPaymentNetworkId) {
+        alert('Please select a credit card payment network');
+        return;
+      }
+      
+      if ((formData.paymentMethod === 'BANK_TRANSFER' || formData.paymentMethod === 'DEPOSIT') && !formData.bankAccountId) {
+        alert('Please select a bank account');
+        return;
+      }
     } else if (formData.transactionType === 'OUTFLOW') {
       // OUTFLOW validations - only allow BANK_DEPOSIT or CORRECTION
       if (formData.paymentMethod !== 'BANK_DEPOSIT' && formData.paymentMethod !== 'CORRECTION') {
@@ -231,7 +279,7 @@ const CashRegister = () => {
           ...formData,
           invoiceIds: selectedInvoices.length > 0 ? JSON.stringify(selectedInvoices) : null,
         },
-        ['cashRegisterId', 'bankAccountId', 'customerId']  // Integer fields
+        ['cashRegisterId', 'bankAccountId', 'customerId', 'cardId', 'cardPaymentNetworkId']  // Integer fields
       );
       
       await axios.post('/cash-register', cleanedData);
@@ -288,6 +336,9 @@ const CashRegister = () => {
       customerId: '',
       financerId: '',
       investmentAgreementId: '',
+      // New fields for dynamic payment method dropdowns
+      cardId: '',
+      cardPaymentNetworkId: '',
     });
     setSelectedInvoices([]);
     setPendingCreditSales([]);
@@ -643,28 +694,48 @@ const CashRegister = () => {
                 )}
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Cash Register Selection - REQUIRED */}
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {t('selectCashRegister')} *
-                    </label>
-                    <select
-                      required
-                      value={formData.cashRegisterId}
-                      onChange={(e) => setFormData({ ...formData, cashRegisterId: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="">{t('selectCashRegister')}</option>
-                      {cashRegisterMasters.map((register) => {
-                        console.log('Rendering register:', register);
-                        return (
-                          <option key={register.id} value={register.id}>
-                            {register.code} - {register.name} ({register.location}) - Balance: {Number(register.balance || 0).toFixed(2)}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </div>
+                  {/* Cash Register Selection - Conditional based on document type and payment method */}
+                  {(() => {
+                    const needsCashRegister = 
+                      formData.relatedDocumentType === 'CONTRIBUTION' || 
+                      formData.relatedDocumentType === 'LOAN' ||
+                      (formData.relatedDocumentType === 'AR_COLLECTION' && formData.paymentMethod === 'CASH');
+                    
+                    return needsCashRegister ? (
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          {t('selectCashRegister')} *
+                        </label>
+                        <select
+                          required
+                          value={formData.cashRegisterId}
+                          onChange={(e) => setFormData({ ...formData, cashRegisterId: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                          <option value="">{t('selectCashRegister')}</option>
+                          {cashRegisterMasters.map((register) => {
+                            console.log('Rendering register:', register);
+                            return (
+                              <option key={register.id} value={register.id}>
+                                {register.code} - {register.name} ({register.location}) - Balance: {Number(register.balance || 0).toFixed(2)}
+                              </option>
+                            );
+                          })}
+                        </select>
+                        <p className="text-xs text-gray-500 mt-1">
+                          💰 Physical money will be stored in this cash register
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="md:col-span-2">
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                          <p className="text-sm text-blue-800">
+                            ℹ️ Cash register not required for this payment method - no physical money involved
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -719,13 +790,27 @@ const CashRegister = () => {
                         <select
                           required
                           value={formData.paymentMethod}
-                          onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
+                          onChange={(e) => {
+                            const newPaymentMethod = e.target.value;
+                            const needsCashRegister = 
+                              formData.relatedDocumentType === 'CONTRIBUTION' || 
+                              formData.relatedDocumentType === 'LOAN' ||
+                              (formData.relatedDocumentType === 'AR_COLLECTION' && newPaymentMethod === 'CASH');
+                            
+                            setFormData({ 
+                              ...formData, 
+                              paymentMethod: newPaymentMethod,
+                              // Clear cashRegisterId if not needed
+                              cashRegisterId: needsCashRegister ? formData.cashRegisterId : ''
+                            });
+                          }}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         >
                           <option value="CASH">{t('cash')}</option>
                           <option value="CREDIT_CARD">{t('creditCard')}</option>
                           <option value="DEBIT_CARD">{t('debitCard')}</option>
                           <option value="BANK_TRANSFER">{t('bankTransfer')}</option>
+                          <option value="DEPOSIT">{t('deposit')}</option>
                           <option value="BANK_CHEQUE">{t('bankCheque')}</option>
                         </select>
                       </div>
@@ -737,7 +822,20 @@ const CashRegister = () => {
                         <select
                           required
                           value={formData.relatedDocumentType}
-                          onChange={(e) => setFormData({ ...formData, relatedDocumentType: e.target.value })}
+                          onChange={(e) => {
+                            const newDocumentType = e.target.value;
+                            const needsCashRegister = 
+                              newDocumentType === 'CONTRIBUTION' || 
+                              newDocumentType === 'LOAN' ||
+                              (newDocumentType === 'AR_COLLECTION' && formData.paymentMethod === 'CASH');
+                            
+                            setFormData({ 
+                              ...formData, 
+                              relatedDocumentType: newDocumentType,
+                              // Clear cashRegisterId if not needed
+                              cashRegisterId: needsCashRegister ? formData.cashRegisterId : ''
+                            });
+                          }}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         >
                           <option value="AR_COLLECTION">{t('creditSaleCollection')} (Credit & Card Sales)</option>
@@ -869,6 +967,82 @@ const CashRegister = () => {
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             placeholder="CHQ-001"
                           />
+                        </div>
+                      )}
+
+                      {/* Bank Account Selection for BANK_TRANSFER and DEPOSIT */}
+                      {(formData.paymentMethod === 'BANK_TRANSFER' || formData.paymentMethod === 'DEPOSIT') && (
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Select Bank Account *
+                          </label>
+                          <select
+                            required
+                            value={formData.bankAccountId}
+                            onChange={(e) => setFormData({ ...formData, bankAccountId: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          >
+                            <option value="">Select bank account...</option>
+                            {bankAccounts.map(account => (
+                              <option key={account.id} value={account.id}>
+                                {account.bankName} - {account.accountNumber} (Balance: ${Number(account.balance || 0).toFixed(2)})
+                              </option>
+                            ))}
+                          </select>
+                          <p className="text-xs text-gray-500 mt-1">
+                            🏦 Money will be transferred to this bank account
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Debit Card Selection for DEBIT_CARD */}
+                      {formData.paymentMethod === 'DEBIT_CARD' && (
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Select Debit Card *
+                          </label>
+                          <select
+                            required
+                            value={formData.cardId}
+                            onChange={(e) => setFormData({ ...formData, cardId: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          >
+                            <option value="">Select debit card...</option>
+                            {cards.filter(card => card.cardType === 'DEBIT').map(card => (
+                              <option key={card.id} value={card.id}>
+                                {card.cardName ? card.cardName : `${card.cardBrand || 'Debit Card'} ****${card.cardNumberLast4}`}
+                                {card.BankAccount && ` - ${card.BankAccount.bankName} (Balance: ${Number(card.BankAccount.balance).toFixed(2)})`}
+                              </option>
+                            ))}
+                          </select>
+                          <p className="text-xs text-gray-500 mt-1">
+                            💳 DEBIT: Payment will be processed through selected debit card
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Payment Network Selection for CREDIT_CARD */}
+                      {formData.paymentMethod === 'CREDIT_CARD' && (
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Select Credit Card Network *
+                          </label>
+                          <select
+                            required
+                            value={formData.cardPaymentNetworkId}
+                            onChange={(e) => setFormData({ ...formData, cardPaymentNetworkId: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          >
+                            <option value="">Select payment network...</option>
+                            {paymentNetworks.filter(network => network.type === 'CREDIT' && network.isActive).map(network => (
+                              <option key={network.id} value={network.id}>
+                                {network.name} - Fee: {(Number(network.processingFee) * 100).toFixed(2)}% - Settlement: {network.settlementDays} day{network.settlementDays !== 1 ? 's' : ''}
+                              </option>
+                            ))}
+                          </select>
+                          <p className="text-xs text-gray-500 mt-1">
+                            💳 CREDIT: Payment will be processed through selected payment network
+                          </p>
                         </div>
                       )}
 
