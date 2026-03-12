@@ -15,12 +15,27 @@ export interface AccountsReceivable {
   amount: number;
   receivedAmount: number;
   balanceAmount: number;
+  expectedBankDeposit?: number; // New field for expected bank deposit
+  actualBankDeposit?: number; // New field for actual amount deposited to bank
+  bankAccountId?: number; // Which bank account received the deposit
   status: string;
   dueDate?: string;
   receivedDate?: string;
   notes?: string;
   createdAt?: string;
   updatedAt?: string;
+  // New fields for expense data
+  relatedExpenses?: ExpenseRecord[];
+  totalExpenseAmount?: number;
+}
+
+export interface ExpenseRecord {
+  id: number;
+  registrationNumber: string;
+  amount: number;
+  expenseType: string;
+  status: string;
+  description?: string;
 }
 
 export interface AccountsPayable {

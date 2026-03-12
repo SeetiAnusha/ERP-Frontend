@@ -22,11 +22,26 @@ const AccountsPayablePage = () => {
   const [cards, setCards] = useState<any[]>([]);
   const [editingDeadline, setEditingDeadline] = useState<number | null>(null);
   const [newDeadline, setNewDeadline] = useState('');
+  const [bankAccounts, setBankAccounts] = useState<any[]>([]);
+  const [selectedBankAccountId, setSelectedBankAccountId] = useState('');
+  const [paymentDate, setPaymentDate] = useState('');
+  const [paymentReference, setPaymentReference] = useState('');
+  const [paymentDescription, setPaymentDescription] = useState('');
 
   useEffect(() => {
     fetchAccountsPayable();
     fetchCards();
+    fetchBankAccounts();
   }, []);
+
+  const fetchBankAccounts = async () => {
+    try {
+      const response = await api.get('/bank-accounts');
+      setBankAccounts(response.data);
+    } catch (error) {
+      console.error('Error fetching bank accounts:', error);
+    }
+  };
 
   const fetchCards = async () => {
     try {
@@ -106,6 +121,10 @@ const AccountsPayablePage = () => {
     setSelectedAP(ap);
     setPaymentAmount(ap.balanceAmount.toString());
     setSelectedCardId('');
+    setSelectedBankAccountId('');
+    setPaymentDate(new Date().toISOString().split('T')[0]); // Default to today
+    setPaymentReference('');
+    setPaymentDescription(`Payment for ${ap.relatedDocumentNumber || 'AP'} - ${ap.supplierName || ap.cardIssuer}`);
     setShowPaymentModal(true);
   };
 
@@ -133,28 +152,55 @@ const AccountsPayablePage = () => {
   const submitPayment = async () => {
     if (!selectedAP || !paymentAmount) return;
     
+    // Check if this is a credit card payment that needs bank account selection
+    const isCreditCardPayment = selectedAP.type === 'CREDIT_CARD_PURCHASE';
+    
+    if (isCreditCardPayment && !selectedBankAccountId) {
+      notify.warning('Please select a bank account to pay from');
+      return;
+    }
+    
+    if (!paymentDate) {
+      notify.warning('Please select a payment date');
+      return;
+    }
+    
     // ✅ For CREDIT_CARD AP, use stored cardId; for SUPPLIER, require selection
     const cardIdToUse = selectedAP.type === 'CREDIT_CARD_PURCHASE' && selectedAP.cardId 
       ? selectedAP.cardId 
       : parseInt(selectedCardId);
     
-    if (!cardIdToUse) {
+    if (!isCreditCardPayment && !cardIdToUse) {
       notify.warning(t('pleaseSelectCardForPayment'));
       return;
     }
     
     try {
-      await api.post(`/accounts-payable/${selectedAP.id}/record-payment`, {
+      const paymentData: any = {
         amount: parseFloat(paymentAmount),
-        paidDate: new Date(),
-        cardId: cardIdToUse,
-        paymentMethod: 'CREDIT_CARD',
-      });
+        paidDate: new Date(paymentDate),
+        paymentMethod: isCreditCardPayment ? 'BANK_TRANSFER' : 'CREDIT_CARD',
+        reference: paymentReference || undefined,
+        description: paymentDescription || undefined,
+      };
+      
+      // Add bank account for credit card payments
+      if (isCreditCardPayment) {
+        paymentData.bankAccountId = parseInt(selectedBankAccountId);
+      } else {
+        paymentData.cardId = cardIdToUse;
+      }
+      
+      await api.post(`/accounts-payable/${selectedAP.id}/record-payment`, paymentData);
       notify.success(t('paymentRecordedSuccessfully'));
       setShowPaymentModal(false);
       setSelectedAP(null);
       setPaymentAmount('');
       setSelectedCardId('');
+      setSelectedBankAccountId('');
+      setPaymentDate('');
+      setPaymentReference('');
+      setPaymentDescription('');
       fetchAccountsPayable();
     } catch (error) {
       handleApiError(error, t('recordingPayment'));
@@ -440,20 +486,22 @@ const AccountsPayablePage = () => {
 
       {/* Payment Modal */}
       {showPaymentModal && selectedAP && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-xl p-6 max-w-md w-full mx-4"
+            className="bg-white rounded-xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto"
           >
-            <h3 className="text-xl font-bold mb-4">{t('recordPayment')}</h3>
+            <h3 className="text-xl font-bold mb-4 sticky top-0 bg-white pb-2 border-b">
+              {selectedAP.type === 'CREDIT_CARD_PURCHASE' ? 'Pay Credit Card Bill' : t('recordPayment')}
+            </h3>
             <div className="space-y-4">
-              <div>
+              <div className="bg-gray-50 p-3 rounded-lg">
                 <p className="text-sm text-gray-600">{t('document')}: {selectedAP.relatedDocumentNumber}</p>
                 <p className="text-sm text-gray-600">{t('supplier')}: {selectedAP.supplierName || selectedAP.cardIssuer}</p>
-                <p className="text-sm text-gray-600">{t('totalAmount')}: {Number(selectedAP.amount).toFixed(2)}</p>
-                <p className="text-sm text-gray-600">{t('alreadyPaid')}: {Number(selectedAP.paidAmount).toFixed(2)}</p>
-                <p className="text-sm font-semibold text-red-600">{t('balance')}: {Number(selectedAP.balanceAmount).toFixed(2)}</p>
+                <p className="text-sm text-gray-600">{t('totalAmount')}: ${Number(selectedAP.amount).toFixed(2)}</p>
+                <p className="text-sm text-gray-600">{t('alreadyPaid')}: ${Number(selectedAP.paidAmount).toFixed(2)}</p>
+                <p className="text-sm font-semibold text-red-600">{t('balance')}: ${Number(selectedAP.balanceAmount).toFixed(2)}</p>
               </div>
               {/* Conditional Card Selection: Only show for SUPPLIER AP */}
               {selectedAP.type !== 'CREDIT_CARD_PURCHASE' && (
@@ -503,12 +551,85 @@ const AccountsPayablePage = () => {
                         </p>
                       </div>
                       <p className="text-xs text-blue-600 mt-2 italic">
-                        💡 {t('noCardSelectionNeeded')}
+                        💡 Select the bank account to pay from below
                       </p>
                     </div>
                   </div>
                 </div>
               )}
+
+              {/* Bank Account Selection for Credit Card Payments */}
+              {selectedAP.type === 'CREDIT_CARD_PURCHASE' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Select Bank Account to Pay From *
+                  </label>
+                  <select
+                    value={selectedBankAccountId}
+                    onChange={(e) => setSelectedBankAccountId(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    required
+                  >
+                    <option value="">Select Bank Account</option>
+                    {bankAccounts.map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {account.bankName} - {account.accountNumber} (Balance: {Number(account.balance).toFixed(2)})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-blue-600 mt-1">
+                    💰 Money will be deducted from the selected bank account
+                  </p>
+                </div>
+              )}
+
+              {/* Payment Date */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Payment Date *
+                </label>
+                <input
+                  type="date"
+                  value={paymentDate}
+                  onChange={(e) => setPaymentDate(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  📅 Date when the payment was made (can be different from today)
+                </p>
+              </div>
+
+              {/* Payment Reference */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Reference/Document Number
+                </label>
+                <input
+                  type="text"
+                  value={paymentReference}
+                  onChange={(e) => setPaymentReference(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="Check number, transfer ID, or reference"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  📄 Optional reference for tracking this payment
+                </p>
+              </div>
+
+              {/* Payment Description */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Description
+                </label>
+                <textarea
+                  value={paymentDescription}
+                  onChange={(e) => setPaymentDescription(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="Additional notes about this payment"
+                  rows={2}
+                />
+              </div>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -523,13 +644,13 @@ const AccountsPayablePage = () => {
                   placeholder={t('enterAmount')}
                 />
               </div>
-              <div className="flex gap-3">
+              <div className="flex gap-3 sticky bottom-0 bg-white pt-4 border-t mt-6">
                 <button
                   onClick={submitPayment}
-                  className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                  className="flex-1 bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium"
                 >
                   {selectedAP?.type === 'CREDIT_CARD_PURCHASE' 
-                    ? `✓ ${t('confirmPaymentRestoreCredit')}` 
+                    ? `✓ Pay ${Number(selectedAP.balanceAmount).toFixed(2)} & Restore Credit` 
                     : t('confirmPayment')}
                 </button>
                 <button
@@ -538,8 +659,12 @@ const AccountsPayablePage = () => {
                     setSelectedAP(null);
                     setPaymentAmount('');
                     setSelectedCardId('');
+                    setSelectedBankAccountId('');
+                    setPaymentDate('');
+                    setPaymentReference('');
+                    setPaymentDescription('');
                   }}
-                  className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300 transition-colors"
+                  className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg hover:bg-gray-300 transition-colors"
                 >
                   {t('cancel')}
                 </button>

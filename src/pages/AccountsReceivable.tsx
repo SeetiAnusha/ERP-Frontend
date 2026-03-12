@@ -19,8 +19,17 @@ const AccountsReceivablePage = () => {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedAR, setSelectedAR] = useState<AccountsReceivable | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
+  const [transferReference, setTransferReference] = useState('');
+  const [collectionDescription, setCollectionDescription] = useState('');
+  const [expenseCategory, setExpenseCategory] = useState('PROCESSING_FEE');
   const [bankAccounts, setBankAccounts] = useState<any[]>([]);
   const [selectedBankAccountId, setSelectedBankAccountId] = useState('');
+
+  // Helper function to calculate expense recorded amount from actual expense table
+  const getExpenseRecordedAmount = (ar: AccountsReceivable) => {
+    // Return the actual total expense amount from expense table
+    return ar.totalExpenseAmount || 0;
+  };
 
   useEffect(() => {
     fetchAccountsReceivable();
@@ -73,8 +82,11 @@ const AccountsReceivablePage = () => {
 
   const handleRecordPayment = (ar: AccountsReceivable) => {
     setSelectedAR(ar);
-    setPaymentAmount(ar.balanceAmount.toString());
+    setPaymentAmount(ar.amount.toString()); // ✅ Default to full amount, not balance
     setSelectedBankAccountId(''); // Reset bank account selection
+    setTransferReference('');
+    setCollectionDescription('');
+    setExpenseCategory('CREDIT_CARD_FEE'); // ✅ Default to credit card fee
     setShowPaymentModal(true);
   };
 
@@ -118,23 +130,47 @@ const AccountsReceivablePage = () => {
     }
     
     try {
-      const paymentData: any = {
-        amount: parseFloat(paymentAmount),
-        receivedDate: new Date(),
-      };
+      const amountReceived = parseFloat(paymentAmount);
+      const fullAmount = parseFloat(selectedAR.amount.toString());
+      const processingFee = fullAmount - amountReceived;
       
-      // For credit card sales, include bank account information
+      // For credit card sales, use the new processing fee endpoint
       if (isCardSale) {
-        paymentData.bankAccountId = parseInt(selectedBankAccountId);
-        paymentData.isCardSale = true;
+        const collectionData = {
+          amountReceived,
+          transferReference: transferReference || undefined,
+          description: collectionDescription || undefined,
+          expenseCategory: expenseCategory || 'CREDIT_CARD_FEE',
+          bankAccountId: parseInt(selectedBankAccountId)
+        };
+        
+        await api.post(`/accounts-receivable/${selectedAR.id}/collect-with-fees`, collectionData);
+        notify.success(`Payment collected successfully. ${processingFee > 0.01 ? `Processing fee of ${processingFee.toFixed(2)} recorded as expense.` : 'No processing fee.'}`);
+      } else {
+        // Use the existing payment recording endpoint
+        const paymentData: any = {
+          amount: amountReceived,
+          receivedDate: new Date(),
+          notes: collectionDescription || undefined
+        };
+        
+        // For credit card sales, include bank account information
+        if (isCardSale) {
+          paymentData.bankAccountId = parseInt(selectedBankAccountId);
+          paymentData.isCardSale = true;
+        }
+        
+        await api.post(`/accounts-receivable/${selectedAR.id}/record-payment`, paymentData);
+        notify.success('Payment recorded successfully');
       }
       
-      await api.post(`/accounts-receivable/${selectedAR.id}/record-payment`, paymentData);
-      notify.success('Payment recorded successfully');
       setShowPaymentModal(false);
       setSelectedAR(null);
       setPaymentAmount('');
       setSelectedBankAccountId('');
+      setTransferReference('');
+      setCollectionDescription('');
+      setExpenseCategory('PROCESSING_FEE');
       fetchAccountsReceivable();
     } catch (error) {
       handleApiError(error, 'Recording payment');
@@ -166,6 +202,15 @@ const AccountsReceivablePage = () => {
               <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('amount').toUpperCase()}</th>
               <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('received').toUpperCase()}</th>
               <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('balance').toUpperCase()}</th>
+              <th className="px-6 py-4 text-right text-sm font-bold text-blue-800" title="Expected amount to be deposited by credit card network">
+                🏦 EXPECTED DEPOSIT
+              </th>
+              <th className="px-6 py-4 text-right text-sm font-bold text-purple-800" title="Actual amount manually entered and deposited to bank account">
+                💳 ACTUAL BANK DEPOSIT
+              </th>
+              <th className="px-6 py-4 text-right text-sm font-bold text-red-800" title="Processing fees recorded as business expense">
+                📊 EXPENSE RECORDED
+              </th>
               <th className="px-6 py-4 text-center text-sm font-bold text-gray-800">{t('status').toUpperCase()}</th>
               <th className="px-6 py-4 text-center text-sm font-bold text-gray-800">{t('action').toUpperCase()}</th>
             </tr>
@@ -173,7 +218,7 @@ const AccountsReceivablePage = () => {
           <tbody>
             {arList.length === 0 ? (
               <tr>
-                <td colSpan={13} className="px-6 py-12 text-center text-gray-500">
+                <td colSpan={16} className="px-6 py-12 text-center text-gray-500">
                   {t('noAccountsReceivableFound')}
                 </td>
               </tr>
@@ -235,6 +280,45 @@ const AccountsReceivablePage = () => {
                   </td>
                   <td className="px-6 py-4 text-sm font-semibold text-right text-orange-600">
                     {formatNumber(Number(ar.balanceAmount))}
+                  </td>
+                  <td className="px-6 py-4 text-sm font-semibold text-right bg-blue-50 text-blue-700">
+                    {ar.expectedBankDeposit ? (
+                      <div className="flex items-center justify-end gap-1">
+                        <span>🏦</span>
+                        <span>{formatNumber(Number(ar.expectedBankDeposit))}</span>
+                      </div>
+                    ) : (
+                      <span className="text-gray-400">-</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-sm font-semibold text-right bg-purple-50 text-purple-700">
+                    {ar.actualBankDeposit ? (
+                      <div className="flex items-center justify-end gap-1">
+                        <span>💳</span>
+                        <span>{formatNumber(Number(ar.actualBankDeposit))}</span>
+                      </div>
+                    ) : (
+                      <span className="text-gray-400">-</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-sm font-semibold text-right bg-red-50 text-red-700">
+                    {getExpenseRecordedAmount(ar) > 0 ? (
+                      <div 
+                        className="flex items-center justify-end gap-1 cursor-help" 
+                        title={ar.relatedExpenses && ar.relatedExpenses.length > 0 
+                          ? `Expense Records: ${ar.relatedExpenses.map(exp => `${exp.registrationNumber}: ₹${exp.amount} (${exp.expenseType})`).join(', ')}`
+                          : 'No expense records found'
+                        }
+                      >
+                        <span>📊</span>
+                        <span>{formatNumber(getExpenseRecordedAmount(ar))}</span>
+                        {ar.relatedExpenses && ar.relatedExpenses.length > 1 && (
+                          <span className="text-xs text-red-500 ml-1">({ar.relatedExpenses.length})</span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-gray-400">-</span>
+                    )}
                   </td>
                   <td className="px-6 py-4 text-center">{getStatusBadge(ar.status)}</td>
                   <td className="px-6 py-4 text-center">
@@ -430,7 +514,7 @@ const AccountsReceivablePage = () => {
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-xl p-6 max-w-md w-full mx-4"
+            className="bg-white rounded-xl p-6 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto"
           >
             <h3 className="text-xl font-bold mb-4">
               {(selectedAR.type === 'CREDIT_CARD_SALE' || selectedAR.type === 'DEBIT_CARD_SALE') 
@@ -477,7 +561,7 @@ const AccountsReceivablePage = () => {
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {t('paymentAmount')}
+                  Amount Received *
                 </label>
                 <input
                   type="number"
@@ -485,16 +569,88 @@ const AccountsReceivablePage = () => {
                   value={paymentAmount}
                   onChange={(e) => setPaymentAmount(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder={t('enterAmount')}
+                  placeholder="Enter actual amount received"
+                />
+                {paymentAmount && selectedAR && (
+                  <div className="mt-2 p-3 bg-gray-50 rounded-lg">
+                    <div className="text-sm">
+                      <div className="flex justify-between">
+                        <span>Invoice Amount:</span>
+                        <span className="font-medium">{Number(selectedAR.amount).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Amount Received:</span>
+                        <span className="font-medium text-green-600">{parseFloat(paymentAmount || '0').toFixed(2)}</span>
+                      </div>
+                      {parseFloat(paymentAmount || '0') < Number(selectedAR.amount) && (
+                        <div className="flex justify-between border-t pt-2 mt-2">
+                          <span className="text-red-600">Processing Fee:</span>
+                          <span className="font-medium text-red-600">
+                            {(Number(selectedAR.amount) - parseFloat(paymentAmount || '0')).toFixed(2)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Transfer Reference for Credit Card Sales */}
+              {(selectedAR.type === 'CREDIT_CARD_SALE' || selectedAR.type === 'DEBIT_CARD_SALE') && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Transfer Reference
+                  </label>
+                  <input
+                    type="text"
+                    value={transferReference}
+                    onChange={(e) => setTransferReference(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="Bank transfer reference or transaction ID"
+                  />
+                </div>
+              )}
+
+              {/* Collection Description */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Description
+                </label>
+                <textarea
+                  value={collectionDescription}
+                  onChange={(e) => setCollectionDescription(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="Additional notes about this collection"
+                  rows={2}
                 />
               </div>
+
+              {/* Expense Category for Processing Fees */}
+              {paymentAmount && selectedAR && parseFloat(paymentAmount) < Number(selectedAR.amount) && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Processing Fee Category
+                  </label>
+                  <select
+                    value={expenseCategory}
+                    onChange={(e) => setExpenseCategory(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="CREDIT_CARD_FEE">Credit Card Fee</option>
+                    <option value="PROCESSING_FEE">Processing Fee</option>
+                    <option value="TRANSACTION_FEE">Transaction Fee</option>
+                    <option value="BANK_CHARGES">Bank Charges</option>
+                  </select>
+                </div>
+              )}
+              
               <div className="flex gap-3">
                 <button
                   onClick={submitPayment}
                   className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors"
                 >
                   {(selectedAR.type === 'CREDIT_CARD_SALE' || selectedAR.type === 'DEBIT_CARD_SALE') 
-                    ? 'Collect to Bank Account' 
+                    ? 'Collect Payment' 
                     : t('confirmPayment')
                   }
                 </button>
@@ -504,6 +660,9 @@ const AccountsReceivablePage = () => {
                     setSelectedAR(null);
                     setPaymentAmount('');
                     setSelectedBankAccountId('');
+                    setTransferReference('');
+                    setCollectionDescription('');
+                    setExpenseCategory('CREDIT_CARD_FEE');
                   }}
                   className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300 transition-colors"
                 >
