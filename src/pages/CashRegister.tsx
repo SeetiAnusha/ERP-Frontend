@@ -7,6 +7,8 @@ import { CashTransaction } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { formatNumber } from '../utils/formatNumber';
 import { cleanFormData } from '../utils/cleanFormData';  // Import utility
+import OverpaymentAlertModal from '../components/OverpaymentAlertModal';
+import CustomerCreditAwarePaymentModal from '../components/CustomerCreditAwarePaymentModal';
 
 const CashRegister = () => {
   const { t } = useLanguage();
@@ -30,6 +32,14 @@ const CashRegister = () => {
   // New state for dynamic payment method dropdowns
   const [cards, setCards] = useState<any[]>([]);
   const [paymentNetworks, setPaymentNetworks] = useState<any[]>([]);
+
+  // Overpayment detection state
+  const [showOverpaymentAlert, setShowOverpaymentAlert] = useState(false);
+  const [overpaymentData, setOverpaymentData] = useState<any>(null);
+  const [allowOverpayment, setAllowOverpayment] = useState(false);
+
+  // Customer credit-aware payment state
+  const [showCustomerCreditAwareModal, setShowCustomerCreditAwareModal] = useState(false);
 
   const [formData, setFormData] = useState({
     registrationDate: new Date().toISOString().split('T')[0],
@@ -215,6 +225,48 @@ const CashRegister = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // ✅ NEW: For customer AR collections, use customer credit-aware payment system
+    if (formData.relatedDocumentType === 'AR_COLLECTION' && formData.customerId && !allowOverpayment) {
+      console.log('🎯 Using customer credit-aware payment system for AR collection');
+      setShowCustomerCreditAwareModal(true);
+      return; // Let the customer credit-aware modal handle the payment
+    }
+    
+    // Phase 1: Overpayment Detection for AR Collections
+    if (formData.relatedDocumentType === 'AR_COLLECTION' && !allowOverpayment) {
+      const paymentAmount = parseFloat(formData.amount);
+      
+      // Calculate total outstanding balance from selected invoices
+      let totalOutstandingBalance = 0;
+      if (selectedInvoices.length > 0) {
+        const selectedInvoiceData = pendingCreditSales.filter(invoice => 
+          selectedInvoices.includes(invoice.id)
+        );
+        totalOutstandingBalance = selectedInvoiceData.reduce((sum, invoice) => 
+          sum + parseFloat(invoice.balanceAmount), 0
+        );
+      } else if (location.state?.fromAccountsReceivable) {
+        // Single invoice from AR page
+        totalOutstandingBalance = parseFloat(location.state.prefilledData?.amount || '0');
+      }
+      
+      // Check for overpayment
+      if (paymentAmount > totalOutstandingBalance && totalOutstandingBalance > 0) {
+        const overpaymentAmount = paymentAmount - totalOutstandingBalance;
+        
+        setOverpaymentData({
+          paymentAmount,
+          outstandingBalance: totalOutstandingBalance,
+          overpaymentAmount,
+          entityName: formData.clientName || 'Customer',
+          entityType: 'CUSTOMER',
+          message: `Payment of ${paymentAmount.toFixed(2)} exceeds outstanding balance of ${totalOutstandingBalance.toFixed(2)}. Overpayment of ${overpaymentAmount.toFixed(2)} will be created as credit balance.`
+        });
+        setShowOverpaymentAlert(true);
+        return; // Stop submission until user confirms
+      }
+    }
+    
     // Phase 3: Conditional Cash Register Validation
     const needsCashRegister = 
       formData.relatedDocumentType === 'CONTRIBUTION' || 
@@ -305,6 +357,31 @@ const CashRegister = () => {
     }
   };
 
+  // Overpayment handling functions
+  const handleOverpaymentConfirm = () => {
+    setAllowOverpayment(true);
+    setShowOverpaymentAlert(false);
+    // Automatically resubmit the form
+    setTimeout(() => {
+      const form = document.querySelector('form');
+      if (form) {
+        const event = new Event('submit', { bubbles: true, cancelable: true });
+        form.dispatchEvent(event);
+      }
+    }, 100);
+  };
+
+  const handleOverpaymentAdjust = () => {
+    if (overpaymentData) {
+      setFormData(prev => ({
+        ...prev,
+        amount: overpaymentData.outstandingBalance.toString()
+      }));
+    }
+    setShowOverpaymentAlert(false);
+    setAllowOverpayment(false);
+  };
+
   const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this transaction?')) {
       try {
@@ -343,10 +420,27 @@ const CashRegister = () => {
     setSelectedInvoices([]);
     setPendingCreditSales([]);
     setShowModal(false);
+    setShowCustomerCreditAwareModal(false); // ✅ Reset customer credit-aware modal
     
     // Clear the location state to prevent auto-opening again
     if (location.state?.fromAccountsReceivable) {
       window.history.replaceState({}, document.title);
+    }
+  };
+
+  // ✅ Customer credit-aware payment success handler
+  const handleCustomerCreditAwarePaymentSuccess = () => {
+    fetchTransactions();
+    fetchCashRegisterMasters(); // Refresh cash register balances
+    resetForm();
+    
+    if (location.state?.fromAccountsReceivable) {
+      alert('Smart customer payment completed successfully! Credit balances were automatically applied.');
+      setTimeout(() => {
+        navigate('/accounts-receivable');
+      }, 1000);
+    } else {
+      alert('Smart customer payment completed successfully!');
     }
   };
 
@@ -778,6 +872,38 @@ const CashRegister = () => {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       placeholder="0.00"
                     />
+                    
+                    {/* Overpayment Warning */}
+                    {(() => {
+                      if (formData.relatedDocumentType === 'AR_COLLECTION' && formData.amount) {
+                        const paymentAmount = parseFloat(formData.amount);
+                        let totalOutstandingBalance = 0;
+                        
+                        if (selectedInvoices.length > 0) {
+                          const selectedInvoiceData = pendingCreditSales.filter(invoice => 
+                            selectedInvoices.includes(invoice.id)
+                          );
+                          totalOutstandingBalance = selectedInvoiceData.reduce((sum, invoice) => 
+                            sum + parseFloat(invoice.balanceAmount), 0
+                          );
+                        } else if (location.state?.fromAccountsReceivable) {
+                          totalOutstandingBalance = parseFloat(location.state.prefilledData?.amount || '0');
+                        }
+                        
+                        if (paymentAmount > totalOutstandingBalance && totalOutstandingBalance > 0) {
+                          const overpaymentAmount = paymentAmount - totalOutstandingBalance;
+                          return (
+                            <div className="mt-2 p-2 bg-orange-50 border border-orange-200 rounded flex items-center gap-2">
+                              <span className="text-orange-600">⚠️</span>
+                              <span className="text-sm text-orange-700">
+                                Overpayment of ₹{overpaymentAmount.toFixed(2)} will create credit balance
+                              </span>
+                            </div>
+                          );
+                        }
+                      }
+                      return null;
+                    })()}
                   </div>
 
                   {/* Phase 3: Conditional fields based on transaction type */}
@@ -1396,6 +1522,32 @@ const CashRegister = () => {
           </motion.div>
         </div>
       )}
+
+      {/* Overpayment Alert Modal */}
+      {overpaymentData && (
+        <OverpaymentAlertModal
+          isOpen={showOverpaymentAlert}
+          onClose={() => setShowOverpaymentAlert(false)}
+          onConfirm={handleOverpaymentConfirm}
+          onAdjust={handleOverpaymentAdjust}
+          data={overpaymentData}
+        />
+      )}
+
+      {/* ✅ Customer Credit-Aware Payment Modal */}
+      <CustomerCreditAwarePaymentModal
+        isOpen={showCustomerCreditAwareModal}
+        onClose={() => setShowCustomerCreditAwareModal(false)}
+        onSuccess={handleCustomerCreditAwarePaymentSuccess}
+        customerId={parseInt(formData.customerId) || 0}
+        customerName={customers.find(c => c.id === parseInt(formData.customerId))?.name || ''}
+        invoiceIds={selectedInvoices.length > 0 ? selectedInvoices : (location.state?.prefilledData?.accountsReceivableId ? [location.state.prefilledData.accountsReceivableId] : [])}
+        requestedAmount={parseFloat(formData.amount) || 0}
+        paymentMethod={formData.paymentMethod}
+        cashRegisterId={parseInt(formData.cashRegisterId) || 0}
+        registrationDate={formData.registrationDate}
+        description={formData.description}
+      />
     </motion.div>
   );
 };

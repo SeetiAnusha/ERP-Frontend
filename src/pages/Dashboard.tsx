@@ -5,6 +5,7 @@ import axios from '../api/axios';
 import { Sale, Purchase, Client, Product } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { formatNumber } from '../utils/formatNumber';
+import CreditBalanceSummaryWidget from '../components/CreditBalanceSummaryWidget';
 
 const Dashboard = () => {
   const { t } = useLanguage();
@@ -282,24 +283,13 @@ const Dashboard = () => {
           </p>
         </motion.div>
 
+        {/* Credit Balance Summary Widget */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
-          className="bg-white rounded-xl shadow-lg p-6"
         >
-          <div className="flex items-center gap-3 mb-3">
-            <div className="bg-orange-100 p-3 rounded-lg">
-              <Package className="text-orange-600" size={24} />
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">{t('totalProducts')}</p>
-              <p className="text-xl font-bold text-gray-800">{products.length}</p>
-            </div>
-          </div>
-          <p className="text-sm text-gray-500">
-            {products.filter(p => p.status === 'ACTIVE').length} {t('activeProducts').toLowerCase()}
-          </p>
+          <CreditBalanceSummaryWidget />
         </motion.div>
       </div>
     </div>

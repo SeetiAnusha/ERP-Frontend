@@ -31,6 +31,7 @@ import RecentActivity from './pages/RecentActivity';
 import InvestmentAgreements from './pages/InvestmentAgreements';
 import CardPaymentNetworks from './pages/CardPaymentNetworks';
 import ExpenseDebug from './pages/ExpenseDebug';
+import CreditBalances from './pages/CreditBalances';
 
 function App() {
   return (
@@ -78,6 +79,7 @@ function App() {
             <Route path="/recent-activity" element={<RecentActivity />} />
             <Route path="/investment-agreements" element={<InvestmentAgreements />} />
             <Route path="/card-payment-networks" element={<CardPaymentNetworks />} />
+            <Route path="/credit-balances" element={<CreditBalances />} />
             <Route path="/expense-debug" element={<ExpenseDebug />} />
           </Routes>
         </Layout>

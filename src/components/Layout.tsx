@@ -19,6 +19,7 @@ import {
   DollarSign,
   UserCheck,
   Clock,
+  Receipt,
 } from 'lucide-react';
 import LanguageSwitcher from './LanguageSwitcher';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -42,6 +43,7 @@ const Layout = ({ children }: LayoutProps) => {
     // { path: '/payments', icon: DollarSign, label: t('payments') },
     { path: '/accounts-receivable', icon: FileText, label: 'Accounts Receivable' },
     { path: '/accounts-payable', icon: CreditCard, label: 'Accounts Payable' },
+    { path: '/credit-balances', icon: Receipt, label: 'Credit Balances' },
     { path: '/cash-register', icon: Wallet, label: t('cashRegister') },
     { path: '/bank-register', icon: Building2, label: 'Bank Register' },
     { path: '/bank-accounts', icon: Building2, label: t('bankAccounts') },

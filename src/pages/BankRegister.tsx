@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FaPlus, FaTrash, FaUniversity, FaArrowUp, FaArrowDown, FaSearch } from 'react-icons/fa';
+import { FaPlus, FaTrash, FaUniversity, FaArrowUp, FaArrowDown, FaSearch, FaCreditCard } from 'react-icons/fa';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axios from '../api/axios';
 import { formatNumber } from '../utils/formatNumber';
 import { useLanguage } from '../contexts/LanguageContext';
+import OverpaymentAlertModal from '../components/OverpaymentAlertModal';
+import CreditAwarePaymentModal from '../components/CreditAwarePaymentModal';
 
 interface BankTransaction {
   id: number;
@@ -76,6 +78,14 @@ const BankRegister = () => {
   const [pendingInvoices, setPendingInvoices] = useState<PendingInvoice[]>([]);
   const [selectedInvoices, setSelectedInvoices] = useState<number[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Overpayment detection state
+  const [showOverpaymentAlert, setShowOverpaymentAlert] = useState(false);
+  const [overpaymentData, setOverpaymentData] = useState<any>(null);
+  const [allowOverpayment, setAllowOverpayment] = useState(false);
+
+  // Credit-aware payment state
+  const [showCreditAwareModal, setShowCreditAwareModal] = useState(false);
 
   const [formData, setFormData] = useState({
     registrationDate: new Date().toISOString().split('T')[0],
@@ -175,6 +185,49 @@ const BankRegister = () => {
     
     if (isSubmitting) return;
     
+    // ✅ NEW: For supplier payments, use credit-aware payment system
+    if (formData.transactionType === 'OUTFLOW' && formData.supplierId && !allowOverpayment) {
+      console.log('🎯 Using credit-aware payment system for supplier payment');
+      setShowCreditAwareModal(true);
+      return; // Let the credit-aware modal handle the payment
+    }
+    
+    // Phase 1: Overpayment Detection for Supplier Payments (OUTFLOW)
+    if (formData.transactionType === 'OUTFLOW' && formData.supplierId && !allowOverpayment) {
+      const paymentAmount = parseFloat(formData.amount);
+      
+      // Calculate total outstanding balance from selected invoices
+      let totalOutstandingBalance = 0;
+      if (selectedInvoices.length > 0) {
+        const selectedInvoiceData = pendingInvoices.filter(invoice => 
+          selectedInvoices.includes(invoice.id)
+        );
+        totalOutstandingBalance = selectedInvoiceData.reduce((sum, invoice) => 
+          sum + parseFloat(invoice.balanceAmount.toString()), 0
+        );
+      } else if (location.state?.fromAccountsPayable) {
+        // Single invoice from AP page
+        totalOutstandingBalance = parseFloat(location.state.prefilledData?.amount || '0');
+      }
+      
+      // Check for overpayment
+      if (paymentAmount > totalOutstandingBalance && totalOutstandingBalance > 0) {
+        const overpaymentAmount = paymentAmount - totalOutstandingBalance;
+        const supplierName = suppliers.find(s => s.id === parseInt(formData.supplierId))?.name || 'Supplier';
+        
+        setOverpaymentData({
+          paymentAmount,
+          outstandingBalance: totalOutstandingBalance,
+          overpaymentAmount,
+          entityName: supplierName,
+          entityType: 'SUPPLIER',
+          message: `Payment of ₹${paymentAmount.toFixed(2)} exceeds outstanding balance of ₹${totalOutstandingBalance.toFixed(2)}. Overpayment of ₹${overpaymentAmount.toFixed(2)} will be created as credit balance.`
+        });
+        setShowOverpaymentAlert(true);
+        return; // Stop submission until user confirms
+      }
+    }
+    
     // ✅ CRITICAL VALIDATION: Check bank account balance for OUTFLOW transactions
     if (formData.transactionType === 'OUTFLOW') {
       const selectedBankAccount = bankAccounts.find(account => account.id === parseInt(formData.bankAccountId));
@@ -214,6 +267,17 @@ const BankRegister = () => {
         submitData.invoiceIds = JSON.stringify([location.state.prefilledData.accountsPayableId]);
       }
       
+      console.log('🚀 Submitting bank register data:', {
+        submitData,
+        allowOverpayment,
+        selectedInvoices,
+        formData: {
+          supplierId: formData.supplierId,
+          amount: formData.amount,
+          transactionType: formData.transactionType
+        }
+      });
+      
       await axios.post('/bank-register', submitData);
       fetchTransactions();
       fetchBankAccounts(); // Refresh bank account balances
@@ -234,6 +298,31 @@ const BankRegister = () => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Overpayment handling functions
+  const handleOverpaymentConfirm = () => {
+    setAllowOverpayment(true);
+    setShowOverpaymentAlert(false);
+    // Automatically resubmit the form
+    setTimeout(() => {
+      const form = document.querySelector('form');
+      if (form) {
+        const event = new Event('submit', { bubbles: true, cancelable: true });
+        form.dispatchEvent(event);
+      }
+    }, 100);
+  };
+
+  const handleOverpaymentAdjust = () => {
+    if (overpaymentData) {
+      setFormData(prev => ({
+        ...prev,
+        amount: overpaymentData.outstandingBalance.toString()
+      }));
+    }
+    setShowOverpaymentAlert(false);
+    setAllowOverpayment(false);
   };
 
   const handleDelete = async (id: number) => {
@@ -267,10 +356,27 @@ const BankRegister = () => {
     setSelectedInvoices([]);
     setPendingInvoices([]);
     setShowModal(false);
+    setShowCreditAwareModal(false); // ✅ Reset credit-aware modal
     
     // Clear the location state to prevent auto-opening again
     if (location.state?.fromAccountsPayable) {
       window.history.replaceState({}, document.title);
+    }
+  };
+
+  // ✅ Credit-aware payment success handler
+  const handleCreditAwarePaymentSuccess = () => {
+    fetchTransactions();
+    fetchBankAccounts(); // Refresh bank account balances
+    resetForm();
+    
+    if (location.state?.fromAccountsPayable) {
+      alert('Smart payment completed successfully! Credit balances were automatically applied.');
+      setTimeout(() => {
+        navigate('/accounts-payable');
+      }, 1000);
+    } else {
+      alert('Smart payment completed successfully!');
     }
   };
 
@@ -640,6 +746,38 @@ const BankRegister = () => {
                       return null;
                     })()
                   )}
+                  
+                  {/* Phase 1: Overpayment Warning for Supplier Payments */}
+                  {formData.transactionType === 'OUTFLOW' && formData.supplierId && formData.amount && (
+                    (() => {
+                      const paymentAmount = parseFloat(formData.amount);
+                      let totalOutstandingBalance = 0;
+                      
+                      if (selectedInvoices.length > 0) {
+                        const selectedInvoiceData = pendingInvoices.filter(invoice => 
+                          selectedInvoices.includes(invoice.id)
+                        );
+                        totalOutstandingBalance = selectedInvoiceData.reduce((sum, invoice) => 
+                          sum + parseFloat(invoice.balanceAmount.toString()), 0
+                        );
+                      } else if (location.state?.fromAccountsPayable) {
+                        totalOutstandingBalance = parseFloat(location.state.prefilledData?.amount || '0');
+                      }
+                      
+                      if (paymentAmount > totalOutstandingBalance && totalOutstandingBalance > 0) {
+                        const overpaymentAmount = paymentAmount - totalOutstandingBalance;
+                        return (
+                          <div className="mt-2 p-2 bg-orange-50 border border-orange-200 rounded flex items-center gap-2">
+                            <span className="text-orange-600">⚠️</span>
+                            <span className="text-sm text-orange-700">
+                              Overpayment of ₹{overpaymentAmount.toFixed(2)} will create credit balance
+                            </span>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()
+                  )}
                 </div>
 
                 <div className="col-span-2">
@@ -736,15 +874,50 @@ const BankRegister = () => {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  {isSubmitting ? t('creating') : t('createTransaction')}
+                  {formData.transactionType === 'OUTFLOW' && formData.supplierId ? (
+                    <>
+                      <FaCreditCard />
+                      {isSubmitting ? t('creating') : 'Smart Payment'}
+                    </>
+                  ) : (
+                    <>
+                      {isSubmitting ? t('creating') : t('createTransaction')}
+                    </>
+                  )}
                 </button>
               </div>
             </form>
           </motion.div>
         </div>
       )}
+
+      {/* Overpayment Alert Modal */}
+      {overpaymentData && (
+        <OverpaymentAlertModal
+          isOpen={showOverpaymentAlert}
+          onClose={() => setShowOverpaymentAlert(false)}
+          onConfirm={handleOverpaymentConfirm}
+          onAdjust={handleOverpaymentAdjust}
+          data={overpaymentData}
+        />
+      )}
+
+      {/* ✅ Credit-Aware Payment Modal */}
+      <CreditAwarePaymentModal
+        isOpen={showCreditAwareModal}
+        onClose={() => setShowCreditAwareModal(false)}
+        onSuccess={handleCreditAwarePaymentSuccess}
+        supplierId={parseInt(formData.supplierId) || 0}
+        supplierName={suppliers.find(s => s.id === parseInt(formData.supplierId))?.name || ''}
+        invoiceIds={selectedInvoices.length > 0 ? selectedInvoices : (location.state?.prefilledData?.accountsPayableId ? [location.state.prefilledData.accountsPayableId] : [])}
+        requestedAmount={parseFloat(formData.amount) || 0}
+        paymentMethod={formData.paymentMethod}
+        bankAccountId={parseInt(formData.bankAccountId) || 0}
+        registrationDate={formData.registrationDate}
+        description={formData.description}
+      />
     </div>
   );
 };

@@ -7,6 +7,8 @@ import { AccountsPayable } from '../types/accountsTypes';
 import { notify, handleApiError } from '../utils/notifications';
 import { useLanguage } from '../contexts/LanguageContext';
 import { formatNumber } from '../utils/formatNumber';
+import EnhancedPaymentModal from '../components/EnhancedPaymentModal';
+import CreditBalanceDisplay from '../components/CreditBalanceDisplay';
 
 const AccountsPayablePage = () => {
   const { t } = useLanguage();
@@ -17,38 +19,23 @@ const AccountsPayablePage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedAP, setSelectedAP] = useState<AccountsPayable | null>(null);
-  const [paymentAmount, setPaymentAmount] = useState('');
-  const [selectedCardId, setSelectedCardId] = useState('');
-  const [cards, setCards] = useState<any[]>([]);
   const [editingDeadline, setEditingDeadline] = useState<number | null>(null);
   const [newDeadline, setNewDeadline] = useState('');
-  const [bankAccounts, setBankAccounts] = useState<any[]>([]);
-  const [selectedBankAccountId, setSelectedBankAccountId] = useState('');
-  const [paymentDate, setPaymentDate] = useState('');
-  const [paymentReference, setPaymentReference] = useState('');
-  const [paymentDescription, setPaymentDescription] = useState('');
 
   useEffect(() => {
     fetchAccountsPayable();
-    fetchCards();
-    fetchBankAccounts();
   }, []);
 
-  const fetchBankAccounts = async () => {
+  const fetchAccountsPayable = async () => {
+    setIsLoading(true);
     try {
-      const response = await api.get('/bank-accounts');
-      setBankAccounts(response.data);
+      const response = await api.get('/accounts-payable');
+      console.log('🔍 Accounts Payable API Response:', response.data);
+      setAccountsPayable(response.data);
     } catch (error) {
-      console.error('Error fetching bank accounts:', error);
-    }
-  };
-
-  const fetchCards = async () => {
-    try {
-      const response = await api.get('/cards');
-      setCards(response.data);
-    } catch (error) {
-      console.error('Error fetching cards:', error);
+      handleApiError(error, t('loadingAccountsPayable'));
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -77,23 +64,6 @@ const AccountsPayablePage = () => {
     };
   };
 
-  const fetchAccountsPayable = async () => {
-    setIsLoading(true);
-    try {
-      const response = await api.get('/accounts-payable');
-      console.log('🔍 Accounts Payable API Response:', response.data);
-      console.log('🔍 First item:', response.data[0]);
-      console.log('🔍 First item supplierRnc:', response.data[0]?.supplierRnc);
-      console.log('🔍 First item ncf:', response.data[0]?.ncf);
-      console.log('🔍 First item paymentType:', response.data[0]?.paymentType);
-      setAccountsPayable(response.data);
-    } catch (error) {
-      handleApiError(error, t('loadingAccountsPayable'));
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const getStatusBadge = (status: string) => {
     const styles: Record<string, string> = {
       'Paid': 'bg-green-100 text-green-800',
@@ -119,12 +89,6 @@ const AccountsPayablePage = () => {
 
   const handleRecordPayment = (ap: AccountsPayable) => {
     setSelectedAP(ap);
-    setPaymentAmount(ap.balanceAmount.toString());
-    setSelectedCardId('');
-    setSelectedBankAccountId('');
-    setPaymentDate(new Date().toISOString().split('T')[0]); // Default to today
-    setPaymentReference('');
-    setPaymentDescription(`Payment for ${ap.relatedDocumentNumber || 'AP'} - ${ap.supplierName || ap.cardIssuer}`);
     setShowPaymentModal(true);
   };
 
@@ -149,62 +113,8 @@ const AccountsPayablePage = () => {
     });
   };
 
-  const submitPayment = async () => {
-    if (!selectedAP || !paymentAmount) return;
-    
-    // Check if this is a credit card payment that needs bank account selection
-    const isCreditCardPayment = selectedAP.type === 'CREDIT_CARD_PURCHASE';
-    
-    if (isCreditCardPayment && !selectedBankAccountId) {
-      notify.warning('Please select a bank account to pay from');
-      return;
-    }
-    
-    if (!paymentDate) {
-      notify.warning('Please select a payment date');
-      return;
-    }
-    
-    // ✅ For CREDIT_CARD AP, use stored cardId; for SUPPLIER, require selection
-    const cardIdToUse = selectedAP.type === 'CREDIT_CARD_PURCHASE' && selectedAP.cardId 
-      ? selectedAP.cardId 
-      : parseInt(selectedCardId);
-    
-    if (!isCreditCardPayment && !cardIdToUse) {
-      notify.warning(t('pleaseSelectCardForPayment'));
-      return;
-    }
-    
-    try {
-      const paymentData: any = {
-        amount: parseFloat(paymentAmount),
-        paidDate: new Date(paymentDate),
-        paymentMethod: isCreditCardPayment ? 'BANK_TRANSFER' : 'CREDIT_CARD',
-        reference: paymentReference || undefined,
-        description: paymentDescription || undefined,
-      };
-      
-      // Add bank account for credit card payments
-      if (isCreditCardPayment) {
-        paymentData.bankAccountId = parseInt(selectedBankAccountId);
-      } else {
-        paymentData.cardId = cardIdToUse;
-      }
-      
-      await api.post(`/accounts-payable/${selectedAP.id}/record-payment`, paymentData);
-      notify.success(t('paymentRecordedSuccessfully'));
-      setShowPaymentModal(false);
-      setSelectedAP(null);
-      setPaymentAmount('');
-      setSelectedCardId('');
-      setSelectedBankAccountId('');
-      setPaymentDate('');
-      setPaymentReference('');
-      setPaymentDescription('');
-      fetchAccountsPayable();
-    } catch (error) {
-      handleApiError(error, t('recordingPayment'));
-    }
+  const handlePaymentSuccess = () => {
+    fetchAccountsPayable();
   };
 
   const handleEditDeadline = (ap: AccountsPayable) => {
@@ -308,6 +218,26 @@ const AccountsPayablePage = () => {
             <Clock className="text-red-600" size={32} />
           </div>
         </motion.div>
+      </div>
+
+      {/* Credit Balance Summary for Suppliers */}
+      <div className="mb-6">
+        <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-xl p-6 border border-green-200">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-green-100 rounded-full">
+                <DollarSign className="text-green-600" size={20} />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Supplier Credit Balances</h3>
+                <p className="text-sm text-gray-600">Available credits from overpayments</p>
+              </div>
+            </div>
+          </div>
+          <p className="text-sm text-gray-600">
+            💡 When you overpay a supplier, the excess amount is automatically converted to credit balance for future purchases.
+          </p>
+        </div>
       </div>
 
       {/* Filters */}
@@ -484,194 +414,31 @@ const AccountsPayablePage = () => {
         </table>
       </motion.div>
 
-      {/* Payment Modal */}
-      {showPaymentModal && selectedAP && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto"
-          >
-            <h3 className="text-xl font-bold mb-4 sticky top-0 bg-white pb-2 border-b">
-              {selectedAP.type === 'CREDIT_CARD_PURCHASE' ? 'Pay Credit Card Bill' : t('recordPayment')}
-            </h3>
-            <div className="space-y-4">
-              <div className="bg-gray-50 p-3 rounded-lg">
-                <p className="text-sm text-gray-600">{t('document')}: {selectedAP.relatedDocumentNumber}</p>
-                <p className="text-sm text-gray-600">{t('supplier')}: {selectedAP.supplierName || selectedAP.cardIssuer}</p>
-                <p className="text-sm text-gray-600">{t('totalAmount')}: ${Number(selectedAP.amount).toFixed(2)}</p>
-                <p className="text-sm text-gray-600">{t('alreadyPaid')}: ${Number(selectedAP.paidAmount).toFixed(2)}</p>
-                <p className="text-sm font-semibold text-red-600">{t('balance')}: ${Number(selectedAP.balanceAmount).toFixed(2)}</p>
-              </div>
-              {/* Conditional Card Selection: Only show for SUPPLIER AP */}
-              {selectedAP.type !== 'CREDIT_CARD_PURCHASE' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {t('selectDebitCard')} * ({t('immediatePayment')})
-                </label>
-                <select
-                  value={selectedCardId}
-                  onChange={(e) => setSelectedCardId(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  required
-                >
-                  <option value="">{t('selectADebitCard')}</option>
-                  {cards.filter(card => card.cardType === 'DEBIT').map(card => (
-                    <option key={card.id} value={card.id}>
-                      {card.cardType} - {card.cardBrand || 'Card'} ****{card.cardNumberLast4}
-                      {card.BankAccount && ` (${card.BankAccount.bankName} - Balance: $${Number(card.BankAccount.balance).toFixed(2)})`}
-                      {card.cardType === 'CREDIT' && ` (Limit: $${Number(card.creditLimit).toFixed(2)})`}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-gray-500 mt-1">
-                  💳 {t('debitCardExplanation')}
-                </p>
-                </div>
-              )}
-              
-              {/* ✅ Info message for CREDIT_CARD AP */}
-              {selectedAP.type === 'CREDIT_CARD_PURCHASE' && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="text-2xl">💳</div>
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold text-blue-900 mb-1">
-                        {t('creditCardPayment')}
-                      </p>
-                      <p className="text-xs text-blue-700 mb-2">
-                        This payment will automatically restore your credit limit on the card used for the original purchase.
-                      </p>
-                      <div className="bg-white rounded p-2 text-xs">
-                        <p className="text-gray-600">
-                          <strong>{t('cardLabel')}</strong> {selectedAP.cardIssuer || t('creditCard')}
-                        </p>
-                        <p className="text-gray-600">
-                          <strong>{t('whatHappens')}</strong> {t('creditLimitRestored')} ${Number(selectedAP.balanceAmount).toFixed(2)}
-                        </p>
-                      </div>
-                      <p className="text-xs text-blue-600 mt-2 italic">
-                        💡 Select the bank account to pay from below
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Bank Account Selection for Credit Card Payments */}
-              {selectedAP.type === 'CREDIT_CARD_PURCHASE' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Select Bank Account to Pay From *
-                  </label>
-                  <select
-                    value={selectedBankAccountId}
-                    onChange={(e) => setSelectedBankAccountId(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    required
-                  >
-                    <option value="">Select Bank Account</option>
-                    {bankAccounts.map((account) => (
-                      <option key={account.id} value={account.id}>
-                        {account.bankName} - {account.accountNumber} (Balance: {Number(account.balance).toFixed(2)})
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-blue-600 mt-1">
-                    💰 Money will be deducted from the selected bank account
-                  </p>
-                </div>
-              )}
-
-              {/* Payment Date */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Payment Date *
-                </label>
-                <input
-                  type="date"
-                  value={paymentDate}
-                  onChange={(e) => setPaymentDate(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  📅 Date when the payment was made (can be different from today)
-                </p>
-              </div>
-
-              {/* Payment Reference */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Reference/Document Number
-                </label>
-                <input
-                  type="text"
-                  value={paymentReference}
-                  onChange={(e) => setPaymentReference(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="Check number, transfer ID, or reference"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  📄 Optional reference for tracking this payment
-                </p>
-              </div>
-
-              {/* Payment Description */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Description
-                </label>
-                <textarea
-                  value={paymentDescription}
-                  onChange={(e) => setPaymentDescription(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="Additional notes about this payment"
-                  rows={2}
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {t('paymentAmount')}
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={paymentAmount}
-                  onChange={(e) => setPaymentAmount(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder={t('enterAmount')}
-                />
-              </div>
-              <div className="flex gap-3 sticky bottom-0 bg-white pt-4 border-t mt-6">
-                <button
-                  onClick={submitPayment}
-                  className="flex-1 bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                >
-                  {selectedAP?.type === 'CREDIT_CARD_PURCHASE' 
-                    ? `✓ Pay ${Number(selectedAP.balanceAmount).toFixed(2)} & Restore Credit` 
-                    : t('confirmPayment')}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowPaymentModal(false);
-                    setSelectedAP(null);
-                    setPaymentAmount('');
-                    setSelectedCardId('');
-                    setSelectedBankAccountId('');
-                    setPaymentDate('');
-                    setPaymentReference('');
-                    setPaymentDescription('');
-                  }}
-                  className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg hover:bg-gray-300 transition-colors"
-                >
-                  {t('cancel')}
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        </div>
+      {/* Enhanced Payment Modal with Phase 1 Overpayment Detection */}
+      {selectedAP && (
+        <EnhancedPaymentModal
+          isOpen={showPaymentModal}
+          onClose={() => {
+            setShowPaymentModal(false);
+            setSelectedAP(null);
+          }}
+          onSuccess={handlePaymentSuccess}
+          transaction={{
+            id: selectedAP.id,
+            type: 'AP',
+            registrationNumber: selectedAP.registrationNumber || '',
+            relatedDocumentNumber: selectedAP.relatedDocumentNumber || '',
+            entityName: selectedAP.supplierName || selectedAP.cardIssuer || '',
+            entityId: selectedAP.supplierId,
+            entityType: 'SUPPLIER',
+            amount: Number(selectedAP.amount),
+            paidAmount: Number(selectedAP.paidAmount),
+            balanceAmount: Number(selectedAP.balanceAmount),
+            isCardTransaction: selectedAP.type === 'CREDIT_CARD_PURCHASE',
+            cardId: selectedAP.cardId
+          }}
+          title={selectedAP.type === 'CREDIT_CARD_PURCHASE' ? 'Pay Credit Card Bill' : t('recordPayment')}
+        />
       )}
     </div>
   );
