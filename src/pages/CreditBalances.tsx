@@ -4,19 +4,15 @@ import {
   CreditCard, 
   User, 
   Search, 
-  Filter, 
-  Calendar,
   DollarSign,
   FileText,
   Eye,
   Download,
   RefreshCw,
   TrendingUp,
-  Users,
   Building
 } from 'lucide-react';
 import api from '../api/axios';
-import { useLanguage } from '../contexts/LanguageContext';
 
 interface CreditBalance {
   id: number;
@@ -49,7 +45,6 @@ interface CreditSummary {
 }
 
 const CreditBalances: React.FC = () => {
-  const { t } = useLanguage();
   const [creditBalances, setCreditBalances] = useState<CreditBalance[]>([]);
   const [filteredCredits, setFilteredCredits] = useState<CreditBalance[]>([]);
   const [summary, setSummary] = useState<CreditSummary>({

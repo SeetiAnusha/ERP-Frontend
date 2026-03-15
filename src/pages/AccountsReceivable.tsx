@@ -4,11 +4,10 @@ import { Search, DollarSign, CheckCircle, Clock, XCircle, Plus } from 'lucide-re
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { AccountsReceivable } from '../types/accountsTypes';
-import { notify, handleApiError } from '../utils/notifications';
+import { handleApiError } from '../utils/notifications';
 import { useLanguage } from '../contexts/LanguageContext';
 import { formatNumber } from '../utils/formatNumber';
 import EnhancedPaymentModal from '../components/EnhancedPaymentModal';
-import CreditBalanceDisplay from '../components/CreditBalanceDisplay';
 
 const AccountsReceivablePage = () => {
   const { t } = useLanguage();
