@@ -46,9 +46,24 @@ const Payments = () => {
   const fetchPayments = async () => {
     try {
       const response = await axios.get('/payments');
-      setPayments(response.data);
+      
+      // Handle different response structures
+      let paymentsData = [];
+      if (Array.isArray(response.data)) {
+        paymentsData = response.data;
+      } else if (response.data.data && Array.isArray(response.data.data)) {
+        paymentsData = response.data.data;
+      } else if (response.data.payments && Array.isArray(response.data.payments)) {
+        paymentsData = response.data.payments;
+      } else {
+        console.warn('Unexpected payments API response structure:', response.data);
+        paymentsData = [];
+      }
+      
+      setPayments(paymentsData);
     } catch (error) {
       console.error('Error fetching payments:', error);
+      setPayments([]); // Set empty array on error
     }
   };
 
@@ -247,7 +262,7 @@ const Payments = () => {
     }
   };
 
-  const filteredPayments = payments.filter(payment => {
+  const filteredPayments = Array.isArray(payments) ? payments.filter(payment => {
     const matchesSearch = 
       payment.registrationNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       payment.supplierName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -256,15 +271,15 @@ const Payments = () => {
     const matchesType = filterType === 'All' || payment.type === filterType;
     
     return matchesSearch && matchesType;
-  });
+  }) : [];
 
-  const totalPaymentsOut = payments
+  const totalPaymentsOut = Array.isArray(payments) ? payments
     .filter(p => p.type === 'Payment Out')
-    .reduce((sum, p) => sum + parseFloat(p.paymentAmount.toString()), 0);
+    .reduce((sum, p) => sum + parseFloat(p.paymentAmount.toString()), 0) : 0;
 
-  const totalPaymentsIn = payments
+  const totalPaymentsIn = Array.isArray(payments) ? payments
     .filter(p => p.type === 'Payment In')
-    .reduce((sum, p) => sum + parseFloat(p.paymentAmount.toString()), 0);
+    .reduce((sum, p) => sum + parseFloat(p.paymentAmount.toString()), 0) : 0;
 
   return (
     <motion.div

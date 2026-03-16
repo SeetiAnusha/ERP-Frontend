@@ -1,4 +1,4 @@
-import { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { motion } from 'framer-motion';
 import { TrendingUp, Building2, Users, Calendar, MapPin, RefreshCw } from 'lucide-react';
 import api from '../api/axios';

@@ -32,6 +32,9 @@ import InvestmentAgreements from './pages/InvestmentAgreements';
 import CardPaymentNetworks from './pages/CardPaymentNetworks';
 import ExpenseDebug from './pages/ExpenseDebug';
 import CreditBalances from './pages/CreditBalances';
+// Expense Management
+import BusinessExpenses from './pages/BusinessExpenses';
+import ExpenseCategories from './pages/ExpenseCategories';
 
 function App() {
   return (
@@ -58,6 +61,9 @@ function App() {
             <Route path="/clients" element={<Clients />} />
             <Route path="/purchases" element={<Purchases />} />
             <Route path="/suppliers" element={<Suppliers />} />
+            {/* Expense Management Routes */}
+            <Route path="/business-expenses" element={<BusinessExpenses />} />
+            <Route path="/expense-categories" element={<ExpenseCategories />} />
             <Route path="/fixed-assets" element={<FixedAssets />} />
             <Route path="/investments" element={<Investments />} /> 
             <Route path="/prepaid-expenses" element={<PrepaidExpenses />} /> 

@@ -36,6 +36,7 @@ const Purchases = () => {
   const [showModal, setShowModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
+    transactionType: 'GOODS', // New field for transaction type
     date: new Date().toISOString().split('T')[0],
     supplierId: '',
     supplierRnc: '',
@@ -44,6 +45,10 @@ const Purchases = () => {
     paymentType: 'CREDIT', // Changed default from CASH to CREDIT
     paidAmount: 0,
     status: 'COMPLETED',
+    // Expense-specific fields
+    expenseCategoryId: 0, // Keep as number
+    expenseTypeId: 0, // Keep as number
+    expenseDescription: '',
     // Phase 2: New payment fields
     bankAccountId: '',
     cardId: '',
@@ -98,11 +103,30 @@ const Purchases = () => {
 
   const fetchPurchases = async () => {
     try {
-      const response = await api.get('/purchases');
-      console.log("response",response);
-      setPurchases(response.data);
+      const response = await api.get('/purchases', {
+        params: {
+          transaction_type: 'GOODS' // Only fetch GOODS transactions for Purchases page
+        }
+      });
+      console.log("Purchases API response:", response.data);
+      
+      // Handle different response structures
+      let purchasesData = [];
+      if (Array.isArray(response.data)) {
+        purchasesData = response.data;
+      } else if (response.data.data && Array.isArray(response.data.data)) {
+        purchasesData = response.data.data;
+      } else if (response.data.purchases && Array.isArray(response.data.purchases)) {
+        purchasesData = response.data.purchases;
+      } else {
+        console.warn('Unexpected purchases API response structure:', response.data);
+        purchasesData = [];
+      }
+      
+      setPurchases(purchasesData);
     } catch (error) {
       console.error('Error fetching purchases:', error);
+      setPurchases([]); // Set empty array on error
     }
   };
 
@@ -360,7 +384,7 @@ const Purchases = () => {
     }
     
     if (purchaseItems.length === 0) {
-      alert('Please add at least one product');
+      alert('Please add at least one product for goods purchase');
       return;
     }
     
@@ -397,8 +421,10 @@ const Purchases = () => {
             cardId: inv.cardId && inv.cardId !== '' ? parseInt(inv.cardId) : null, // Convert cardId to integer
             bankAccountId: inv.bankAccountId && inv.bankAccountId !== '' ? parseInt(inv.bankAccountId) : null, // Convert bankAccountId to integer
           })),
+          // Expense-specific fields
+          expenseDescription: formData.expenseDescription || null,
         },
-        ['supplierId', 'bankAccountId', 'cardId']  // Integer fields
+        ['supplierId', 'bankAccountId', 'cardId', 'expenseCategoryId', 'expenseTypeId']  // Integer fields
       );
       
       console.log('🚀 FRONTEND - Submitting purchase data:', cleanedData);
@@ -418,6 +444,7 @@ const Purchases = () => {
 
   const openModal = () => {
     setFormData({
+      transactionType: 'GOODS',
       date: new Date().toISOString().split('T')[0],
       supplierId: '',
       supplierRnc: '',
@@ -426,6 +453,10 @@ const Purchases = () => {
       paymentType: 'CREDIT', // Changed default from CASH
       paidAmount: 0,
       status: 'COMPLETED',
+      // Expense fields - reset with correct number types
+      expenseCategoryId: 0,
+      expenseTypeId: 0,
+      expenseDescription: '',
       // Phase 2: Reset new fields
       bankAccountId: '',
       cardId: '',
@@ -467,11 +498,11 @@ const Purchases = () => {
     );
   };
 
-  const filteredPurchases = purchases.filter((purchase) =>
+  const filteredPurchases = Array.isArray(purchases) ? purchases.filter((purchase) =>
     Object.values(purchase).some((value) =>
       value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
     )
-  );
+  ) : [];
 
   const totals = calculateTotals();
 
@@ -616,7 +647,7 @@ const Purchases = () => {
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold flex items-center gap-2">
                   <ShoppingCart className="text-blue-600" />
-                  {t('createNewPurchase')}
+                  {t('createNewPurchase')} - Goods Only
                 </h2>
                 <button onClick={closeModal} className="text-gray-400 hover:text-gray-600">
                   <X size={24} />
@@ -660,6 +691,28 @@ const Purchases = () => {
                       />
                     </div>
                   )}
+                  
+                  {/* Transaction Type Selector - Only GOODS for Purchases page */}
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Transaction Type *</label>
+                    <div className="grid grid-cols-1 gap-3">
+                      <div 
+                        className="p-3 border-2 border-blue-500 bg-blue-50 rounded-lg cursor-default"
+                      >
+                        <div className="flex items-center space-x-2">
+                          <ShoppingCart className="h-4 w-4 text-blue-600" />
+                          <span className="font-medium text-blue-900">
+                            Goods Purchase
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">Products for inventory</p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                      💡 For expenses (services, utilities, etc.), use the Expense Management page
+                    </p>
+                  </div>
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">{t('date')} *</label>
                     <input
@@ -691,10 +744,10 @@ const Purchases = () => {
                       <option value="Merchandise for sale or consumption">{t('merchandiseForSale')}</option>
                       <option value="Goods for internal use (PPE)">{t('goodsForInternalUse')}</option>
                       <option value="Investments or capital goods">{t('investmentsOrCapitalGoods')}</option>
-                      <option value="Services or other">{t('servicesOrOther')}</option>
-                      <option value="Prepaid expenses">{t('prepaidExpenses')}</option>
-                      <option value="Policies and guarantee">{t('policiesAndGuarantee')}</option>
                     </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      💡 For services, utilities, or operational expenses, use Expense Management
+                    </p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">{t('paymentType')} *</label>
@@ -1329,9 +1382,6 @@ const Purchases = () => {
                       <option value="Merchandise for sale or consumption">{t('merchandiseForSale')}</option>
                       <option value="Goods for internal use (PPE)">{t('goodsForInternalUse')}</option>
                       <option value="Investments or capital goods">{t('investmentsOrCapitalGoods')}</option>
-                      <option value="Services or other">{t('servicesOrOther')}</option>
-                      <option value="Prepaid expenses">{t('prepaidExpenses')}</option>
-                      <option value="Policies and guarantee">{t('policiesAndGuarantee')}</option>
                     </select>
                   </div>
                   <div>

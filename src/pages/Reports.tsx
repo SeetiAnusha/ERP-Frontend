@@ -50,48 +50,88 @@ const Reports = () => {
     try {
       // Fetch Sales
       const salesResponse = await axios.get('/sales');
-      const sales = salesResponse.data.filter((sale: any) => {
+      
+      // Handle different response structures
+      let salesData = [];
+      if (Array.isArray(salesResponse.data)) {
+        salesData = salesResponse.data;
+      } else if (salesResponse.data.data && Array.isArray(salesResponse.data.data)) {
+        salesData = salesResponse.data.data;
+      } else if (salesResponse.data.sales && Array.isArray(salesResponse.data.sales)) {
+        salesData = salesResponse.data.sales;
+      } else {
+        console.warn('Unexpected sales API response structure:', salesResponse.data);
+        salesData = [];
+      }
+      
+      const sales = Array.isArray(salesData) ? salesData.filter((sale: any) => {
         const saleDate = new Date(sale.date);
         return saleDate >= new Date(dateRange.startDate) && saleDate <= new Date(dateRange.endDate);
-      });
+      }) : [];
 
       setSalesData({
         totalSales: sales.length,
-        totalRevenue: sales.reduce((sum: number, sale: any) => sum + parseFloat(sale.total), 0),
-        paidSales: sales.filter((s: any) => s.paymentStatus === 'Paid').length,
-        unpaidSales: sales.filter((s: any) => s.paymentStatus === 'Unpaid').length,
+        totalRevenue: Array.isArray(sales) ? sales.reduce((sum: number, sale: any) => sum + parseFloat(sale.total || 0), 0) : 0,
+        paidSales: Array.isArray(sales) ? sales.filter((s: any) => s.paymentStatus === 'Paid').length : 0,
+        unpaidSales: Array.isArray(sales) ? sales.filter((s: any) => s.paymentStatus === 'Unpaid').length : 0,
         salesCount: sales.length,
       });
 
       // Fetch Purchases
       const purchasesResponse = await axios.get('/purchases');
-      const purchases = purchasesResponse.data.filter((purchase: any) => {
+      
+      // Handle different response structures
+      let purchasesData = [];
+      if (Array.isArray(purchasesResponse.data)) {
+        purchasesData = purchasesResponse.data;
+      } else if (purchasesResponse.data.data && Array.isArray(purchasesResponse.data.data)) {
+        purchasesData = purchasesResponse.data.data;
+      } else if (purchasesResponse.data.purchases && Array.isArray(purchasesResponse.data.purchases)) {
+        purchasesData = purchasesResponse.data.purchases;
+      } else {
+        console.warn('Unexpected purchases API response structure:', purchasesResponse.data);
+        purchasesData = [];
+      }
+      
+      const purchases = Array.isArray(purchasesData) ? purchasesData.filter((purchase: any) => {
         const purchaseDate = new Date(purchase.date);
         return purchaseDate >= new Date(dateRange.startDate) && purchaseDate <= new Date(dateRange.endDate);
-      });
+      }) : [];
 
       setPurchasesData({
         totalPurchases: purchases.length,
-        totalCost: purchases.reduce((sum: number, purchase: any) => sum + parseFloat(purchase.total), 0),
-        paidPurchases: purchases.filter((p: any) => p.paymentStatus === 'Paid').length,
-        unpaidPurchases: purchases.filter((p: any) => p.paymentStatus === 'Unpaid').length,
+        totalCost: Array.isArray(purchases) ? purchases.reduce((sum: number, purchase: any) => sum + parseFloat(purchase.total || 0), 0) : 0,
+        paidPurchases: Array.isArray(purchases) ? purchases.filter((p: any) => p.paymentStatus === 'Paid').length : 0,
+        unpaidPurchases: Array.isArray(purchases) ? purchases.filter((p: any) => p.paymentStatus === 'Unpaid').length : 0,
         purchasesCount: purchases.length,
       });
 
       // Fetch Payments
       const paymentsResponse = await axios.get('/payments');
-      const payments = paymentsResponse.data.filter((payment: any) => {
+      
+      // Handle different response structures
+      let paymentsData = [];
+      if (Array.isArray(paymentsResponse.data)) {
+        paymentsData = paymentsResponse.data;
+      } else if (paymentsResponse.data.data && Array.isArray(paymentsResponse.data.data)) {
+        paymentsData = paymentsResponse.data.data;
+      } else {
+        console.warn('Unexpected payments API response structure:', paymentsResponse.data);
+        paymentsData = [];
+      }
+      
+      const payments = Array.isArray(paymentsData) ? paymentsData.filter((payment: any) => {
         const paymentDate = new Date(payment.registrationDate);
         return paymentDate >= new Date(dateRange.startDate) && paymentDate <= new Date(dateRange.endDate);
-      });
+      }) : [];
 
-      const paymentsIn = payments
+      const paymentsIn = Array.isArray(payments) ? payments
         .filter((p: any) => p.type === 'Payment In')
-        .reduce((sum: number, p: any) => sum + parseFloat(p.paymentAmount), 0);
+        .reduce((sum: number, p: any) => sum + parseFloat(p.paymentAmount || 0), 0) : 0;
 
-      const paymentsOut = payments
+      const paymentsOut = Array.isArray(payments) ? payments
         .filter((p: any) => p.type === 'Payment Out')
-        .reduce((sum: number, p: any) => sum + parseFloat(p.paymentAmount), 0);
+        .reduce((sum: number, p: any) => sum + parseFloat(p.paymentAmount || 0), 0) : 0;
 
       setPaymentsData({
         paymentsIn,

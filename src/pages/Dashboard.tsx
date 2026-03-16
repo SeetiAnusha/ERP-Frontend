@@ -28,56 +28,74 @@ const Dashboard = () => {
         axios.get('/products'),
       ]);
 
-      setSales(salesRes.data);
-      setPurchases(purchasesRes.data);
-      setClients(clientsRes.data);
-      setProducts(productsRes.data);
+      // Handle structured API responses
+      const salesData = Array.isArray(salesRes.data) ? salesRes.data : 
+                       (salesRes.data.data && Array.isArray(salesRes.data.data)) ? salesRes.data.data : [];
+      
+      const purchasesData = Array.isArray(purchasesRes.data) ? purchasesRes.data : 
+                           (purchasesRes.data.data && Array.isArray(purchasesRes.data.data)) ? purchasesRes.data.data : [];
+      
+      const clientsData = Array.isArray(clientsRes.data) ? clientsRes.data : 
+                         (clientsRes.data.data && Array.isArray(clientsRes.data.data)) ? clientsRes.data.data : [];
+      
+      const productsData = Array.isArray(productsRes.data) ? productsRes.data : 
+                          (productsRes.data.data && Array.isArray(productsRes.data.data)) ? productsRes.data.data : [];
+
+      setSales(salesData);
+      setPurchases(purchasesData);
+      setClients(clientsData);
+      setProducts(productsData);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
+      // Set empty arrays on error to prevent crashes
+      setSales([]);
+      setPurchases([]);
+      setClients([]);
+      setProducts([]);
       setLoading(false);
     }
   };
 
-  // Calculate statistics
-  const totalSalesAmount = sales.reduce((sum, sale) => sum + parseFloat(sale.total.toString()), 0);
-  const totalPurchasesAmount = purchases.reduce((sum, purchase) => sum + parseFloat(purchase.total.toString()), 0);
+  // Calculate statistics with safety checks
+  const totalSalesAmount = Array.isArray(sales) ? sales.reduce((sum, sale) => sum + parseFloat(sale.total.toString()), 0) : 0;
+  const totalPurchasesAmount = Array.isArray(purchases) ? purchases.reduce((sum, purchase) => sum + parseFloat(purchase.total.toString()), 0) : 0;
   const totalRevenue = totalSalesAmount - totalPurchasesAmount;
-  const lowStockProducts = products.filter(p => {
+  const lowStockProducts = Array.isArray(products) ? products.filter(p => {
     const amount = p.amount ? parseFloat(p.amount.toString()) : 0;
     const minStock = p.minimumStock ? parseFloat(p.minimumStock.toString()) : 0;
     return amount <= minStock;
-  });
+  }) : [];
 
-  // Get recent sales (last 5)
-  const recentSales = [...sales]
+  // Get recent sales (last 5) with safety check
+  const recentSales = Array.isArray(sales) ? [...sales]
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 5);
+    .slice(0, 5) : [];
 
-  // Get recent purchases (last 5)
-  const recentPurchases = [...purchases]
+  // Get recent purchases (last 5) with safety check
+  const recentPurchases = Array.isArray(purchases) ? [...purchases]
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 5);
+    .slice(0, 5) : [];
 
   const stats = [
     { 
       label: 'Total Sales', 
       value: `${formatNumber(totalSalesAmount)}`, 
-      count: sales.length,
+      count: Array.isArray(sales) ? sales.length : 0,
       icon: ShoppingCart, 
       color: 'bg-blue-500' 
     },
     { 
       label: 'Total Clients', 
-      value: clients.length.toString(), 
-      count: clients.filter(c => c.status === 'Active').length + ' active',
+      value: Array.isArray(clients) ? clients.length.toString() : '0', 
+      count: Array.isArray(clients) ? (clients.filter(c => c.status === 'Active').length + ' active') : '0 active',
       icon: Users, 
       color: 'bg-green-500' 
     },
     { 
       label: 'Total Purchases', 
       value: `${formatNumber(totalPurchasesAmount)}`, 
-      count: purchases.length,
+      count: Array.isArray(purchases) ? purchases.length : 0,
       icon: Package, 
       color: 'bg-purple-500' 
     },
@@ -248,14 +266,14 @@ const Dashboard = () => {
             <div>
               <p className="text-sm text-gray-600">{t('unpaidSales')}</p>
               <p className="text-xl font-bold text-gray-800">
-                {sales.filter(s => s.collectionStatus === 'Not Collected' || s.collectionStatus === 'Partial').length}
+                {Array.isArray(sales) ? sales.filter(s => s.collectionStatus === 'Not Collected' || s.collectionStatus === 'Partial').length : 0}
               </p>
             </div>
           </div>
           <p className="text-sm text-gray-500">
-            Total: {formatNumber(sales
+            Total: {formatNumber(Array.isArray(sales) ? sales
               .filter(s => s.collectionStatus === 'Not Collected' || s.collectionStatus === 'Partial')
-              .reduce((sum, s) => sum + parseFloat(s.balanceAmount.toString()), 0))}
+              .reduce((sum, s) => sum + parseFloat(s.balanceAmount.toString()), 0) : 0)}
           </p>
         </motion.div>
 
@@ -272,14 +290,14 @@ const Dashboard = () => {
             <div>
               <p className="text-sm text-gray-600">{t('unpaidPurchases')}</p>
               <p className="text-xl font-bold text-gray-800">
-                {purchases.filter(p => p.paymentStatus === 'Unpaid' || p.paymentStatus === 'Partial').length}
+                {Array.isArray(purchases) ? purchases.filter(p => p.paymentStatus === 'Unpaid' || p.paymentStatus === 'Partial').length : 0}
               </p>
             </div>
           </div>
           <p className="text-sm text-gray-500">
-            Total: {formatNumber(purchases
+            Total: {formatNumber(Array.isArray(purchases) ? purchases
               .filter(p => p.paymentStatus === 'Unpaid' || p.paymentStatus === 'Partial')
-              .reduce((sum, p) => sum + parseFloat(p.balanceAmount.toString()), 0))}
+              .reduce((sum, p) => sum + parseFloat(p.balanceAmount.toString()), 0) : 0)}
           </p>
         </motion.div>
 

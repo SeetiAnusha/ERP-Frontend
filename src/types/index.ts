@@ -278,3 +278,101 @@ export interface ProductPrice {
   createdAt?: string;
   updatedAt?: string;
 }
+
+// ================================
+// EXPENSE MANAGEMENT TYPES
+// ================================
+
+export interface ExpenseCategory {
+  id: number;
+  name: string;
+  code: string;
+  description?: string;
+  parentCategoryId?: number;
+  isActive: boolean;
+  sortOrder: number;
+  createdByUserId?: number;
+  createdAt?: string;
+  updatedAt?: string;
+  // Relations
+  parentCategory?: ExpenseCategory;
+  subCategories?: ExpenseCategory[];
+  expenseTypes?: ExpenseType[];
+}
+
+export interface ExpenseType {
+  id: number;
+  categoryId: number;
+  name: string;
+  code: string;
+  description?: string;
+  defaultAccountCode?: string;
+  requiresApproval: boolean;
+  approvalThreshold?: number;
+  isActive: boolean;
+  sortOrder: number;
+  createdByUserId?: number;
+  createdAt?: string;
+  updatedAt?: string;
+  // Relations
+  category?: ExpenseCategory;
+}
+
+export interface ExpensePurchase extends Purchase {
+  transactionType: 'EXPENSE';
+  expenseCategoryId: number;
+  expenseTypeId: number;
+  expenseDescription?: string;
+  // Duplicate prevention fields
+  requestId?: string;
+  clientSessionId?: string;
+  submissionTimestamp?: string;
+  // Relations
+  expenseCategory?: ExpenseCategory;
+  expenseType?: ExpenseType;
+}
+
+export interface ExpenseDashboardData {
+  period: string;
+  dateRange: {
+    start: string;
+    end: string;
+  };
+  summary: {
+    totalPurchases: number;
+    totalAmount: number;
+    paidAmount: number;
+    balanceAmount: number;
+    paymentPercentage: number;
+  };
+  breakdowns: {
+    byStatus: Array<{
+      status: string;
+      count: number;
+      amount: number;
+    }>;
+    byType: Array<{
+      transactionType: string;
+      count: number;
+      amount: number;
+    }>;
+  };
+  topCategories?: Array<{
+    category: ExpenseCategory;
+    count: number;
+    amount: number;
+  }>;
+}
+
+// Enhanced Purchase interface with expense support
+export interface EnhancedPurchase extends Purchase {
+  transactionType: 'GOODS' | 'EXPENSE';
+  expenseCategoryId?: number;
+  expenseTypeId?: number;
+  expenseDescription?: string;
+  requestId?: string;
+  clientSessionId?: string;
+  submissionTimestamp?: string;
+  expenseCategory?: ExpenseCategory;
+  expenseType?: ExpenseType;
+}

@@ -20,6 +20,8 @@ import {
   UserCheck,
   Clock,
   Receipt,
+  TrendingUp,
+  FolderTree,
 } from 'lucide-react';
 import LanguageSwitcher from './LanguageSwitcher';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -40,6 +42,9 @@ const Layout = ({ children }: LayoutProps) => {
     { path: '/clients', icon: Users, label: t('clients') },
     { path: '/purchases', icon: ShoppingBag, label: t('purchases') },
     { path: '/suppliers', icon: Package, label: t('suppliers') },
+    // Expense Management Section
+    { path: '/business-expenses', icon: TrendingUp, label: 'Expense Management' },
+    { path: '/expense-categories', icon: FolderTree, label: 'Expense Categories' },
     // { path: '/payments', icon: DollarSign, label: t('payments') },
     { path: '/accounts-receivable', icon: FileText, label: 'Accounts Receivable' },
     { path: '/accounts-payable', icon: CreditCard, label: 'Accounts Payable' },
