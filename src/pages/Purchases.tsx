@@ -45,10 +45,6 @@ const Purchases = () => {
     paymentType: 'CREDIT', // Changed default from CASH to CREDIT
     paidAmount: 0,
     status: 'COMPLETED',
-    // Expense-specific fields
-    expenseCategoryId: 0, // Keep as number
-    expenseTypeId: 0, // Keep as number
-    expenseDescription: '',
     // Phase 2: New payment fields
     bankAccountId: '',
     cardId: '',
@@ -92,6 +88,8 @@ const Purchases = () => {
   const [viewProductsModal, setViewProductsModal] = useState(false);
   const [viewInvoicesModal, setViewInvoicesModal] = useState(false);
   const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(null);
+  const [purchaseDetails, setPurchaseDetails] = useState<any>(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
 
   useEffect(() => {
     fetchPurchases();
@@ -100,6 +98,20 @@ const Purchases = () => {
     fetchBankAccounts();
     fetchCards();
   }, []);
+
+  const fetchPurchaseDetails = async (purchaseId: number) => {
+    setLoadingDetails(true);
+    try {
+      const response = await api.get(`/purchases/${purchaseId}/details`);
+      setPurchaseDetails(response.data);
+    } catch (error) {
+      console.error('Error fetching purchase details:', error);
+      // Fallback to basic purchase data
+      setPurchaseDetails(selectedPurchase);
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
 
   const fetchPurchases = async () => {
     try {
@@ -421,10 +433,12 @@ const Purchases = () => {
             cardId: inv.cardId && inv.cardId !== '' ? parseInt(inv.cardId) : null, // Convert cardId to integer
             bankAccountId: inv.bankAccountId && inv.bankAccountId !== '' ? parseInt(inv.bankAccountId) : null, // Convert bankAccountId to integer
           })),
-          // Expense-specific fields
-          expenseDescription: formData.expenseDescription || null,
+          // Expense-specific fields - set to null for GOODS purchases
+          expenseDescription: null,
+          expenseCategoryId: null,
+          expenseTypeId: null,
         },
-        ['supplierId', 'bankAccountId', 'cardId', 'expenseCategoryId', 'expenseTypeId']  // Integer fields
+        ['supplierId', 'bankAccountId', 'cardId']  // Integer fields (removed expense fields since they should be null)
       );
       
       console.log('🚀 FRONTEND - Submitting purchase data:', cleanedData);
@@ -453,10 +467,6 @@ const Purchases = () => {
       paymentType: 'CREDIT', // Changed default from CASH
       paidAmount: 0,
       status: 'COMPLETED',
-      // Expense fields - reset with correct number types
-      expenseCategoryId: 0,
-      expenseTypeId: 0,
-      expenseDescription: '',
       // Phase 2: Reset new fields
       bankAccountId: '',
       cardId: '',
@@ -585,9 +595,10 @@ const Purchases = () => {
                     <motion.button
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
-                      onClick={() => {
+                      onClick={async () => {
                         setSelectedPurchase(purchase);
                         setViewDetailsModal(true);
+                        await fetchPurchaseDetails(purchase.id);
                       }}
                       className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
                       title={t('purchaseDetails')}
@@ -597,9 +608,10 @@ const Purchases = () => {
                     <motion.button
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
-                      onClick={() => {
+                      onClick={async () => {
                         setSelectedPurchase(purchase);
                         setViewProductsModal(true);
+                        await fetchPurchaseDetails(purchase.id);
                       }}
                       className="p-2 text-green-600 hover:bg-green-50 rounded-lg"
                       title={t('productDetails')}
@@ -609,9 +621,10 @@ const Purchases = () => {
                     <motion.button
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
-                      onClick={() => {
+                      onClick={async () => {
                         setSelectedPurchase(purchase);
                         setViewInvoicesModal(true);
+                        await fetchPurchaseDetails(purchase.id);
                       }}
                       className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg"
                       title={t('invoiceSuppliers')}
@@ -1692,8 +1705,14 @@ const Purchases = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {selectedPurchase.items && selectedPurchase.items.length > 0 ? (
-                      selectedPurchase.items.map((item: any, index: number) => (
+                    {loadingDetails ? (
+                      <tr className="border-t">
+                        <td colSpan={9} className="px-3 py-4 text-center text-gray-500">
+                          Loading products...
+                        </td>
+                      </tr>
+                    ) : purchaseDetails?.items && purchaseDetails.items.length > 0 ? (
+                      purchaseDetails.items.map((item: any, index: number) => (
                         <tr key={index} className="border-t">
                           <td className="px-3 py-2">{item.productCode}</td>
                           <td className="px-3 py-2">{item.productName}</td>
@@ -1776,8 +1795,14 @@ const Purchases = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {selectedPurchase.associatedInvoices && selectedPurchase.associatedInvoices.length > 0 ? (
-                      selectedPurchase.associatedInvoices.map((invoice: any, index: number) => (
+                    {loadingDetails ? (
+                      <tr className="border-t">
+                        <td colSpan={10} className="px-3 py-4 text-center text-gray-500">
+                          Loading invoices...
+                        </td>
+                      </tr>
+                    ) : purchaseDetails?.associatedInvoices && purchaseDetails.associatedInvoices.length > 0 ? (
+                      purchaseDetails.associatedInvoices.map((invoice: any, index: number) => (
                         <tr key={index} className="border-t">
                           <td className="px-3 py-2">{invoice.supplierRnc}</td>
                           <td className="px-3 py-2">{invoice.supplierName}</td>
