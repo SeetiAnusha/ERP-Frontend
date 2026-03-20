@@ -18,11 +18,48 @@ Modern, responsive frontend for the ERP system built with React, TypeScript, Vit
   - Adjustments (Debit Notes, Credit Notes, Adjustments)
   - Cash register with running balance
 
+- **Business Expense Management**
+  - Comprehensive expense form with validation
+  - Real-time balance checking for bank payments
+  - Credit payment integration with AP workflow
+  - Expense dashboard with analytics
+  - Payment method selection with contextual help
+
+- **Accounts Payable System**
+  - Supplier invoice management interface
+  - Payment processing with multiple methods
+  - Bank register integration for payments
+  - Business expense synchronization
+  - Status tracking and updates
+
+- **Bank Register Management**
+  - Multi-bank account interface
+  - Opening balance configuration
+  - Payment processing for AP invoices
+  - Balance validation and real-time updates
+  - Transaction history with filtering
+
+- **Customer Credit Management**
+  - Credit balance tracking interface
+  - Credit-aware payment modal
+  - Intelligent payment method selection
+  - Overpayment handling with credit creation
+  - Credit application and usage tracking
+
+- **Cash Register System**
+  - Enhanced transaction recording
+  - Credit balance integration
+  - Duplicate prevention logic
+  - Real-time balance updates
+  - Transaction history and filtering
+
 - **Advanced Features**
   - Credit card payment flow
   - Associated invoices for cost allocation
   - Real-time inventory updates
   - Sequential registration numbers
+  - Cross-module data synchronization
+  - Contextual help and validation messages
 
 - **Comprehensive Reports**
   - PPE tracking with depreciation schedules
@@ -31,13 +68,15 @@ Modern, responsive frontend for the ERP system built with React, TypeScript, Vit
   - Accounts payable/receivable tracking
   - Cash flow analysis
   - Business analytics dashboard
+  - Credit balance utilization reports
 
 - **Modern UI/UX**
   - Responsive design (mobile, tablet, desktop)
   - Smooth animations with Framer Motion
   - Professional color schemes
   - Intuitive navigation
-  - Form validation
+  - Form validation with real-time feedback
+  - Loading states and error handling
 
 ## 📋 Prerequisites
 
@@ -115,9 +154,18 @@ frontend/
 │   │   ├── FixedAssets.tsx      # Fixed assets
 │   │   ├── Investments.tsx      # Investments
 │   │   ├── PrepaidExpenses.tsx  # Prepaid expenses
+│   │   ├── BusinessExpenses.tsx # Business expense management
+│   │   ├── AccountsPayable.tsx  # Accounts payable
+│   │   ├── BankRegister.tsx     # Bank register
 │   │   ├── Reports.tsx          # Business reports
 │   │   ├── PPEReport.tsx        # PPE tracking report
 │   │   └── InvestmentReport.tsx # Investment report
+│   ├── components/              # Reusable components
+│   │   ├── Layout.tsx           # Main layout component
+│   │   ├── SimpleExpenseForm.tsx # Business expense form
+│   │   ├── ExpenseDashboard.tsx # Expense analytics
+│   │   ├── CustomerCreditAwarePaymentModal.tsx # Credit payment modal
+│   │   └── ExpenseTypeDropdown.tsx # Expense type selector
 │   ├── types/
 │   │   └── index.ts             # TypeScript type definitions
 │   ├── App.tsx                  # Main app component
@@ -164,18 +212,26 @@ frontend/
 - **Investments** - Investment portfolio
 - **Prepaid Expenses** - Expense tracking
 
+### Business Operations
+- **Business Expenses** - Comprehensive expense management with dual recording
+- **Accounts Payable** - Supplier invoice and payment management
+- **Bank Register** - Multi-bank account management and payments
+- **Credit Balance** - Customer credit tracking and application
+
 ### Transactions
 - **Purchases (RC####)** - Record purchases with line items
 - **Sales (RV####)** - Record sales with automatic calculations
 - **Payments (PG####)** - Process payments and collections
 - **Adjustments** - Debit notes (ND####), Credit notes (NC####), Adjustments (AJ####)
-- **Cash Register (CJ####)** - Track cash movements
+- **Cash Register (CJ####)** - Track cash movements with credit integration
 
 ### Reports
 - **Business Reports** - Revenue, expenses, profit, cash flow
 - **PPE Tracking** - Asset register with depreciation
 - **Investment Tracking** - Portfolio performance and ROI
 - **Inventory Movement** - Stock tracking with COGS and margins
+- **Credit Balance Reports** - Credit utilization and tracking
+- **Expense Analytics** - Business expense insights and trends
 
 ## 🔌 API Integration
 
@@ -324,11 +380,30 @@ CMD ["nginx", "-g", "daemon off;"]
 - Adjustments: AJ0001, AJ0002...
 - Cash Register: CJ0001, CJ0002...
 
-### Credit Card Payment Flow
-1. Sale created with credit card → Marked as "Unpaid" (Accounts Receivable)
-2. When cash received → Payment collected
-3. System automatically creates cash register entry
-4. Cash balance updated
+### Dual Recording System
+- Bank payments → Business Expense + Bank Register
+- Credit payments → Business Expense + Accounts Payable
+- Automatic synchronization across modules
+- Real-time balance validation
+
+### Credit-Aware Payment Processing
+1. Check available credit balances for customer
+2. Apply credit automatically to reduce payment amount
+3. Show payment methods only for remaining balance
+4. Record actual cash/payment method used
+5. Update credit balance usage in real-time
+
+### Business Expense Integration
+1. Credit/Credit Card expenses → Automatic AP entry creation
+2. AP payment processing → Automatic expense record updates
+3. Bank register payments → Sync with both AP and expense records
+4. Credit balance payments → Update all related records
+
+### Payment Validation
+- Bank payments validate account selection and balance
+- Credit payments validate credit limits
+- Real-time balance checking before processing
+- Contextual help and error messages
 
 ### Inventory Tracking
 - Real-time stock updates
@@ -421,6 +496,33 @@ For support, email support@yourcompany.com or open an issue in the repository.
 
 ## 🔄 Version History
 
+- **2.0.0** (2026-03-21)
+  - **Major Business Expense Management UI**
+    - Comprehensive expense form with real-time validation
+    - Dual recording system interface
+    - Payment method selection with contextual help
+    - Expense dashboard with analytics
+  - **Enhanced Accounts Payable Interface**
+    - Multi-payment method support
+    - Bank register integration
+    - Business expense synchronization
+    - Real-time status updates
+  - **Advanced Bank Register UI**
+    - Multi-bank account interface
+    - Payment processing for AP invoices
+    - Balance validation and real-time updates
+    - Transaction history with filtering
+  - **Customer Credit Management Interface**
+    - Credit balance tracking and display
+    - Credit-aware payment modal
+    - Intelligent payment method selection
+    - Overpayment handling interface
+  - **Cash Register Enhancements**
+    - Credit balance integration
+    - Enhanced transaction recording
+    - Improved error handling and validation
+    - Real-time balance updates
+
 - **1.0.0** (2024-01-18)
   - Initial release
   - Master data management UI
@@ -438,13 +540,18 @@ For support, email support@yourcompany.com or open an issue in the repository.
 - [ ] Role-based UI elements
 - [ ] Dark mode
 - [ ] Multi-language support
-- [ ] Charts and graphs
-- [ ] Excel export
-- [ ] PDF generation
+- [ ] Charts and graphs for analytics
+- [ ] Excel export functionality
+- [ ] PDF generation for reports
 - [ ] Print layouts
 - [ ] Offline mode
 - [ ] Progressive Web App (PWA)
 - [ ] Mobile app (React Native)
+- [ ] Advanced credit balance analytics
+- [ ] Automated payment reminder interface
+- [ ] Bank reconciliation UI
+- [ ] Advanced reporting dashboard
+- [ ] Real-time notifications
 
 ## 🐛 Known Issues
 

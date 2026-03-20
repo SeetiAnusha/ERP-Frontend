@@ -12,8 +12,9 @@ interface CustomerCreditAwarePaymentModalProps {
   customerName: string;
   invoiceIds: number[];
   requestedAmount: number;
-  paymentMethod?: string; // Make optional since it might be determined by credit availability
-  cashRegisterId?: number; // Make optional since credit payments don't need cash register
+  paymentMethod: string; // Required - use Cash Register's selected payment method
+  cashRegisterId: number; // Required - use Cash Register's selected cash register
+  bankAccountId?: number; // Optional - for bank payments
   registrationDate: string;
   description: string;
   useExistingCredit?: boolean; // Optional flag to control credit usage
@@ -40,8 +41,9 @@ const CustomerCreditAwarePaymentModal: React.FC<CustomerCreditAwarePaymentModalP
   customerName,
   invoiceIds,
   requestedAmount,
-  paymentMethod = 'CASH', // Default to CASH if not provided
-  cashRegisterId = 0, // Default to 0 if not provided
+  paymentMethod, // Use Cash Register's selected payment method
+  cashRegisterId, // Use Cash Register's selected cash register
+  bankAccountId,
   registrationDate,
   description,
   useExistingCredit = true,
@@ -52,10 +54,7 @@ const CustomerCreditAwarePaymentModal: React.FC<CustomerCreditAwarePaymentModalP
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // Payment method and register selection for payment type required scenarios
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('CASH');
-  const [selectedCashRegisterId, setSelectedCashRegisterId] = useState(0);
-  const [selectedBankAccountId, setSelectedBankAccountId] = useState(0);
+  // Remove duplicate payment method selection - use Cash Register's values
   const [cashRegisters, setCashRegisters] = useState<any[]>([]);
   const [bankAccounts, setBankAccounts] = useState<any[]>([]);
 
@@ -66,7 +65,7 @@ const CustomerCreditAwarePaymentModal: React.FC<CustomerCreditAwarePaymentModalP
     }
   }, [isOpen, customerId, invoiceIds, requestedAmount]);
 
-  // Fetch cash registers and bank accounts when modal opens
+  // Fetch cash registers and bank accounts for display purposes only
   useEffect(() => {
     if (isOpen) {
       fetchCashRegisters();
@@ -131,7 +130,7 @@ const CustomerCreditAwarePaymentModal: React.FC<CustomerCreditAwarePaymentModalP
       const isCreditOnlyPayment = preview && !preview.paymentTypeRequired;
       
       if (isCreditOnlyPayment) {
-        // Scenarios 2️⃣, 4️⃣ - Process credit-only payment directly
+        // Scenarios 2️⃣, 4️⃣, 6️⃣ - Process credit-only payment directly
         const paymentRequest = {
           customerId,
           customerName,
@@ -151,36 +150,36 @@ const CustomerCreditAwarePaymentModal: React.FC<CustomerCreditAwarePaymentModalP
           setError(response.data.message || 'Payment processing failed');
         }
       } else {
-        // Scenarios 1️⃣, 3️⃣, 🔟 - Payment type required, process directly with payment method selection
+        // Scenarios 1️⃣, 3️⃣, 🔟 - Payment type required, use Cash Register's selected values
         
-        // Validate payment method selection
-        if (!selectedPaymentMethod) {
-          setError('Please select a payment method');
+        // Validate that Cash Register has provided required values
+        if (!paymentMethod) {
+          setError('Payment method must be selected in Cash Register form');
           return;
         }
         
         // Validate cash register for cash payments
-        if (selectedPaymentMethod === 'CASH' && selectedCashRegisterId === 0) {
-          setError('Please select a cash register for cash payments');
+        if (paymentMethod === 'CASH' && !cashRegisterId) {
+          setError('Cash register must be selected in Cash Register form for cash payments');
           return;
         }
         
         // Validate bank account for bank payments
         const bankMethods = ['UPI', 'BANK_TRANSFER', 'CHEQUE', 'CARD', 'DEBIT_CARD', 'CREDIT_CARD'];
-        if (bankMethods.includes(selectedPaymentMethod) && selectedBankAccountId === 0) {
-          setError('Please select a bank account for bank payments');
+        if (bankMethods.includes(paymentMethod) && !bankAccountId) {
+          setError('Bank account must be selected in Cash Register form for bank payments');
           return;
         }
         
-        // Process payment directly using customer credit aware service
+        // Process payment using Cash Register's selected values
         const paymentRequest = {
           customerId,
           customerName,
           invoiceIds,
           requestedPaymentAmount: requestedAmount,
-          paymentMethod: selectedPaymentMethod,
-          cashRegisterId: selectedPaymentMethod === 'CASH' ? selectedCashRegisterId : undefined,
-          bankAccountId: bankMethods.includes(selectedPaymentMethod) ? selectedBankAccountId : undefined,
+          paymentMethod: paymentMethod,
+          cashRegisterId: paymentMethod === 'CASH' ? cashRegisterId : undefined,
+          bankAccountId: bankMethods.includes(paymentMethod) ? bankAccountId : undefined,
           registrationDate,
           description,
           useExistingCredit: true
@@ -260,6 +259,22 @@ const CustomerCreditAwarePaymentModal: React.FC<CustomerCreditAwarePaymentModalP
                   <span className="text-green-700">Invoices:</span>
                   <span className="ml-2 font-medium">{invoiceIds.length} selected</span>
                 </div>
+                {paymentMethod === 'CASH' && cashRegisterId && (
+                  <div className="col-span-2">
+                    <span className="text-green-700">Cash Register:</span>
+                    <span className="ml-2 font-medium">
+                      {cashRegisters.find(r => r.id === cashRegisterId)?.name || `ID: ${cashRegisterId}`}
+                    </span>
+                  </div>
+                )}
+                {bankAccountId && (
+                  <div className="col-span-2">
+                    <span className="text-green-700">Bank Account:</span>
+                    <span className="ml-2 font-medium">
+                      {bankAccounts.find(a => a.id === bankAccountId)?.bankName || `ID: ${bankAccountId}`}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -357,81 +372,47 @@ const CustomerCreditAwarePaymentModal: React.FC<CustomerCreditAwarePaymentModalP
                   </div>
                 </div>
 
-                {/* Payment Method Selection - Show when payment type is required */}
+                {/* Payment Method Display - Show Cash Register's selected values */}
                 {preview && preview.paymentTypeRequired && (
                   <div className="bg-blue-50 rounded-lg p-4">
                     <h3 className="font-medium text-blue-900 mb-3 flex items-center">
                       <FaMoneyBillWave className="mr-2" />
-                      Select Payment Method
+                      Cash Register Payment Configuration
                     </h3>
                     
-                    <div className="space-y-4">
-                      {/* Payment Method Selection */}
-                      <div>
-                        <label className="block text-sm font-medium text-blue-700 mb-2">
-                          Payment Method *
-                        </label>
-                        <select
-                          value={selectedPaymentMethod}
-                          onChange={(e) => setSelectedPaymentMethod(e.target.value)}
-                          className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        >
-                          <option value="">Select payment method...</option>
-                          <option value="CASH">Cash</option>
-                          <option value="UPI">UPI</option>
-                          <option value="BANK_TRANSFER">Bank Transfer</option>
-                          <option value="CHEQUE">Cheque</option>
-                          <option value="CARD">Card</option>
-                          <option value="DEBIT_CARD">Debit Card</option>
-                          <option value="CREDIT_CARD">Credit Card</option>
-                        </select>
+                    <div className="space-y-3">
+                      <div className="bg-white rounded-lg p-3 shadow-sm">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-blue-700">Selected Payment Method:</span>
+                          <span className="font-medium text-blue-800">{paymentMethod}</span>
+                        </div>
                       </div>
                       
-                      {/* Cash Register Selection for Cash payments */}
-                      {selectedPaymentMethod === 'CASH' && (
-                        <div>
-                          <label className="block text-sm font-medium text-blue-700 mb-2">
-                            Cash Register *
-                          </label>
-                          <select
-                            value={selectedCashRegisterId}
-                            onChange={(e) => setSelectedCashRegisterId(parseInt(e.target.value))}
-                            className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          >
-                            <option value={0}>Select cash register...</option>
-                            {cashRegisters.map((register) => (
-                              <option key={register.id} value={register.id}>
-                                {register.code} - {register.name} (Balance: ₹{formatNumber(register.balance || 0)})
-                              </option>
-                            ))}
-                          </select>
+                      {paymentMethod === 'CASH' && cashRegisterId && (
+                        <div className="bg-white rounded-lg p-3 shadow-sm">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-blue-700">Cash Register:</span>
+                            <span className="font-medium text-blue-800">
+                              {cashRegisters.find(r => r.id === cashRegisterId)?.name || `ID: ${cashRegisterId}`}
+                            </span>
+                          </div>
                         </div>
                       )}
                       
-                      {/* Bank Account Selection for Bank payments */}
-                      {['UPI', 'BANK_TRANSFER', 'CHEQUE', 'CARD', 'DEBIT_CARD', 'CREDIT_CARD'].includes(selectedPaymentMethod) && (
-                        <div>
-                          <label className="block text-sm font-medium text-blue-700 mb-2">
-                            Bank Account *
-                          </label>
-                          <select
-                            value={selectedBankAccountId}
-                            onChange={(e) => setSelectedBankAccountId(parseInt(e.target.value))}
-                            className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          >
-                            <option value={0}>Select bank account...</option>
-                            {bankAccounts.map((account) => (
-                              <option key={account.id} value={account.id}>
-                                {account.bankName} - {account.accountNumber} (Balance: ₹{formatNumber(account.balance || 0)})
-                              </option>
-                            ))}
-                          </select>
+                      {bankAccountId && (
+                        <div className="bg-white rounded-lg p-3 shadow-sm">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-blue-700">Bank Account:</span>
+                            <span className="font-medium text-blue-800">
+                              {bankAccounts.find(a => a.id === bankAccountId)?.bankName || `ID: ${bankAccountId}`}
+                            </span>
+                          </div>
                         </div>
                       )}
                       
                       <div className="bg-blue-100 rounded p-3">
                         <p className="text-xs text-blue-700">
-                          💡 <strong>FULL AMOUNT (₹{formatNumber(requestedAmount)}) will be recorded</strong> in {selectedPaymentMethod === 'CASH' ? 'Cash Register' : 'Bank Register'}.
+                          💡 <strong>FULL AMOUNT (₹{formatNumber(requestedAmount)}) will be recorded</strong> in {paymentMethod === 'CASH' ? 'Cash Register' : 'Bank Register'}.
                           Credit portion (₹{formatNumber(preview.creditWillBeUsed)}) will be applied silently in the background.
                         </p>
                         {preview.willCreateNewCredit && (

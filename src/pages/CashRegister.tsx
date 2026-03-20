@@ -40,6 +40,8 @@ const CashRegister = () => {
 
   // Customer credit-aware payment state
   const [showCustomerCreditAwareModal, setShowCustomerCreditAwareModal] = useState(false);
+  const [creditPreview, setCreditPreview] = useState<any>(null);
+  const [isLoadingCreditPreview, setIsLoadingCreditPreview] = useState(false);
 
   const [formData, setFormData] = useState({
     registrationDate: new Date().toISOString().split('T')[0],
@@ -135,10 +137,26 @@ const CashRegister = () => {
 
   const fetchTransactions = async () => {
     try {
+      console.log('🔄 Fetching transactions...');
       const response = await axios.get('/cash-register');
-      setTransactions(response.data);
+      console.log('📦 API Response:', response.data, 'Type:', typeof response.data, 'IsArray:', Array.isArray(response.data));
+      
+      // Ensure response.data is an array
+      if (Array.isArray(response.data)) {
+        setTransactions(response.data);
+        console.log('✅ Transactions set successfully:', response.data.length, 'items');
+      } else if (response.data && response.data.transactions && Array.isArray(response.data.transactions)) {
+        // Handle paginated response format
+        console.log('📦 Detected paginated response, extracting transactions array');
+        setTransactions(response.data.transactions);
+        console.log('✅ Transactions set successfully:', response.data.transactions.length, 'items');
+      } else {
+        console.error('❌ API returned non-array data for transactions:', response.data);
+        setTransactions([]); // Fallback to empty array
+      }
     } catch (error) {
-      console.error('Error fetching transactions:', error);
+      console.error('❌ Error fetching transactions:', error);
+      setTransactions([]); // Ensure transactions remains an array on error
     }
   };
 
@@ -210,15 +228,55 @@ const CashRegister = () => {
   const fetchPendingCreditSales = async (customerId: string) => {
     if (!customerId) {
       setPendingCreditSales([]);
+      setCreditPreview(null);
       return;
     }
     
     try {
       const response = await axios.get(`/cash-register/pending-credit-sales/${customerId}`);
       setPendingCreditSales(response.data);
+      
+      // Also fetch credit preview for this customer
+      fetchCreditPreview(customerId);
     } catch (error) {
       console.error('Error fetching pending credit sales:', error);
       setPendingCreditSales([]);
+      setCreditPreview(null);
+    }
+  };
+
+  // Fetch credit preview to determine if payment method should be hidden
+  const fetchCreditPreview = async (customerId: string) => {
+    if (!customerId || !formData.amount) {
+      setCreditPreview(null);
+      return;
+    }
+    
+    setIsLoadingCreditPreview(true);
+    
+    try {
+      const invoiceIds = selectedInvoices.length > 0 
+        ? selectedInvoices 
+        : (location.state?.prefilledData?.accountsReceivableId ? [location.state.prefilledData.accountsReceivableId] : []);
+      
+      if (invoiceIds.length === 0) {
+        setCreditPreview(null);
+        return;
+      }
+      
+      const response = await axios.post('/customer-credit-aware-payment/preview', {
+        customerId: parseInt(customerId),
+        invoiceIds,
+        requestedAmount: parseFloat(formData.amount),
+        useExistingCredit: true
+      });
+      
+      setCreditPreview(response.data);
+    } catch (error) {
+      console.error('Error fetching credit preview:', error);
+      setCreditPreview(null);
+    } finally {
+      setIsLoadingCreditPreview(false);
     }
   };
 
@@ -228,6 +286,31 @@ const CashRegister = () => {
     // ✅ NEW: For customer AR collections, use customer credit-aware payment system
     if (formData.relatedDocumentType === 'AR_COLLECTION' && formData.customerId && !allowOverpayment) {
       console.log('🎯 Using customer credit-aware payment system for AR collection');
+      
+      // Check if this is a credit-only payment (no payment method required)
+      if (creditPreview && !creditPreview.paymentTypeRequired) {
+        console.log('💳 Credit-only payment detected - processing directly');
+        setShowCustomerCreditAwareModal(true);
+        return;
+      }
+      
+      // For payments requiring payment method, validate first
+      if (!formData.paymentMethod) {
+        alert('Please select a payment method');
+        return;
+      }
+      
+      if (formData.paymentMethod === 'CASH' && !formData.cashRegisterId) {
+        alert('Please select a cash register for cash payments');
+        return;
+      }
+      
+      const bankMethods = ['BANK_TRANSFER', 'DEPOSIT', 'CREDIT_CARD', 'DEBIT_CARD', 'BANK_CHEQUE'];
+      if (bankMethods.includes(formData.paymentMethod) && !formData.bankAccountId) {
+        alert('Please select a bank account for bank payments');
+        return;
+      }
+      
       setShowCustomerCreditAwareModal(true);
       return; // Let the customer credit-aware modal handle the payment
     }
@@ -499,6 +582,15 @@ const CashRegister = () => {
     fetchPendingCreditSales(customerId);
   };
 
+  // Fetch credit preview when amount or invoices change
+  useEffect(() => {
+    if (formData.relatedDocumentType === 'AR_COLLECTION' && formData.customerId && formData.amount) {
+      fetchCreditPreview(formData.customerId);
+    } else {
+      setCreditPreview(null);
+    }
+  }, [formData.amount, selectedInvoices, formData.customerId, formData.relatedDocumentType]);
+
   // Toggle invoice selection for Credit Sales
   const toggleInvoiceSelection = (invoiceId: number) => {
     if (selectedInvoices.includes(invoiceId)) {
@@ -509,7 +601,8 @@ const CashRegister = () => {
   };
 
   const generateReport = () => {
-    const filtered = transactions.filter(t => {
+    const safeTransactions = Array.isArray(transactions) ? transactions : [];
+    const filtered = safeTransactions.filter(t => {
       const tDate = new Date(t.registrationDate.split('T')[0]);
       const selectedDate = new Date(reportDate);
       tDate.setHours(0, 0, 0, 0);
@@ -537,24 +630,39 @@ const CashRegister = () => {
     return report;
   };
 
-  const filteredTransactions = transactions.filter(transaction => {
+  const filteredTransactions = Array.isArray(transactions) ? transactions.filter(transaction => {
     const matchesSearch = 
-      transaction.registrationNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      transaction.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      transaction.registrationNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      transaction.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       transaction.clientName?.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesType = filterType === 'All' || transaction.transactionType === filterType;
     
     return matchesSearch && matchesType;
-  });
+  }) : [];
 
-  const totalInflow = transactions
+  const totalInflow = Array.isArray(transactions) ? transactions
     .filter(t => t.transactionType === 'INFLOW')
-    .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
+    .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0) : 0;
 
-  const totalOutflow = transactions
+  const totalOutflow = Array.isArray(transactions) ? transactions
     .filter(t => t.transactionType === 'OUTFLOW')
-    .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
+    .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0) : 0;
+
+  // Safety check - ensure transactions is always an array
+  console.log('🔍 CashRegister render - transactions:', transactions, 'Type:', typeof transactions, 'IsArray:', Array.isArray(transactions));
+  
+  if (!Array.isArray(transactions)) {
+    console.log('⚠️ Transactions is not an array, showing loading...');
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading transactions...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <motion.div
@@ -601,7 +709,7 @@ const CashRegister = () => {
                   {formatNumber(totalInflow)}
                 </p>
                 <p className="text-xs text-green-500 mt-1">
-                  {transactions.filter(t => t.transactionType === 'INFLOW').length} transactions
+                  {Array.isArray(transactions) ? transactions.filter(t => t.transactionType === 'INFLOW').length : 0} transactions
                 </p>
               </div>
               <FaArrowUp className="text-green-400 text-3xl" />
@@ -616,7 +724,7 @@ const CashRegister = () => {
                   {formatNumber(totalOutflow)}
                 </p>
                 <p className="text-xs text-red-500 mt-1">
-                  {transactions.filter(t => t.transactionType === 'OUTFLOW').length} transactions
+                  {Array.isArray(transactions) ? transactions.filter(t => t.transactionType === 'OUTFLOW').length : 0} transactions
                 </p>
               </div>
               <FaArrowDown className="text-red-400 text-3xl" />
@@ -788,8 +896,18 @@ const CashRegister = () => {
                 )}
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Cash Register Selection - Conditional based on document type and payment method */}
+                  {/* Cash Register Selection - Conditional based on document type, payment method, and credit balance */}
                   {(() => {
+                    // Hide cash register selection if credit covers full invoice (scenarios 2️⃣, 4️⃣, 6️⃣)
+                    const isCreditOnlyPayment = 
+                      formData.relatedDocumentType === 'AR_COLLECTION' && 
+                      creditPreview && 
+                      !creditPreview.paymentTypeRequired;
+                    
+                    if (isCreditOnlyPayment) {
+                      return null; // Already shown in payment method section
+                    }
+                    
                     const needsCashRegister = 
                       formData.relatedDocumentType === 'CONTRIBUTION' || 
                       formData.relatedDocumentType === 'LOAN' ||
@@ -909,37 +1027,101 @@ const CashRegister = () => {
                   {/* Phase 3: Conditional fields based on transaction type */}
                   {formData.transactionType === 'INFLOW' && (
                     <>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          {t('paymentMethod')} *
-                        </label>
-                        <select
-                          required
-                          value={formData.paymentMethod}
-                          onChange={(e) => {
-                            const newPaymentMethod = e.target.value;
-                            const needsCashRegister = 
-                              formData.relatedDocumentType === 'CONTRIBUTION' || 
-                              formData.relatedDocumentType === 'LOAN' ||
-                              (formData.relatedDocumentType === 'AR_COLLECTION' && newPaymentMethod === 'CASH');
+                      {/* Conditionally show payment method - hide when credit covers full invoice */}
+                      {(() => {
+                        // Hide payment method selection if credit covers full invoice (scenarios 2️⃣, 4️⃣, 6️⃣)
+                        const shouldHidePaymentMethod = 
+                          formData.relatedDocumentType === 'AR_COLLECTION' && 
+                          creditPreview && 
+                          !creditPreview.paymentTypeRequired;
+                        
+                        if (shouldHidePaymentMethod) {
+                          return (
+                            <div className="md:col-span-2">
+                              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                <div className="flex items-center space-x-2 mb-2">
+                                  <span className="text-2xl">💳</span>
+                                  <h4 className="font-medium text-green-900">Credit Balance Payment</h4>
+                                </div>
+                                <p className="text-sm text-green-800 mb-2">
+                                  This payment will be processed entirely using the customer's existing credit balance.
+                                </p>
+                                <div className="bg-white rounded p-3 text-sm">
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                      <span className="text-green-700">Available Credit:</span>
+                                      <span className="ml-2 font-medium">₹{formatNumber(creditPreview.availableCredit || 0)}</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-green-700">Invoice Amount:</span>
+                                      <span className="ml-2 font-medium">₹{formatNumber(creditPreview.totalInvoiceBalance || 0)}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <p className="text-xs text-green-600 mt-2">
+                                  ✅ No payment method or cash register selection required
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        }
+                        
+                        // Show normal payment method selection
+                        return (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              {t('paymentMethod')} *
+                              {isLoadingCreditPreview && (
+                                <span className="ml-2 text-xs text-blue-600">
+                                  (Checking credit balance...)
+                                </span>
+                              )}
+                            </label>
+                            <select
+                              required
+                              value={formData.paymentMethod}
+                              onChange={(e) => {
+                                const newPaymentMethod = e.target.value;
+                                const needsCashRegister = 
+                                  formData.relatedDocumentType === 'CONTRIBUTION' || 
+                                  formData.relatedDocumentType === 'LOAN' ||
+                                  (formData.relatedDocumentType === 'AR_COLLECTION' && newPaymentMethod === 'CASH');
+                                
+                                setFormData({ 
+                                  ...formData, 
+                                  paymentMethod: newPaymentMethod,
+                                  // Clear cashRegisterId if not needed
+                                  cashRegisterId: needsCashRegister ? formData.cashRegisterId : ''
+                                });
+                              }}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            >
+                              <option value="CASH">{t('cash')}</option>
+                              <option value="CREDIT_CARD">{t('creditCard')}</option>
+                              <option value="DEBIT_CARD">{t('debitCard')}</option>
+                              <option value="BANK_TRANSFER">{t('bankTransfer')}</option>
+                              <option value="DEPOSIT">{t('deposit')}</option>
+                              <option value="BANK_CHEQUE">{t('bankCheque')}</option>
+                            </select>
                             
-                            setFormData({ 
-                              ...formData, 
-                              paymentMethod: newPaymentMethod,
-                              // Clear cashRegisterId if not needed
-                              cashRegisterId: needsCashRegister ? formData.cashRegisterId : ''
-                            });
-                          }}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        >
-                          <option value="CASH">{t('cash')}</option>
-                          <option value="CREDIT_CARD">{t('creditCard')}</option>
-                          <option value="DEBIT_CARD">{t('debitCard')}</option>
-                          <option value="BANK_TRANSFER">{t('bankTransfer')}</option>
-                          <option value="DEPOSIT">{t('deposit')}</option>
-                          <option value="BANK_CHEQUE">{t('bankCheque')}</option>
-                        </select>
-                      </div>
+                            {/* Show credit preview info when available */}
+                            {creditPreview && formData.relatedDocumentType === 'AR_COLLECTION' && (
+                              <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+                                <p className="text-blue-700">
+                                  💡 Credit: ₹{formatNumber(creditPreview.availableCredit || 0)} | 
+                                  Invoice: ₹{formatNumber(creditPreview.totalInvoiceBalance || 0)} | 
+                                  Cash Needed: ₹{formatNumber(creditPreview.cashPaymentNeeded || 0)}
+                                </p>
+                                {creditPreview.willCreateNewCredit && (
+                                  <p className="text-blue-700 mt-1">
+                                    ✨ Will create ₹{formatNumber(creditPreview.newCreditAmount)} new credit
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1400,13 +1582,13 @@ const CashRegister = () => {
                 const totalOut = report.bankDeposits + report.corrections;
                 const netCash = totalIn - totalOut;
                 
-                const filtered = transactions.filter(t => {
+                const filtered = Array.isArray(transactions) ? transactions.filter(t => {
                   const tDate = new Date(t.registrationDate.split('T')[0]);
                   const selectedDate = new Date(reportDate);
                   tDate.setHours(0, 0, 0, 0);
                   selectedDate.setHours(0, 0, 0, 0);
                   return tDate.getTime() === selectedDate.getTime();
-                });
+                }) : [];
                 
                 return (
                   <div className="space-y-6">
@@ -1545,6 +1727,7 @@ const CashRegister = () => {
         requestedAmount={parseFloat(formData.amount) || 0}
         paymentMethod={formData.paymentMethod}
         cashRegisterId={parseInt(formData.cashRegisterId) || 0}
+        bankAccountId={parseInt(formData.bankAccountId) || undefined}
         registrationDate={formData.registrationDate}
         description={formData.description}
       />
