@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Search, Eye, TrendingUp, FolderTree, BarChart3, Calendar, DollarSign } from 'lucide-react';
+import { Plus, Search, Eye, TrendingUp, FolderTree, BarChart3, Calendar } from 'lucide-react';
 import api from '../api/axios';
 import { formatNumber } from '../utils/formatNumber';
 import { Supplier } from '../types';
@@ -150,7 +150,6 @@ const Expenses = () => {
 
   const totalExpenses = filteredExpenses.reduce((sum, expense) => sum + expense.amount, 0);
   const paidExpenses = filteredExpenses.filter(e => e.paymentStatus === 'Paid').reduce((sum, expense) => sum + expense.amount, 0);
-  const pendingExpenses = totalExpenses - paidExpenses;
 
   return (
     <div className="space-y-6">
@@ -220,59 +219,6 @@ const Expenses = () => {
         </div>
       </div>
 
-      {/* Summary Cards */}
-      {/* <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-xl shadow-lg p-6"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Total Expenses</p>
-              <p className="text-2xl font-bold text-gray-800">{formatNumber(totalExpenses)}</p>
-            </div>
-            <div className="p-3 bg-blue-100 rounded-full">
-              <DollarSign className="text-blue-600" size={24} />
-            </div>
-          </div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="bg-white rounded-xl shadow-lg p-6"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Paid Expenses</p>
-              <p className="text-2xl font-bold text-green-600">{formatNumber(paidExpenses)}</p>
-            </div>
-            <div className="p-3 bg-green-100 rounded-full">
-              <DollarSign className="text-green-600" size={24} />
-            </div>
-          </div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="bg-white rounded-xl shadow-lg p-6"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Pending Expenses</p>
-              <p className="text-2xl font-bold text-orange-600">{formatNumber(pendingExpenses)}</p>
-            </div>
-            <div className="p-3 bg-orange-100 rounded-full">
-              <DollarSign className="text-orange-600" size={24} />
-            </div>
-          </div>
-        </motion.div>
-      </div> */}
-
       {/* Dashboard */}
       {showDashboard && (
         <motion.div
@@ -295,6 +241,9 @@ const Expenses = () => {
           <h2 className="text-lg font-semibold text-gray-800">
             Expense Records ({filteredExpenses.length})
           </h2>
+          <p className="text-sm text-gray-600 mt-1">
+            💡 Unpaid expenses are automatically shown in Accounts Payable for payment processing
+          </p>
         </div>
 
         {isLoading ? (

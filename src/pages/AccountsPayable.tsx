@@ -400,7 +400,7 @@ const AccountsPayablePage = () => {
                   </td>
                   <td className="px-4 py-4 text-center whitespace-nowrap">{getStatusBadge(ap.status)}</td>
                   <td className="px-4 py-4 text-center whitespace-nowrap">
-                    {ap.status !== 'Paid' && (
+                    {(ap.status !== 'Paid' && ap.status !== 'Received') && Number(ap.balanceAmount) > 0 && (
                       <>
                         {/* Show Pay via Bank button for Credit payment type only */}
                         {((ap.paymentType === 'CREDIT' || ap.paymentType === 'Credit') || 
