@@ -78,7 +78,7 @@ const ExpenseDashboard = ({
       if (!silent) setLoading(true);
       setError(null);
 
-      const response = await api.get('/expenses/dashboard', {
+      const response = await api.get('/business-expenses/dashboard', {
         params: { period: selectedPeriod }
       });
 
@@ -141,7 +141,7 @@ const ExpenseDashboard = ({
         <div>
           <p className="text-sm font-medium text-gray-600">{title}</p>
           <p className="text-2xl font-bold text-gray-900">
-            {format === 'currency' ? formatNumber(value) : value.toLocaleString()}
+            {format === 'currency' ? formatNumber(value || 0) : (value || 0).toLocaleString()}
           </p>
           {trend !== undefined && (
             <div className={`flex items-center mt-2 text-sm ${
@@ -179,26 +179,27 @@ const ExpenseDashboard = ({
         
         <div className="space-y-4">
           {dashboardData.topCategories.slice(0, 5).map((item, index) => {
-            const percentage = dashboardData.summary.totalAmount > 0 
-              ? (item.amount / dashboardData.summary.totalAmount) * 100 
+            const totalAmount = dashboardData.summary?.totalAmount || 0;
+            const percentage = totalAmount > 0 
+              ? ((item.amount || 0) / totalAmount) * 100 
               : 0;
             
             return (
-              <div key={item.category.id} className="flex items-center justify-between">
+              <div key={item.category?.id || index} className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   <div className={`w-3 h-3 rounded-full bg-blue-${500 + index * 100}`}></div>
                   <div>
                     <p className="text-sm font-medium text-gray-900">
-                      {item.category.name}
+                      {item.category?.name || 'Unknown Category'}
                     </p>
                     <p className="text-xs text-gray-500">
-                      {item.count} transaction{item.count !== 1 ? 's' : ''}
+                      {item.count || 0} transaction{(item.count || 0) !== 1 ? 's' : ''}
                     </p>
                   </div>
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-semibold text-gray-900">
-                    {formatNumber(item.amount)}
+                    {formatNumber(item.amount || 0)}
                   </p>
                   <p className="text-xs text-gray-500">
                     {percentage.toFixed(1)}%
@@ -386,13 +387,13 @@ const ExpenseDashboard = ({
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
         {renderMetricCard(
           'Total Expenses',
-          dashboardData.summary.totalAmount,
+          dashboardData.summary?.totalAmount || 0,
           DollarSign,
           'bg-blue-500'
         )}
         {renderMetricCard(
           'Total Transactions',
-          dashboardData.summary.totalPurchases,
+          dashboardData.summary?.totalPurchases || 0,
           Receipt,
           'bg-green-500',
           undefined,
@@ -400,13 +401,13 @@ const ExpenseDashboard = ({
         )}
         {renderMetricCard(
           'Paid Amount',
-          dashboardData.summary.paidAmount,
+          dashboardData.summary?.paidAmount || 0,
           TrendingUp,
           'bg-emerald-500'
         )}
         {renderMetricCard(
           'Outstanding Balance',
-          dashboardData.summary.balanceAmount,
+          dashboardData.summary?.balanceAmount || 0,
           TrendingDown,
           'bg-amber-500'
         )}
@@ -417,20 +418,20 @@ const ExpenseDashboard = ({
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-gray-900">Payment Progress</h3>
           <span className="text-sm text-gray-500">
-            {dashboardData.summary.paymentPercentage.toFixed(1)}% paid
+            {(dashboardData.summary?.paymentPercentage || 0).toFixed(1)}% paid
           </span>
         </div>
         <div className="w-full bg-gray-200 rounded-full h-3">
           <motion.div
             initial={{ width: 0 }}
-            animate={{ width: `${dashboardData.summary.paymentPercentage}%` }}
+            animate={{ width: `${dashboardData.summary?.paymentPercentage || 0}%` }}
             transition={{ duration: 1, ease: 'easeOut' }}
             className="bg-blue-600 h-3 rounded-full"
           />
         </div>
         <div className="flex justify-between text-sm text-gray-600 mt-2">
-          <span>Paid: {formatNumber(dashboardData.summary.paidAmount)}</span>
-          <span>Outstanding: {formatNumber(dashboardData.summary.balanceAmount)}</span>
+          <span>Paid: {formatNumber(dashboardData.summary?.paidAmount || 0)}</span>
+          <span>Outstanding: {formatNumber(dashboardData.summary?.balanceAmount || 0)}</span>
         </div>
       </div>
 

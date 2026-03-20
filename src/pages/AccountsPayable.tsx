@@ -30,9 +30,29 @@ const AccountsPayablePage = () => {
     try {
       const response = await api.get('/accounts-payable');
       console.log('🔍 Accounts Payable API Response:', response.data);
-      setAccountsPayable(response.data);
+      
+      // Handle both old array format and new paginated format
+      let apData = [];
+      if (Array.isArray(response.data)) {
+        // Old format - direct array
+        apData = response.data;
+      } else if (response.data && Array.isArray(response.data.entries)) {
+        // New paginated format - extract entries
+        apData = response.data.entries;
+      } else if (response.data && response.data.length !== undefined) {
+        // Fallback - try to use as array
+        apData = response.data;
+      } else {
+        // Last resort - empty array
+        console.warn('Unexpected API response format:', response.data);
+        apData = [];
+      }
+      
+      setAccountsPayable(apData);
     } catch (error) {
       handleApiError(error, t('loadingAccountsPayable'));
+      // Set empty array on error to prevent filter issues
+      setAccountsPayable([]);
     } finally {
       setIsLoading(false);
     }
@@ -145,13 +165,13 @@ const AccountsPayablePage = () => {
     setNewDeadline('');
   };
 
-  const filteredAP = accountsPayable.filter((ap) => {
+  const filteredAP = Array.isArray(accountsPayable) ? accountsPayable.filter((ap) => {
     const matchesSearch = Object.values(ap).some((value) =>
       value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
     );
     const matchesStatus = filterStatus === 'All' || ap.status === filterStatus;
     return matchesSearch && matchesStatus;
-  });
+  }) : [];
 
   const totalAmount = filteredAP.reduce((sum, ap) => sum + Number(ap.amount), 0);
   const totalPaid = filteredAP.reduce((sum, ap) => sum + Number(ap.paidAmount), 0);

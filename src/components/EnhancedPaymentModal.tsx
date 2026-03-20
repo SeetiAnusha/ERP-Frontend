@@ -38,9 +38,7 @@ const EnhancedPaymentModal: React.FC<PaymentModalProps> = ({
   const [paymentDate, setPaymentDate] = useState('');
   const [paymentReference, setPaymentReference] = useState('');
   const [paymentDescription, setPaymentDescription] = useState('');
-  const [selectedCardId, setSelectedCardId] = useState('');
   const [selectedBankAccountId, setSelectedBankAccountId] = useState('');
-  const [cards, setCards] = useState<any[]>([]);
   const [bankAccounts, setBankAccounts] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -52,7 +50,6 @@ const EnhancedPaymentModal: React.FC<PaymentModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       resetForm();
-      fetchCards();
       fetchBankAccounts();
     }
   }, [isOpen, transaction]);
@@ -62,20 +59,10 @@ const EnhancedPaymentModal: React.FC<PaymentModalProps> = ({
     setPaymentDate(new Date().toISOString().split('T')[0]);
     setPaymentReference('');
     setPaymentDescription(`Payment for ${transaction.relatedDocumentNumber} - ${transaction.entityName}`);
-    setSelectedCardId('');
     setSelectedBankAccountId('');
     setAllowOverpayment(false);
     setShowOverpaymentAlert(false);
     setOverpaymentData(null);
-  };
-
-  const fetchCards = async () => {
-    try {
-      const response = await api.get('/cards');
-      setCards(response.data);
-    } catch (error) {
-      console.error('Error fetching cards:', error);
-    }
   };
 
   const fetchBankAccounts = async () => {
@@ -138,14 +125,9 @@ const EnhancedPaymentModal: React.FC<PaymentModalProps> = ({
       if (!isValid) return; // Overpayment alert will be shown
     }
 
-    // Validate payment method selection
-    if (transaction.isCardTransaction && !selectedBankAccountId) {
-      notify.warning('Please select a bank account for card transaction payment');
-      return;
-    }
-
-    if (!transaction.isCardTransaction && !selectedCardId) {
-      notify.warning('Please select a payment card');
+    // Validate bank account selection
+    if (!selectedBankAccountId) {
+      notify.warning('Please select a bank account to pay from');
       return;
     }
 
@@ -162,11 +144,13 @@ const EnhancedPaymentModal: React.FC<PaymentModalProps> = ({
 
       // Add payment method specific data
       if (transaction.isCardTransaction) {
+        // For credit card payments, always use bank transfer
         paymentData.bankAccountId = parseInt(selectedBankAccountId);
         paymentData.paymentMethod = 'BANK_TRANSFER';
       } else {
-        paymentData.cardId = parseInt(selectedCardId);
-        paymentData.paymentMethod = 'CREDIT_CARD';
+        // For regular AP, also use bank transfer (simplified)
+        paymentData.bankAccountId = parseInt(selectedBankAccountId);
+        paymentData.paymentMethod = 'BANK_TRANSFER';
       }
 
       // For AR, add additional fields
@@ -331,45 +315,31 @@ const EnhancedPaymentModal: React.FC<PaymentModalProps> = ({
                 />
               </div>
 
-              {/* Payment Method Selection */}
-              {transaction.isCardTransaction ? (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Select Bank Account to Pay From *
-                  </label>
-                  <select
-                    value={selectedBankAccountId}
-                    onChange={(e) => setSelectedBankAccountId(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Select Bank Account</option>
-                    {bankAccounts.map((account) => (
-                      <option key={account.id} value={account.id}>
-                        {account.bankName} - {account.accountNumber} (Balance: ₹{Number(account.balance).toFixed(2)})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ) : (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Select Payment Card *
-                  </label>
-                  <select
-                    value={selectedCardId}
-                    onChange={(e) => setSelectedCardId(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Select a Card</option>
-                    {cards.filter(card => card.cardType === 'DEBIT').map(card => (
-                      <option key={card.id} value={card.id}>
-                        {card.cardType} - {card.cardBrand || 'Card'} ****{card.cardNumberLast4}
-                        {card.BankAccount && ` (${card.BankAccount.bankName} - Balance: ₹${Number(card.BankAccount.balance).toFixed(2)})`}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
+              {/* Bank Account Selection - SIMPLIFIED for all AP payments */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {transaction.isCardTransaction 
+                    ? 'Select Bank Account to Pay Credit Card Bill *' 
+                    : 'Select Bank Account to Pay From *'}
+                </label>
+                <select
+                  value={selectedBankAccountId}
+                  onChange={(e) => setSelectedBankAccountId(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select Bank Account</option>
+                  {bankAccounts.map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.bankName} - {account.accountNumber} (Balance: ₹{Number(account.balance).toFixed(2)})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  {transaction.isCardTransaction 
+                    ? '💳 Payment will be transferred from this bank account to the credit card company'
+                    : '💡 Money will be deducted from this bank account and recorded in bank register'}
+                </p>
+              </div>
 
               {/* Payment Reference */}
               <div>

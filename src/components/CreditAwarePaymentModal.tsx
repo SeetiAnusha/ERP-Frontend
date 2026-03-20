@@ -25,6 +25,14 @@ interface PaymentPreview {
   bankPaymentNeeded: number;
   willCreateNewCredit: boolean;
   newCreditAmount: number;
+  overpaymentBlocked?: boolean;
+  overpaymentBlockReason?: string;
+  smartSuggestion?: string;
+  bankBalanceValidation?: {
+    hasSufficientBalance: boolean;
+    availableBalance: number;
+    errorMessage?: string;
+  };
 }
 
 const CreditAwarePaymentModal: React.FC<CreditAwarePaymentModalProps> = ({
@@ -60,7 +68,8 @@ const CreditAwarePaymentModal: React.FC<CreditAwarePaymentModalProps> = ({
       const response = await axios.post('/credit-aware-payment/preview', {
         supplierId,
         invoiceIds,
-        requestedAmount
+        requestedAmount,
+        bankAccountId
       });
       
       setPreview(response.data);
@@ -88,17 +97,37 @@ const CreditAwarePaymentModal: React.FC<CreditAwarePaymentModalProps> = ({
         description
       };
       
+      console.log('🎯 Processing payment request:', paymentRequest);
+      
       const response = await axios.post('/credit-aware-payment/process', paymentRequest);
+      
+      console.log('📋 Payment response:', response.data);
       
       if (response.data.success) {
         onSuccess();
         onClose();
       } else {
-        setError(response.data.message || 'Payment processing failed');
+        // Extract detailed error message from backend
+        const errorMessage = response.data.message || 'Payment processing failed';
+        console.error('❌ Payment failed:', errorMessage);
+        setError(errorMessage);
       }
     } catch (error: any) {
-      console.error('Error processing payment:', error);
-      setError(error.response?.data?.error || 'Payment processing failed');
+      console.error('❌ Error processing payment:', error);
+      
+      // Extract the most detailed error message available
+      let errorMessage = 'Payment processing failed';
+      
+      if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      console.error('❌ Setting error message:', errorMessage);
+      setError(errorMessage);
     } finally {
       setIsProcessing(false);
     }
@@ -166,101 +195,199 @@ const CreditAwarePaymentModal: React.FC<CreditAwarePaymentModalProps> = ({
 
             {/* Error State */}
             {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-                <div className="flex items-center space-x-2">
-                  <FaInfoCircle className="text-red-600" />
-                  <span className="text-red-800 font-medium">Error</span>
+              <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4 mb-6">
+                <div className="flex items-start space-x-3">
+                  <FaInfoCircle className="text-red-600 text-xl mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <h4 className="text-red-800 font-semibold text-lg mb-2">Payment Failed</h4>
+                    <div className="text-red-700 text-sm leading-relaxed">
+                      {error.split('\n').map((line, index) => (
+                        <p key={index} className={index > 0 ? 'mt-1' : ''}>
+                          {line}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-                <p className="text-red-700 mt-2">{error}</p>
               </div>
             )}
 
             {/* Payment Preview */}
             {preview && !isLoading && (
               <div className="space-y-6">
-                {/* Credit Balance Usage */}
-                <div className="bg-green-50 rounded-lg p-4">
-                  <h3 className="font-medium text-green-900 mb-3 flex items-center">
-                    <FaCreditCard className="mr-2" />
-                    Credit Balance Analysis
-                  </h3>
-                  
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-green-700">Available Credit:</span>
-                        <span className="font-medium">₹{formatNumber(preview.availableCredit)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-green-700">Credit Will Be Used:</span>
-                        <span className="font-medium text-green-800">₹{formatNumber(preview.creditWillBeUsed)}</span>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-green-700">Invoice Balance:</span>
-                        <span className="font-medium">₹{formatNumber(preview.totalInvoiceBalance)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-green-700">Bank Payment Needed:</span>
-                        <span className="font-medium text-blue-800">₹{formatNumber(preview.bankPaymentNeeded)}</span>
+                {/* 🚫 SMART OVERPAYMENT PREVENTION ALERT */}
+                {preview.overpaymentBlocked && (
+                  <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4">
+                    <div className="flex items-start space-x-3">
+                      <FaInfoCircle className="text-red-600 text-xl mt-0.5 flex-shrink-0" />
+                      <div className="flex-1">
+                        <h4 className="text-red-800 font-semibold text-lg mb-2">🚫 Overpayment Blocked</h4>
+                        <div className="text-red-700 text-sm leading-relaxed space-y-2">
+                          <p className="font-medium">{preview.overpaymentBlockReason}</p>
+                          <p className="text-red-600">💡 {preview.smartSuggestion}</p>
+                          <div className="mt-3 p-3 bg-red-100 rounded border-l-4 border-l-red-600">
+                            <p className="text-red-800 font-medium text-sm">
+                              ✅ Recommended Action: Pay only ₹{formatNumber(preview.totalInvoiceBalance)} (invoice amount)
+                            </p>
+                            <p className="text-red-700 text-xs mt-1">
+                              This will use ₹{formatNumber(preview.creditWillBeUsed)} from credit balance + ₹{formatNumber(preview.bankPaymentNeeded)} from bank account
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
+                )}
+
+                {/* Credit Balance Usage */}
+                {!preview.overpaymentBlocked && (
+                  <div className="bg-green-50 rounded-lg p-4">
+                    <h3 className="font-medium text-green-900 mb-3 flex items-center">
+                      <FaCreditCard className="mr-2" />
+                      Smart Credit Balance Analysis
+                    </h3>
+                    
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-green-700">Available Credit:</span>
+                          <span className="font-medium">₹{formatNumber(preview.availableCredit)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-green-700">Credit Will Be Used:</span>
+                          <span className="font-medium text-green-800">₹{formatNumber(preview.creditWillBeUsed)}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-green-700">Invoice Balance:</span>
+                          <span className="font-medium">₹{formatNumber(preview.totalInvoiceBalance)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-green-700">Bank Payment Needed:</span>
+                          <span className="font-medium text-blue-800">₹{formatNumber(preview.bankPaymentNeeded)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Payment Breakdown */}
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h3 className="font-medium text-gray-900 mb-3 flex items-center">
-                    <FaUniversity className="mr-2" />
-                    Payment Breakdown
-                  </h3>
-                  
-                  <div className="space-y-3">
-                    {preview.creditWillBeUsed > 0 && (
-                      <div className="flex items-center justify-between p-3 bg-green-100 rounded">
-                        <div className="flex items-center">
-                          <FaCheckCircle className="text-green-600 mr-2" />
-                          <span className="text-green-800">From Credit Balance</span>
-                        </div>
-                        <span className="font-medium text-green-800">₹{formatNumber(preview.creditWillBeUsed)}</span>
-                      </div>
-                    )}
+                {!preview.overpaymentBlocked && (
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <h3 className="font-medium text-gray-900 mb-3 flex items-center">
+                      <FaUniversity className="mr-2" />
+                      Smart Payment Breakdown
+                    </h3>
                     
-                    {preview.bankPaymentNeeded > 0 && (
-                      <div className="flex items-center justify-between p-3 bg-blue-100 rounded">
-                        <div className="flex items-center">
-                          <FaUniversity className="text-blue-600 mr-2" />
-                          <span className="text-blue-800">From Bank Account</span>
+                    <div className="space-y-3">
+                      {preview.creditWillBeUsed > 0 && (
+                        <div className="flex items-center justify-between p-3 bg-green-100 rounded">
+                          <div className="flex items-center">
+                            <FaCheckCircle className="text-green-600 mr-2" />
+                            <span className="text-green-800">From Credit Balance (Priority 1)</span>
+                          </div>
+                          <span className="font-medium text-green-800">₹{formatNumber(preview.creditWillBeUsed)}</span>
                         </div>
-                        <span className="font-medium text-blue-800">₹{formatNumber(preview.bankPaymentNeeded)}</span>
-                      </div>
-                    )}
-                    
-                    {preview.willCreateNewCredit && (
-                      <div className="flex items-center justify-between p-3 bg-yellow-100 rounded">
-                        <div className="flex items-center">
-                          <FaInfoCircle className="text-yellow-600 mr-2" />
-                          <span className="text-yellow-800">New Credit Balance</span>
+                      )}
+                      
+                      {preview.bankPaymentNeeded > 0 && (
+                        <div className="flex items-center justify-between p-3 bg-blue-100 rounded">
+                          <div className="flex items-center">
+                            <FaUniversity className="text-blue-600 mr-2" />
+                            <span className="text-blue-800">From Bank Account (Priority 2)</span>
+                          </div>
+                          <span className="font-medium text-blue-800">₹{formatNumber(preview.bankPaymentNeeded)}</span>
                         </div>
-                        <span className="font-medium text-yellow-800">₹{formatNumber(preview.newCreditAmount)}</span>
-                      </div>
-                    )}
+                      )}
+                      
+                      {preview.willCreateNewCredit && (
+                        <div className="flex items-center justify-between p-3 bg-yellow-100 rounded">
+                          <div className="flex items-center">
+                            <FaInfoCircle className="text-yellow-600 mr-2" />
+                            <span className="text-yellow-800">New Credit Balance (Overpayment)</span>
+                          </div>
+                          <span className="font-medium text-yellow-800">₹{formatNumber(preview.newCreditAmount)}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
+                )}
 
-                {/* Benefits */}
-                {preview.creditWillBeUsed > 0 && (
+                {/* Bank Balance Validation */}
+                {preview.bankBalanceValidation && preview.bankPaymentNeeded > 0 && (
+                  <div className={`rounded-lg p-4 ${
+                    preview.bankBalanceValidation.hasSufficientBalance 
+                      ? 'bg-green-50 border border-green-200' 
+                      : 'bg-red-50 border border-red-200'
+                  }`}>
+                    <h3 className={`font-medium mb-2 flex items-center ${
+                      preview.bankBalanceValidation.hasSufficientBalance 
+                        ? 'text-green-900' 
+                        : 'text-red-900'
+                    }`}>
+                      <FaUniversity className="mr-2" />
+                      Bank Account Balance Check
+                    </h3>
+                    
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className={preview.bankBalanceValidation.hasSufficientBalance ? 'text-green-700' : 'text-red-700'}>
+                          Available Balance:
+                        </span>
+                        <span className="font-medium">
+                          ₹{formatNumber(preview.bankBalanceValidation.availableBalance)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className={preview.bankBalanceValidation.hasSufficientBalance ? 'text-green-700' : 'text-red-700'}>
+                          Required Amount:
+                        </span>
+                        <span className="font-medium">
+                          ₹{formatNumber(preview.bankPaymentNeeded)}
+                        </span>
+                      </div>
+                      
+                      {!preview.bankBalanceValidation.hasSufficientBalance && (
+                        <div className="mt-3 p-4 bg-red-100 border-2 border-red-400 rounded-lg border-l-4 border-l-red-600">
+                          <div className="flex items-start space-x-3">
+                            <FaInfoCircle className="text-red-600 text-lg mt-0.5 flex-shrink-0" />
+                            <div>
+                              <p className="text-red-800 font-semibold text-base">⚠️ Insufficient Bank Balance</p>
+                              <p className="text-red-700 text-sm mt-2 leading-relaxed">
+                                {preview.bankBalanceValidation.errorMessage}
+                              </p>
+                              <p className="text-red-600 text-xs mt-2 font-medium">
+                                Please add funds to your bank account or reduce the payment amount.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {preview.bankBalanceValidation.hasSufficientBalance && (
+                        <div className="mt-2 flex items-center text-green-800">
+                          <FaCheckCircle className="mr-2" />
+                          <span className="font-medium">✅ Sufficient balance available</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Smart Payment Benefits */}
+                {!preview.overpaymentBlocked && preview.creditWillBeUsed > 0 && (
                   <div className="bg-blue-50 rounded-lg p-4">
                     <h3 className="font-medium text-blue-900 mb-2">💡 Smart Payment Benefits</h3>
                     <ul className="text-sm text-blue-800 space-y-1">
-                      <li>• Automatically uses existing credit balance first</li>
+                      <li>• Automatically uses existing credit balance first (Credit-First Logic)</li>
                       <li>• Reduces bank account usage by ₹{formatNumber(preview.creditWillBeUsed)}</li>
                       <li>• Optimizes cash flow management</li>
                       {preview.bankPaymentNeeded === 0 && (
                         <li>• <strong>No bank payment needed!</strong> Fully covered by credit balance</li>
                       )}
+                      <li>• Prevents unnecessary overpayments when credit exists</li>
                     </ul>
                   </div>
                 )}
@@ -280,13 +407,24 @@ const CreditAwarePaymentModal: React.FC<CreditAwarePaymentModalProps> = ({
             
             <button
               onClick={processPayment}
-              disabled={isLoading || isProcessing || !preview}
+              disabled={
+                isLoading || 
+                isProcessing || 
+                !preview || 
+                preview.overpaymentBlocked ||
+                (preview.bankBalanceValidation && !preview.bankBalanceValidation.hasSufficientBalance)
+              }
               className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
             >
               {isProcessing ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                   <span>Processing...</span>
+                </>
+              ) : preview?.overpaymentBlocked ? (
+                <>
+                  <FaInfoCircle />
+                  <span>Overpayment Blocked</span>
                 </>
               ) : (
                 <>

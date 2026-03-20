@@ -12,10 +12,12 @@ interface CustomerCreditAwarePaymentModalProps {
   customerName: string;
   invoiceIds: number[];
   requestedAmount: number;
-  paymentMethod: string;
-  cashRegisterId: number;
+  paymentMethod?: string; // Make optional since it might be determined by credit availability
+  cashRegisterId?: number; // Make optional since credit payments don't need cash register
   registrationDate: string;
   description: string;
+  useExistingCredit?: boolean; // Optional flag to control credit usage
+  simpleMode?: boolean; // Optional flag for simple mode (debugging)
 }
 
 interface CustomerPaymentPreview {
@@ -25,6 +27,9 @@ interface CustomerPaymentPreview {
   cashPaymentNeeded: number;
   willCreateNewCredit: boolean;
   newCreditAmount: number;
+  paymentTypeRequired: boolean;
+  recordInCashRegister: boolean;
+  errorMessage?: string;
 }
 
 const CustomerCreditAwarePaymentModal: React.FC<CustomerCreditAwarePaymentModalProps> = ({
@@ -35,15 +40,24 @@ const CustomerCreditAwarePaymentModal: React.FC<CustomerCreditAwarePaymentModalP
   customerName,
   invoiceIds,
   requestedAmount,
-  paymentMethod,
-  cashRegisterId,
+  paymentMethod = 'CASH', // Default to CASH if not provided
+  cashRegisterId = 0, // Default to 0 if not provided
   registrationDate,
-  description
+  description,
+  useExistingCredit = true,
+  simpleMode = false
 }) => {
   const [preview, setPreview] = useState<CustomerPaymentPreview | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Payment method and register selection for payment type required scenarios
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('CASH');
+  const [selectedCashRegisterId, setSelectedCashRegisterId] = useState(0);
+  const [selectedBankAccountId, setSelectedBankAccountId] = useState(0);
+  const [cashRegisters, setCashRegisters] = useState<any[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<any[]>([]);
 
   // Fetch payment preview when modal opens
   useEffect(() => {
@@ -51,6 +65,34 @@ const CustomerCreditAwarePaymentModal: React.FC<CustomerCreditAwarePaymentModalP
       fetchPaymentPreview();
     }
   }, [isOpen, customerId, invoiceIds, requestedAmount]);
+
+  // Fetch cash registers and bank accounts when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      fetchCashRegisters();
+      fetchBankAccounts();
+    }
+  }, [isOpen]);
+
+  const fetchCashRegisters = async () => {
+    try {
+      const response = await axios.get('/cash-register-masters');
+      const activeRegisters = response.data.filter((r: any) => r.status === 'ACTIVE');
+      setCashRegisters(activeRegisters);
+    } catch (error) {
+      console.error('Error fetching cash registers:', error);
+    }
+  };
+
+  const fetchBankAccounts = async () => {
+    try {
+      const response = await axios.get('/bank-accounts');
+      const activeAccounts = response.data.filter((a: any) => a.status === 'ACTIVE');
+      setBankAccounts(activeAccounts);
+    } catch (error) {
+      console.error('Error fetching bank accounts:', error);
+    }
+  };
 
   const fetchPaymentPreview = async () => {
     setIsLoading(true);
@@ -60,7 +102,8 @@ const CustomerCreditAwarePaymentModal: React.FC<CustomerCreditAwarePaymentModalP
       const response = await axios.post('/customer-credit-aware-payment/preview', {
         customerId,
         invoiceIds,
-        requestedAmount
+        requestedAmount,
+        useExistingCredit
       });
       
       setPreview(response.data);
@@ -77,28 +120,92 @@ const CustomerCreditAwarePaymentModal: React.FC<CustomerCreditAwarePaymentModalP
     setError(null);
     
     try {
-      const paymentRequest = {
-        customerId,
-        customerName,
-        invoiceIds,
-        requestedPaymentAmount: requestedAmount,
-        paymentMethod,
-        cashRegisterId,
-        registrationDate,
-        description
-      };
+      // Check for error conditions first
+      if (preview?.errorMessage) {
+        setError(preview.errorMessage);
+        setIsProcessing(false);
+        return;
+      }
       
-      const response = await axios.post('/customer-credit-aware-payment/process', paymentRequest);
+      // Check if this is a credit-only payment (no payment type required)
+      const isCreditOnlyPayment = preview && !preview.paymentTypeRequired;
       
-      if (response.data.success) {
-        onSuccess();
-        onClose();
+      if (isCreditOnlyPayment) {
+        // Scenarios 2️⃣, 4️⃣ - Process credit-only payment directly
+        const paymentRequest = {
+          customerId,
+          customerName,
+          invoiceIds,
+          requestedPaymentAmount: requestedAmount,
+          registrationDate,
+          description,
+          useExistingCredit: true
+        };
+        
+        const response = await axios.post('/customer-credit-aware-payment/process', paymentRequest);
+        
+        if (response.data.success) {
+          onSuccess();
+          onClose();
+        } else {
+          setError(response.data.message || 'Payment processing failed');
+        }
       } else {
-        setError(response.data.message || 'Payment processing failed');
+        // Scenarios 1️⃣, 3️⃣, 🔟 - Payment type required, process directly with payment method selection
+        
+        // Validate payment method selection
+        if (!selectedPaymentMethod) {
+          setError('Please select a payment method');
+          return;
+        }
+        
+        // Validate cash register for cash payments
+        if (selectedPaymentMethod === 'CASH' && selectedCashRegisterId === 0) {
+          setError('Please select a cash register for cash payments');
+          return;
+        }
+        
+        // Validate bank account for bank payments
+        const bankMethods = ['UPI', 'BANK_TRANSFER', 'CHEQUE', 'CARD', 'DEBIT_CARD', 'CREDIT_CARD'];
+        if (bankMethods.includes(selectedPaymentMethod) && selectedBankAccountId === 0) {
+          setError('Please select a bank account for bank payments');
+          return;
+        }
+        
+        // Process payment directly using customer credit aware service
+        const paymentRequest = {
+          customerId,
+          customerName,
+          invoiceIds,
+          requestedPaymentAmount: requestedAmount,
+          paymentMethod: selectedPaymentMethod,
+          cashRegisterId: selectedPaymentMethod === 'CASH' ? selectedCashRegisterId : undefined,
+          bankAccountId: bankMethods.includes(selectedPaymentMethod) ? selectedBankAccountId : undefined,
+          registrationDate,
+          description,
+          useExistingCredit: true
+        };
+        
+        const response = await axios.post('/customer-credit-aware-payment/process', paymentRequest);
+        
+        if (response.data.success) {
+          onSuccess();
+          onClose();
+        } else {
+          setError(response.data.message || 'Payment processing failed');
+        }
       }
     } catch (error: any) {
       console.error('Error processing customer payment:', error);
-      setError(error.response?.data?.error || 'Payment processing failed');
+      
+      // Handle specific validation errors
+      if (error.response?.data?.error?.includes('sufficient credit')) {
+        setError(error.response.data.error);
+      } else if (error.response?.data?.error?.includes('Amount') && error.response?.data?.error?.includes('Invoice')) {
+        setError(error.response.data.error);
+      } else {
+        setError(error.response?.data?.error || 'Payment processing failed');
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -250,18 +357,117 @@ const CustomerCreditAwarePaymentModal: React.FC<CustomerCreditAwarePaymentModalP
                   </div>
                 </div>
 
-                {/* Benefits */}
-                {preview.creditWillBeUsed > 0 && (
-                  <div className="bg-green-50 rounded-lg p-4">
-                    <h3 className="font-medium text-green-900 mb-2">💡 Smart Payment Benefits</h3>
-                    <ul className="text-sm text-green-800 space-y-1">
-                      <li>• Automatically uses customer's existing credit balance first</li>
-                      <li>• Reduces cash handling by ₹{formatNumber(preview.creditWillBeUsed)}</li>
-                      <li>• Optimizes customer account management</li>
-                      {preview.cashPaymentNeeded === 0 && (
-                        <li>• <strong>No cash payment needed!</strong> Fully covered by credit balance</li>
+                {/* Payment Method Selection - Show when payment type is required */}
+                {preview && preview.paymentTypeRequired && (
+                  <div className="bg-blue-50 rounded-lg p-4">
+                    <h3 className="font-medium text-blue-900 mb-3 flex items-center">
+                      <FaMoneyBillWave className="mr-2" />
+                      Select Payment Method
+                    </h3>
+                    
+                    <div className="space-y-4">
+                      {/* Payment Method Selection */}
+                      <div>
+                        <label className="block text-sm font-medium text-blue-700 mb-2">
+                          Payment Method *
+                        </label>
+                        <select
+                          value={selectedPaymentMethod}
+                          onChange={(e) => setSelectedPaymentMethod(e.target.value)}
+                          className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                          <option value="">Select payment method...</option>
+                          <option value="CASH">Cash</option>
+                          <option value="UPI">UPI</option>
+                          <option value="BANK_TRANSFER">Bank Transfer</option>
+                          <option value="CHEQUE">Cheque</option>
+                          <option value="CARD">Card</option>
+                          <option value="DEBIT_CARD">Debit Card</option>
+                          <option value="CREDIT_CARD">Credit Card</option>
+                        </select>
+                      </div>
+                      
+                      {/* Cash Register Selection for Cash payments */}
+                      {selectedPaymentMethod === 'CASH' && (
+                        <div>
+                          <label className="block text-sm font-medium text-blue-700 mb-2">
+                            Cash Register *
+                          </label>
+                          <select
+                            value={selectedCashRegisterId}
+                            onChange={(e) => setSelectedCashRegisterId(parseInt(e.target.value))}
+                            className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          >
+                            <option value={0}>Select cash register...</option>
+                            {cashRegisters.map((register) => (
+                              <option key={register.id} value={register.id}>
+                                {register.code} - {register.name} (Balance: ₹{formatNumber(register.balance || 0)})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                       )}
-                    </ul>
+                      
+                      {/* Bank Account Selection for Bank payments */}
+                      {['UPI', 'BANK_TRANSFER', 'CHEQUE', 'CARD', 'DEBIT_CARD', 'CREDIT_CARD'].includes(selectedPaymentMethod) && (
+                        <div>
+                          <label className="block text-sm font-medium text-blue-700 mb-2">
+                            Bank Account *
+                          </label>
+                          <select
+                            value={selectedBankAccountId}
+                            onChange={(e) => setSelectedBankAccountId(parseInt(e.target.value))}
+                            className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          >
+                            <option value={0}>Select bank account...</option>
+                            {bankAccounts.map((account) => (
+                              <option key={account.id} value={account.id}>
+                                {account.bankName} - {account.accountNumber} (Balance: ₹{formatNumber(account.balance || 0)})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                      
+                      <div className="bg-blue-100 rounded p-3">
+                        <p className="text-xs text-blue-700">
+                          💡 <strong>FULL AMOUNT (₹{formatNumber(requestedAmount)}) will be recorded</strong> in {selectedPaymentMethod === 'CASH' ? 'Cash Register' : 'Bank Register'}.
+                          Credit portion (₹{formatNumber(preview.creditWillBeUsed)}) will be applied silently in the background.
+                        </p>
+                        {preview.willCreateNewCredit && (
+                          <p className="text-xs text-blue-700 mt-1">
+                            ✨ New credit balance of ₹{formatNumber(preview.newCreditAmount)} will be created from overpayment.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Credit-Only Payment Notice */}
+                {preview && !preview.paymentTypeRequired && (
+                  <div className="bg-green-50 rounded-lg p-4">
+                    <h3 className="font-medium text-green-900 mb-2 flex items-center">
+                      <FaCheckCircle className="mr-2" />
+                      Credit-Only Payment
+                    </h3>
+                    <p className="text-sm text-green-800">
+                      This payment will be processed entirely using the customer's existing credit balance. 
+                      No payment method or cash register selection is required.
+                    </p>
+                  </div>
+                )}
+
+                {/* Error Display */}
+                {preview?.errorMessage && (
+                  <div className="bg-red-50 rounded-lg p-4">
+                    <h3 className="font-medium text-red-900 mb-2 flex items-center">
+                      <FaInfoCircle className="mr-2" />
+                      Payment Not Allowed
+                    </h3>
+                    <p className="text-sm text-red-800">
+                      {preview.errorMessage}
+                    </p>
                   </div>
                 )}
               </div>
@@ -280,7 +486,7 @@ const CustomerCreditAwarePaymentModal: React.FC<CustomerCreditAwarePaymentModalP
             
             <button
               onClick={processPayment}
-              disabled={isLoading || isProcessing || !preview}
+              disabled={isLoading || isProcessing || !preview || !!preview?.errorMessage}
               className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
             >
               {isProcessing ? (
@@ -291,7 +497,12 @@ const CustomerCreditAwarePaymentModal: React.FC<CustomerCreditAwarePaymentModalP
               ) : (
                 <>
                   <FaCheckCircle />
-                  <span>Process Smart Payment</span>
+                  <span>
+                    {preview && preview.paymentTypeRequired 
+                      ? 'Process Payment' 
+                      : 'Process Credit Payment'
+                    }
+                  </span>
                 </>
               )}
             </button>

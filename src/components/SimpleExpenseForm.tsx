@@ -110,25 +110,64 @@ const SimpleExpenseForm = ({
 
     // Payment method validation
     const paymentType = formData.paymentType.toUpperCase();
+    const bankPaymentMethods = ['CHEQUE', 'CHECK', 'BANK_TRANSFER', 'DEPOSIT', 'BANK_DEPOSIT'];
+    const cardPaymentMethods = ['CREDIT_CARD', 'DEBIT_CARD'];
     
-    if (paymentType === 'CHEQUE') {
-      if (!formData.bankAccountId || !formData.chequeNumber || !formData.chequeDate) {
-        alert('Please fill in all cheque payment details');
+    if (bankPaymentMethods.includes(paymentType)) {
+      if (!formData.bankAccountId) {
+        alert('Please select a bank account for this payment method');
+        return;
+      }
+      
+      // Validate bank account has sufficient balance for immediate payment methods
+      const selectedBankAccount = bankAccounts.find(acc => acc.id === parseInt(formData.bankAccountId));
+      if (selectedBankAccount) {
+        const availableBalance = Number(selectedBankAccount.balance || 0);
+        const totalAmount = parseFloat(formData.amount);
+        const associatedTotal = associatedCosts.reduce((sum, cost) => sum + parseFloat(cost.amount || '0'), 0);
+        const grandTotal = totalAmount + associatedTotal;
+        
+        if (availableBalance < grandTotal) {
+          alert(`Insufficient balance in ${selectedBankAccount.bankName} (${selectedBankAccount.accountNumber}). Available: ₹${availableBalance.toFixed(2)}, Required: ₹${grandTotal.toFixed(2)}`);
+          return;
+        }
+      }
+      
+      // Specific validation for cheque/check methods
+      if ((paymentType === 'CHEQUE' || paymentType === 'CHECK') && (!formData.chequeNumber || !formData.chequeDate)) {
+        alert('Please fill in cheque number and date');
+        return;
+      }
+      
+      // Specific validation for bank transfer
+      if (paymentType === 'BANK_TRANSFER' && (!formData.transferNumber || !formData.transferDate)) {
+        alert('Please fill in transfer number and date');
         return;
       }
     }
     
-    if (paymentType === 'BANK_TRANSFER') {
-      if (!formData.bankAccountId || !formData.transferNumber || !formData.transferDate) {
-        alert('Please fill in all bank transfer details');
-        return;
-      }
-    }
-    
-    if (paymentType === 'CREDIT_CARD' || paymentType === 'DEBIT_CARD') {
+    if (cardPaymentMethods.includes(paymentType)) {
       if (!formData.cardId || !formData.paymentReference || !formData.voucherDate) {
         alert('Please fill in all card payment details');
         return;
+      }
+      
+      // Validate credit card has sufficient limit
+      if (paymentType === 'CREDIT_CARD') {
+        const selectedCard = cards.find(card => card.id === parseInt(formData.cardId));
+        if (selectedCard && selectedCard.cardType === 'CREDIT') {
+          const creditLimit = Number(selectedCard.creditLimit || 0);
+          const usedCredit = Number(selectedCard.usedCredit || 0);
+          const availableCredit = creditLimit - usedCredit;
+          const totalAmount = parseFloat(formData.amount);
+          const associatedTotal = associatedCosts.reduce((sum, cost) => sum + parseFloat(cost.amount || '0'), 0);
+          const grandTotal = totalAmount + associatedTotal;
+          
+          if (availableCredit < grandTotal) {
+            alert(`Insufficient credit limit on ${selectedCard.cardName || 'Credit Card'}. Available: ₹${availableCredit.toFixed(2)}, Required: ₹${grandTotal.toFixed(2)}`);
+            return;
+          }
+        }
       }
     }
 
@@ -138,9 +177,9 @@ const SimpleExpenseForm = ({
       const grandTotal = totalAmount + associatedTotal;
 
       // Calculate payment amounts based on payment type
-      // Immediate payment methods: BANK_TRANSFER, CHEQUE, DEBIT_CARD, CASH
+      // Immediate payment methods: BANK_TRANSFER, CHEQUE, CHECK, DEPOSIT, DEBIT_CARD, CASH
       // Credit payment methods: CREDIT, CREDIT_CARD
-      const immediatePaymentTypes = ['BANK_TRANSFER', 'CHEQUE', 'DEBIT_CARD', 'CASH'];
+      const immediatePaymentTypes = ['BANK_TRANSFER', 'CHEQUE', 'CHECK', 'DEPOSIT', 'BANK_DEPOSIT', 'DEBIT_CARD', 'CASH'];
       const isImmediatePayment = immediatePaymentTypes.includes(formData.paymentType.toUpperCase());
       
       const expenseData = {
@@ -379,11 +418,20 @@ const SimpleExpenseForm = ({
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                 >
                   <option value="CREDIT">Credit (Pay Later)</option>
-                  <option value="CHEQUE">Cheque</option>
-                  <option value="BANK_TRANSFER">Bank Transfer</option>
-                  <option value="DEBIT_CARD">Debit Card</option>
-                  <option value="CREDIT_CARD">Credit Card</option>
+                  <optgroup label="Bank Payments (Immediate)">
+                    <option value="BANK_TRANSFER">Bank Transfer</option>
+                    <option value="CHEQUE">Cheque</option>
+                    <option value="CHECK">Check</option>
+                    <option value="DEPOSIT">Bank Deposit</option>
+                  </optgroup>
+                  <optgroup label="Card Payments">
+                    <option value="DEBIT_CARD">Debit Card (Immediate)</option>
+                    <option value="CREDIT_CARD">Credit Card (Creates Payable)</option>
+                  </optgroup>
                 </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  💡 Bank payments → Expense + Bank Register | Credit payments → Expense + Accounts Payable
+                </p>
               </div>
 
               <div>
@@ -407,84 +455,113 @@ const SimpleExpenseForm = ({
             </div>
 
             {/* Payment Method Specific Fields */}
-            {formData.paymentType === 'CHEQUE' && (
-              <div className="grid grid-cols-3 gap-4 p-4 bg-blue-50 rounded-lg">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Bank Account *</label>
-                  <select
-                    required
-                    value={formData.bankAccountId}
-                    onChange={(e) => setFormData({ ...formData, bankAccountId: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Select account...</option>
-                    {bankAccounts.map((account: any) => (
-                      <option key={account.id} value={account.id}>
-                        {account.bankName} - {account.accountNumber}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Cheque Number *</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.chequeNumber}
-                    onChange={(e) => setFormData({ ...formData, chequeNumber: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Cheque Date *</label>
-                  <input
-                    type="date"
-                    required
-                    value={formData.chequeDate}
-                    onChange={(e) => setFormData({ ...formData, chequeDate: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
-            )}
-
-            {formData.paymentType === 'BANK_TRANSFER' && (
-              <div className="grid grid-cols-3 gap-4 p-4 bg-blue-50 rounded-lg">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Bank Account *</label>
-                  <select
-                    required
-                    value={formData.bankAccountId}
-                    onChange={(e) => setFormData({ ...formData, bankAccountId: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Select account...</option>
-                    {bankAccounts.map((account: any) => (
-                      <option key={account.id} value={account.id}>
-                        {account.bankName} - {account.accountNumber}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Transfer Number *</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.transferNumber}
-                    onChange={(e) => setFormData({ ...formData, transferNumber: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Transfer Date *</label>
-                  <input
-                    type="date"
-                    required
-                    value={formData.transferDate}
-                    onChange={(e) => setFormData({ ...formData, transferDate: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
+            {/* Bank Payment Methods: CHEQUE, CHECK, BANK_TRANSFER, DEPOSIT */}
+            {['CHEQUE', 'CHECK', 'BANK_TRANSFER', 'DEPOSIT', 'BANK_DEPOSIT'].includes(formData.paymentType) && (
+              <div className="p-4 bg-blue-50 rounded-lg">
+                <h4 className="text-sm font-medium text-gray-700 mb-3">
+                  {formData.paymentType === 'CHEQUE' || formData.paymentType === 'CHECK' ? 'Check Payment Details' :
+                   formData.paymentType === 'BANK_TRANSFER' ? 'Bank Transfer Details' :
+                   'Bank Deposit Details'}
+                </h4>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Bank Account *</label>
+                    <select
+                      required
+                      value={formData.bankAccountId}
+                      onChange={(e) => setFormData({ ...formData, bankAccountId: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Select account...</option>
+                      {bankAccounts.map((account: any) => (
+                        <option key={account.id} value={account.id}>
+                          {account.bankName} - {account.accountNumber} (Balance: ₹{Number(account.balance).toFixed(2)})
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      💡 Money will be deducted from this account and recorded in both Expense Management and Bank Register
+                    </p>
+                  </div>
+                  
+                  {/* Check/Cheque specific fields */}
+                  {(formData.paymentType === 'CHEQUE' || formData.paymentType === 'CHECK') && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Check Number *</label>
+                        <input
+                          type="text"
+                          required
+                          value={formData.chequeNumber}
+                          onChange={(e) => setFormData({ ...formData, chequeNumber: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          placeholder="Enter check number"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Check Date *</label>
+                        <input
+                          type="date"
+                          required
+                          value={formData.chequeDate}
+                          onChange={(e) => setFormData({ ...formData, chequeDate: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                    </>
+                  )}
+                  
+                  {/* Bank Transfer specific fields */}
+                  {formData.paymentType === 'BANK_TRANSFER' && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Transfer Number *</label>
+                        <input
+                          type="text"
+                          required
+                          value={formData.transferNumber}
+                          onChange={(e) => setFormData({ ...formData, transferNumber: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          placeholder="Enter transfer reference"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Transfer Date *</label>
+                        <input
+                          type="date"
+                          required
+                          value={formData.transferDate}
+                          onChange={(e) => setFormData({ ...formData, transferDate: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                    </>
+                  )}
+                  
+                  {/* Deposit specific fields - simpler, just needs reference */}
+                  {(formData.paymentType === 'DEPOSIT' || formData.paymentType === 'BANK_DEPOSIT') && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Deposit Reference</label>
+                        <input
+                          type="text"
+                          value={formData.transferNumber || ''}
+                          onChange={(e) => setFormData({ ...formData, transferNumber: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          placeholder="Optional deposit reference"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Deposit Date</label>
+                        <input
+                          type="date"
+                          value={formData.transferDate || formData.date}
+                          onChange={(e) => setFormData({ ...formData, transferDate: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             )}
@@ -504,12 +581,23 @@ const SimpleExpenseForm = ({
                     <option value="">Select card...</option>
                     {cards
                       .filter((card: any) => card.cardType === (formData.paymentType === 'CREDIT_CARD' ? 'CREDIT' : 'DEBIT'))
-                      .map((card: any) => (
-                        <option key={card.id} value={card.id}>
-                          {card.cardName || `${card.cardBrand} ****${card.cardNumberLast4}`}
-                        </option>
-                      ))}
+                      .map((card: any) => {
+                        const displayText = card.cardName || `${card.cardBrand} ****${card.cardNumberLast4}`;
+                        const balanceInfo = card.cardType === 'CREDIT' 
+                          ? `Available: ₹${(Number(card.creditLimit || 0) - Number(card.usedCredit || 0)).toFixed(2)}`
+                          : '';
+                        return (
+                          <option key={card.id} value={card.id}>
+                            {displayText} {balanceInfo && `(${balanceInfo})`}
+                          </option>
+                        );
+                      })}
                   </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    💡 {formData.paymentType === 'CREDIT_CARD' 
+                      ? 'Will be recorded in both Expense Management and Accounts Payable' 
+                      : 'Will be recorded in both Expense Management and Bank Register'}
+                  </p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Payment Reference *</label>

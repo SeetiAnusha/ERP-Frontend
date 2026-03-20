@@ -7,7 +7,7 @@ import { AccountsReceivable } from '../types/accountsTypes';
 import { handleApiError } from '../utils/notifications';
 import { useLanguage } from '../contexts/LanguageContext';
 import { formatNumber } from '../utils/formatNumber';
-import EnhancedPaymentModal from '../components/EnhancedPaymentModal';
+import CustomerCreditAwarePaymentModal from '../components/CustomerCreditAwarePaymentModal';
 
 const AccountsReceivablePage = () => {
   const { t } = useLanguage();
@@ -19,6 +19,14 @@ const AccountsReceivablePage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedAR, setSelectedAR] = useState<AccountsReceivable | null>(null);
+  
+  // Simple Payment Modal States
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [selectedBankAccountId, setSelectedBankAccountId] = useState('');
+  const [transferReference, setTransferReference] = useState('');
+  const [collectionDescription, setCollectionDescription] = useState('');
+  const [expenseCategory, setExpenseCategory] = useState('CREDIT_CARD_FEE');
+  const [bankAccounts, setBankAccounts] = useState<any[]>([]);
 
   // Helper function to calculate expense recorded amount from actual expense table
   const getExpenseRecordedAmount = (ar: AccountsReceivable) => {
@@ -68,10 +76,84 @@ const AccountsReceivablePage = () => {
   const handleRecordPayment = (ar: AccountsReceivable) => {
     setSelectedAR(ar);
     setShowPaymentModal(true);
+    setPaymentAmount(ar.balanceAmount.toString());
+    setTransferReference('');
+    setCollectionDescription(`Payment for ${ar.relatedDocumentNumber} - ${ar.clientName || ar.cardNetwork}`);
+    setSelectedBankAccountId('');
+    setExpenseCategory('CREDIT_CARD_FEE');
+    fetchBankAccounts();
+  };
+
+  const fetchBankAccounts = async () => {
+    try {
+      const response = await api.get('/bank-accounts');
+      setBankAccounts(response.data);
+    } catch (error) {
+      console.error('Error fetching bank accounts:', error);
+    }
+  };
+
+  const submitPayment = async () => {
+    if (!selectedAR) return;
+
+    if (!paymentAmount) {
+      alert('Please enter payment amount');
+      return;
+    }
+
+    const amount = parseFloat(paymentAmount);
+    if (amount <= 0) {
+      alert('Payment amount must be greater than 0');
+      return;
+    }
+
+    // For credit card sales, require bank account selection
+    if ((selectedAR.type === 'CREDIT_CARD_SALE' || selectedAR.type === 'DEBIT_CARD_SALE') && !selectedBankAccountId) {
+      alert('Please select a bank account for credit card payment');
+      return;
+    }
+
+    try {
+      const paymentData: any = {
+        amount,
+        receivedDate: new Date(),
+        notes: collectionDescription || undefined,
+        reference: transferReference || undefined
+      };
+
+      // Add bank account for credit card sales
+      if (selectedAR.type === 'CREDIT_CARD_SALE' || selectedAR.type === 'DEBIT_CARD_SALE') {
+        paymentData.bankAccountId = parseInt(selectedBankAccountId);
+        paymentData.isCardSale = true;
+      }
+
+      // Handle processing fees for credit card sales
+      if (amount < Number(selectedAR.amount) && (selectedAR.type === 'CREDIT_CARD_SALE' || selectedAR.type === 'DEBIT_CARD_SALE')) {
+        paymentData.processingFeeCategory = expenseCategory;
+      }
+
+      const response = await api.post(`/accounts-receivable/${selectedAR.id}/record-payment`, paymentData);
+      
+      alert('Payment recorded successfully');
+      setShowPaymentModal(false);
+      setSelectedAR(null);
+      setPaymentAmount('');
+      setSelectedBankAccountId('');
+      setTransferReference('');
+      setCollectionDescription('');
+      setExpenseCategory('CREDIT_CARD_FEE');
+      fetchAccountsReceivable(); // Refresh the list
+    } catch (error: any) {
+      console.error('Payment error:', error);
+      alert(error.response?.data?.error || 'Failed to record payment');
+    }
   };
 
   const handleCreditSaleCollection = (ar: AccountsReceivable) => {
-    // Navigate to Cash Register with pre-filled data for credit sale or credit card sale collection
+    // First check if customer has credit balance
+    // If yes, show Customer Credit Aware Payment Modal
+    // If no, navigate to Cash Register
+    
     const isCardSale = ar.type === 'CREDIT_CARD_SALE' || ar.type === 'DEBIT_CARD_SALE';
     const collectionType = isCardSale ? 'Credit Card Collection' : 'Credit Sale Collection';
     const description = isCardSale 
@@ -453,33 +535,170 @@ const AccountsReceivablePage = () => {
         )}
       </motion.div>
 
-      {/* Enhanced Payment Modal with Phase 1 Overpayment Detection */}
-      {selectedAR && (
-        <EnhancedPaymentModal
-          isOpen={showPaymentModal}
-          onClose={() => {
-            setShowPaymentModal(false);
-            setSelectedAR(null);
-          }}
-          onSuccess={handlePaymentSuccess}
-          transaction={{
-            id: selectedAR.id,
-            type: 'AR',
-            registrationNumber: selectedAR.registrationNumber || '',
-            relatedDocumentNumber: selectedAR.relatedDocumentNumber || '',
-            entityName: selectedAR.clientName || selectedAR.cardNetwork || '',
-            entityId: selectedAR.clientId,
-            entityType: 'CLIENT',
-            amount: Number(selectedAR.amount),
-            paidAmount: Number(selectedAR.receivedAmount),
-            balanceAmount: Number(selectedAR.balanceAmount),
-            isCardTransaction: selectedAR.type === 'CREDIT_CARD_SALE' || selectedAR.type === 'DEBIT_CARD_SALE'
-          }}
-          title={(selectedAR.type === 'CREDIT_CARD_SALE' || selectedAR.type === 'DEBIT_CARD_SALE') 
-            ? 'Collect Credit Card Payment' 
-            : t('recordPayment')
-          }
-        />
+      {/* Payment Modal */}
+      {showPaymentModal && selectedAR && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-xl p-6 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto"
+          >
+            <h3 className="text-xl font-bold mb-4">
+              {(selectedAR.type === 'CREDIT_CARD_SALE' || selectedAR.type === 'DEBIT_CARD_SALE') ? 'Collect Credit Card Payment' : t('recordPayment')}
+            </h3>
+            
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-gray-600">{t('document')}: {selectedAR.relatedDocumentNumber}</p>
+                <p className="text-sm text-gray-600">{t('client')}: {selectedAR.clientName || selectedAR.cardNetwork}</p>
+                {selectedAR.cardNetwork && (
+                  <p className="text-sm text-gray-600">Card Network: {selectedAR.cardNetwork}</p>
+                )}
+                <p className="text-sm text-gray-600">{t('totalAmount')}: {Number(selectedAR.amount).toFixed(2)}</p>
+                <p className="text-sm text-gray-600">{t('alreadyPaid')}: {Number(selectedAR.receivedAmount).toFixed(2)}</p>
+                <p className="text-sm font-semibold text-orange-600">{t('balance')}: {Number(selectedAR.balanceAmount).toFixed(2)}</p>
+              </div>
+
+              {/* Bank Account Selection for Credit Card Sales */}
+              {(selectedAR.type === 'CREDIT_CARD_SALE' || selectedAR.type === 'DEBIT_CARD_SALE') && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Select Business Bank Account *</label>
+                  <select
+                    value={selectedBankAccountId}
+                    onChange={(e) => setSelectedBankAccountId(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    required
+                  >
+                    <option value="">Select Bank Account</option>
+                    {bankAccounts.map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {account.bankName} - {account.accountNumber} (Balance: {Number(account.balance).toFixed(2)})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-blue-600 mt-1">💳 Credit card payments will be deposited to the selected bank account</p>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Amount Received *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={paymentAmount}
+                  onChange={(e) => setPaymentAmount(e.target.value)}
+                    // const inputValue = e.target.value;
+                    // For credit card sales, auto-adjust the amount to simulate processing fees
+                    // if (selectedAR && (selectedAR.type === 'CREDIT_CARD_SALE' || selectedAR.type === 'DEBIT_CARD_SALE')) {
+                    //   const adjustedAmount = simulateProcessingFee(inputValue, selectedAR.type);
+                    //   setPaymentAmount(adjustedAmount);
+                    // } else {
+                    //   setPaymentAmount(inputValue);
+                    // }
+                  // }}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter actual amount received"
+                />
+                {/* {(selectedAR?.type === 'CREDIT_CARD_SALE' || selectedAR?.type === 'DEBIT_CARD_SALE') && (
+                  <p className="text-xs text-blue-600 mt-1">
+                    💳 Amount auto-adjusts for typical credit card processing fees (~2%)
+                  </p>
+                )} */}
+                {paymentAmount && selectedAR && (
+                  <div className="mt-2 p-3 bg-gray-50 rounded-lg">
+                    <div className="text-sm">
+                      <div className="flex justify-between">
+                        <span>Invoice Amount:</span>
+                        <span className="font-medium">{Number(selectedAR.amount).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Amount Received:</span>
+                        <span className="font-medium text-green-600">{parseFloat(paymentAmount || '0').toFixed(2)}</span>
+                      </div>
+                      {parseFloat(paymentAmount || '0') < Number(selectedAR.amount) && (
+                        <div className="flex justify-between border-t pt-2 mt-2">
+                          <span className="text-red-600">Processing Fee:</span>
+                          <span className="font-medium text-red-600">{(Number(selectedAR.amount) - parseFloat(paymentAmount || '0')).toFixed(2)}</span>
+                        </div>
+                      )}
+                      {(selectedAR.type === 'CREDIT_CARD_SALE' || selectedAR.type === 'DEBIT_CARD_SALE') && (
+                        <div className="mt-2 p-2 bg-blue-50 rounded text-xs text-blue-700">
+                          ✅ This will be marked as "Received" (one-time payment for credit cards)
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Transfer Reference for Credit Card Sales */}
+              {(selectedAR.type === 'CREDIT_CARD_SALE' || selectedAR.type === 'DEBIT_CARD_SALE') && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Transfer Reference</label>
+                  <input
+                    type="text"
+                    value={transferReference}
+                    onChange={(e) => setTransferReference(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="Bank transfer reference or transaction ID"
+                  />
+                </div>
+              )}
+
+              {/* Collection Description */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                <textarea
+                  value={collectionDescription}
+                  onChange={(e) => setCollectionDescription(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="Additional notes about this collection"
+                  rows={2}
+                />
+              </div>
+
+              {/* Expense Category for Processing Fees */}
+              {paymentAmount && selectedAR && parseFloat(paymentAmount) < Number(selectedAR.amount) && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Processing Fee Category</label>
+                  <select
+                    value={expenseCategory}
+                    onChange={(e) => setExpenseCategory(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="CREDIT_CARD_FEE">Credit Card Fee</option>
+                    <option value="PROCESSING_FEE">Processing Fee</option>
+                    <option value="TRANSACTION_FEE">Transaction Fee</option>
+                    <option value="BANK_CHARGES">Bank Charges</option>
+                  </select>
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  onClick={submitPayment}
+                  className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  {(selectedAR.type === 'CREDIT_CARD_SALE' || selectedAR.type === 'DEBIT_CARD_SALE') ? 'Collect Payment' : t('confirmPayment')}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowPaymentModal(false);
+                    setSelectedAR(null);
+                    setPaymentAmount('');
+                    setSelectedBankAccountId('');
+                    setTransferReference('');
+                    setCollectionDescription('');
+                    setExpenseCategory('CREDIT_CARD_FEE');
+                  }}
+                  className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300 transition-colors"
+                >
+                  {t('cancel')}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
       )}
     </div>
   );
