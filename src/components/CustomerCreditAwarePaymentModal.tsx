@@ -46,8 +46,8 @@ const CustomerCreditAwarePaymentModal: React.FC<CustomerCreditAwarePaymentModalP
   bankAccountId,
   registrationDate,
   description,
-  useExistingCredit = true,
-  simpleMode = false
+  useExistingCredit = true
+  // simpleMode = false // Unused parameter
 }) => {
   const [preview, setPreview] = useState<CustomerPaymentPreview | null>(null);
   const [isLoading, setIsLoading] = useState(false);
