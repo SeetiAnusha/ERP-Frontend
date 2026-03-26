@@ -38,8 +38,11 @@ const EnhancedPaymentModal: React.FC<PaymentModalProps> = ({
   const [paymentDate, setPaymentDate] = useState('');
   const [paymentReference, setPaymentReference] = useState('');
   const [paymentDescription, setPaymentDescription] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'BANK_ACCOUNT' | 'CREDIT_CARD'>('BANK_ACCOUNT');
   const [selectedBankAccountId, setSelectedBankAccountId] = useState('');
+  const [selectedCreditCardId, setSelectedCreditCardId] = useState('');
   const [bankAccounts, setBankAccounts] = useState<any[]>([]);
+  const [creditCards, setCreditCards] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Overpayment handling
@@ -51,6 +54,14 @@ const EnhancedPaymentModal: React.FC<PaymentModalProps> = ({
     if (isOpen) {
       resetForm();
       fetchBankAccounts();
+      fetchCreditCards();
+      
+      // 🔥 NEW: Auto-select payment method based on AP cardId
+      if (transaction.cardId) {
+        console.log('🎯 AP has cardId:', transaction.cardId, '- Auto-selecting credit card payment');
+        setPaymentMethod('CREDIT_CARD');
+        setSelectedCreditCardId(transaction.cardId.toString());
+      }
     }
   }, [isOpen, transaction]);
 
@@ -59,7 +70,9 @@ const EnhancedPaymentModal: React.FC<PaymentModalProps> = ({
     setPaymentDate(new Date().toISOString().split('T')[0]);
     setPaymentReference('');
     setPaymentDescription(`Payment for ${transaction.relatedDocumentNumber} - ${transaction.entityName}`);
+    setPaymentMethod('BANK_ACCOUNT');
     setSelectedBankAccountId('');
+    setSelectedCreditCardId('');
     setAllowOverpayment(false);
     setShowOverpaymentAlert(false);
     setOverpaymentData(null);
@@ -71,6 +84,19 @@ const EnhancedPaymentModal: React.FC<PaymentModalProps> = ({
       setBankAccounts(response.data);
     } catch (error) {
       console.error('Error fetching bank accounts:', error);
+    }
+  };
+
+  const fetchCreditCards = async () => {
+    try {
+      const response = await api.get('/cards');
+      // Filter for active credit cards only
+      const creditCards = response.data.filter((card: any) => 
+        card.cardType === 'CREDIT' && card.status === 'ACTIVE'
+      );
+      setCreditCards(creditCards);
+    } catch (error) {
+      console.error('Error fetching credit cards:', error);
     }
   };
 
@@ -125,9 +151,14 @@ const EnhancedPaymentModal: React.FC<PaymentModalProps> = ({
       if (!isValid) return; // Overpayment alert will be shown
     }
 
-    // Validate bank account selection
-    if (!selectedBankAccountId) {
+    // Validate payment method selection
+    if (paymentMethod === 'BANK_ACCOUNT' && !selectedBankAccountId) {
       notify.warning('Please select a bank account to pay from');
+      return;
+    }
+
+    if (paymentMethod === 'CREDIT_CARD' && !selectedCreditCardId) {
+      notify.warning('Please select a credit card to pay with');
       return;
     }
 
@@ -143,7 +174,10 @@ const EnhancedPaymentModal: React.FC<PaymentModalProps> = ({
       };
 
       // Add payment method specific data
-      if (transaction.isCardTransaction) {
+      if (paymentMethod === 'CREDIT_CARD') {
+        paymentData.cardId = parseInt(selectedCreditCardId);
+        paymentData.paymentMethod = 'CREDIT_CARD';
+      } else if (transaction.isCardTransaction) {
         // For credit card payments, always use bank transfer
         paymentData.bankAccountId = parseInt(selectedBankAccountId);
         paymentData.paymentMethod = 'BANK_TRANSFER';
@@ -315,31 +349,110 @@ const EnhancedPaymentModal: React.FC<PaymentModalProps> = ({
                 />
               </div>
 
+              {/* Payment Method Selection */}
+              {!transaction.cardId ? (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Payment Method *
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('BANK_ACCOUNT')}
+                      className={`p-3 border rounded-lg text-sm font-medium transition-colors ${
+                        paymentMethod === 'BANK_ACCOUNT'
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      🏦 Bank Account
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('CREDIT_CARD')}
+                      className={`p-3 border rounded-lg text-sm font-medium transition-colors ${
+                        paymentMethod === 'CREDIT_CARD'
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      💳 Credit Card
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Payment Method
+                  </label>
+                  <div className="p-3 border border-blue-500 bg-blue-50 rounded-lg">
+                    <div className="flex items-center gap-2 text-blue-700">
+                      <span className="text-lg">💳</span>
+                      <span className="font-medium">Credit Card Payment</span>
+                    </div>
+                    <p className="text-xs text-blue-600 mt-1">
+                      This AP was created from a credit card purchase. Payment will use the same credit card.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Bank Account Selection - SIMPLIFIED for all AP payments */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {transaction.isCardTransaction 
-                    ? 'Select Bank Account to Pay Credit Card Bill *' 
-                    : 'Select Bank Account to Pay From *'}
-                </label>
-                <select
-                  value={selectedBankAccountId}
-                  onChange={(e) => setSelectedBankAccountId(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select Bank Account</option>
-                  {bankAccounts.map((account) => (
-                    <option key={account.id} value={account.id}>
-                      {account.bankName} - {account.accountNumber} (Balance: ₹{Number(account.balance).toFixed(2)})
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-gray-500 mt-1">
-                  {transaction.isCardTransaction 
-                    ? '💳 Payment will be transferred from this bank account to the credit card company'
-                    : '💡 Money will be deducted from this bank account and recorded in bank register'}
-                </p>
-              </div>
+              {paymentMethod === 'BANK_ACCOUNT' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    {transaction.isCardTransaction 
+                      ? 'Select Bank Account to Pay Credit Card Bill *' 
+                      : 'Select Bank Account to Pay From *'}
+                  </label>
+                  <select
+                    value={selectedBankAccountId}
+                    onChange={(e) => setSelectedBankAccountId(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select Bank Account</option>
+                    {bankAccounts.map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {account.bankName} - {account.accountNumber} (Balance: ₹{Number(account.balance).toFixed(2)})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {transaction.isCardTransaction 
+                      ? '💳 Payment will be transferred from this bank account to the credit card company'
+                      : '💡 Money will be deducted from this bank account and recorded in bank register'}
+                  </p>
+                </div>
+              )}
+
+              {/* Credit Card Selection */}
+              {paymentMethod === 'CREDIT_CARD' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    {transaction.cardId ? 'Credit Card (Auto-Selected)' : 'Select Credit Card to Pay With *'}
+                  </label>
+                  <select
+                    value={selectedCreditCardId}
+                    onChange={(e) => setSelectedCreditCardId(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    disabled={!!transaction.cardId}
+                  >
+                    <option value="">Select Credit Card</option>
+                    {creditCards.map((card) => (
+                      <option key={card.id} value={card.id}>
+                        {card.cardName} - {card.cardBrand} ****{card.cardNumberLast4} 
+                        (Available: ₹{(Number(card.creditLimit) - Number(card.usedCredit)).toFixed(2)})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {transaction.cardId 
+                      ? '💳 Using the same credit card from the original purchase'
+                      : '💳 Payment will be charged to this credit card and recorded in credit card register'
+                    }
+                  </p>
+                </div>
+              )}
 
               {/* Payment Reference */}
               <div>

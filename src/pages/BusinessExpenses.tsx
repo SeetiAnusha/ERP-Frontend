@@ -30,6 +30,13 @@ interface ExpenseRecord {
   paymentStatus: string;
   status: string;
   createdAt: string;
+  
+  // ✅ NEW: Deletion tracking fields
+  deletion_status?: string;
+  deleted_at?: string;
+  deleted_by?: number;
+  deletion_reason_code?: string;
+  deletion_memo?: string;
 }
 
 const Expenses = () => {
@@ -129,15 +136,25 @@ const Expenses = () => {
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, isDeleted?: boolean) => {
+    // ✅ NEW: Show deletion status with priority
+    if (isDeleted) {
+      return (
+        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-300">
+          🗑️ DELETED
+        </span>
+      );
+    }
+    
     const styles = {
       'Paid': 'bg-green-100 text-green-800',
       'Partial': 'bg-yellow-100 text-yellow-800',
       'Unpaid': 'bg-red-100 text-red-800',
+      'REVERSED': 'bg-orange-100 text-orange-800 border border-orange-300', // ✅ NEW
     };
     return (
       <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${styles[status as keyof typeof styles] || 'bg-gray-100 text-gray-800'}`}>
-        {status}
+        {status === 'REVERSED' ? '↩️ REVERSED' : status}
       </span>
     );
   };
@@ -280,17 +297,32 @@ const Expenses = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredExpenses.map((expense, index) => (
+                {filteredExpenses.map((expense, index) => {
+                  const isDeleted = expense.deletion_status === 'EXECUTED';
+                  return (
                   <motion.tr
                     key={expense.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.05 }}
-                    className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                    className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${
+                      isDeleted ? 'bg-red-50 opacity-75' : ''
+                    }`}
                   >
-                    <td className="px-6 py-4 text-sm font-medium">{expense.registrationNumber}</td>
+                    <td className="px-6 py-4 text-sm font-medium">
+                      <div className="flex items-center gap-2">
+                        {isDeleted && <span className="text-red-500">🗑️</span>}
+                        <span className={isDeleted ? 'line-through text-gray-500' : ''}>
+                          {expense.registrationNumber}
+                        </span>
+                      </div>
+                    </td>
                     <td className="px-6 py-4 text-sm">{new Date(expense.date).toLocaleDateString()}</td>
-                    <td className="px-6 py-4 text-sm">{expense.supplier.name}</td>
+                    <td className="px-6 py-4 text-sm">
+                      <span className={isDeleted ? 'line-through text-gray-500' : ''}>
+                        {expense.supplier.name}
+                      </span>
+                    </td>
                     <td className="px-6 py-4 text-sm">
                       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
                         <FolderTree size={12} className="mr-1" />
@@ -299,12 +331,18 @@ const Expenses = () => {
                     </td>
                     <td className="px-6 py-4 text-sm">{expense.expenseType.name}</td>
                     <td className="px-6 py-4 text-sm max-w-xs truncate" title={expense.description}>
-                      {expense.description}
+                      <span className={isDeleted ? 'line-through text-gray-500' : ''}>
+                        {expense.description}
+                      </span>
                     </td>
-                    <td className="px-6 py-4 text-sm font-semibold text-right">{formatNumber(expense.amount)}</td>
+                    <td className="px-6 py-4 text-sm font-semibold text-right">
+                      <span className={isDeleted ? 'line-through text-gray-500' : ''}>
+                        {formatNumber(expense.amount)}
+                      </span>
+                    </td>
                     <td className="px-6 py-4 text-sm">{expense.paymentType}</td>
                     <td className="px-6 py-4 text-center">
-                      {getStatusBadge(expense.paymentStatus)}
+                      {getStatusBadge(expense.paymentStatus, isDeleted)}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex gap-2 justify-center">
@@ -319,7 +357,8 @@ const Expenses = () => {
                       </div>
                     </td>
                   </motion.tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

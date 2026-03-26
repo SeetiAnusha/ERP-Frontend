@@ -246,6 +246,14 @@ export interface CashTransaction {
   receiptNumber?: string;
   customerId?: number;
   invoiceIds?: string;
+  // ✅ NEW: Deletion tracking fields
+  deletion_status?: string;
+  deleted_at?: string;
+  deleted_by?: number;
+  deletion_reason_code?: string;
+  deletion_memo?: string;
+  is_reversal?: boolean;
+  original_transaction_id?: number;
 }
 
 export interface Adjustment {

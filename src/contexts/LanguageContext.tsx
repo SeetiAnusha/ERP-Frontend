@@ -391,6 +391,10 @@ const translations = {
     clientRncCedula: 'Client RNC/Cedula',
     newCashTransaction: 'New Cash Transaction',
     registrationHash: 'Registration #',
+    source: 'Source',
+    docNumber: 'Doc #',
+    bankAccount: 'Bank Account',
+    originalType: 'Original Type',
     method: 'Method',
     allTransactions: 'All Transactions',
     inflowMoneyIn: 'Inflow (Money In)',
@@ -481,7 +485,6 @@ const translations = {
     
     // Phase 4 - Bank Register Updates
     chequeTransferNumber: 'Cheque/Transfer #',
-    bankAccount: 'Bank Account',
     selectInvoicesToPay: 'Select Invoices to Pay',
     selectedInvoicesTotal: 'Selected Invoices Total',
     noPendingInvoicesForSupplier: 'No pending invoices found for this supplier',
@@ -931,6 +934,10 @@ const translations = {
     clientRncCedula: 'RNC/Cédula del Cliente',
     newCashTransaction: 'Nueva Transacción de Caja',
     registrationHash: 'Registro #',
+    source: 'Fuente',
+    docNumber: 'Doc #',
+    bankAccount: 'Cuenta Bancaria',
+    originalType: 'Tipo Original',
     method: 'Método',
     allTransactions: 'Todas las Transacciones',
     inflowMoneyIn: 'Entrada (Dinero Entrante)',
@@ -1021,7 +1028,6 @@ const translations = {
     
     // Fase 4 - Actualizaciones de Registro Bancario
     chequeTransferNumber: 'Cheque/Transferencia #',
-    bankAccount: 'Cuenta Bancaria',
     selectInvoicesToPay: 'Seleccionar Facturas a Pagar',
     selectedInvoicesTotal: 'Total de Facturas Seleccionadas',
     noPendingInvoicesForSupplier: 'No se encontraron facturas pendientes para este proveedor',

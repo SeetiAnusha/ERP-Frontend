@@ -87,6 +87,35 @@ const CashRegister = () => {
     fetchPaymentNetworks();
   }, []);
 
+  // ✅ NEW: Status badge function for deletion indicators
+  const getTransactionStatusBadge = (transaction: CashTransaction) => {
+    if (transaction.deletion_status === 'EXECUTED') {
+      return (
+        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-300">
+          🗑️ DELETED
+        </span>
+      );
+    }
+    
+    if (transaction.is_reversal) {
+      return (
+        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 border border-orange-300">
+          ↩️ REVERSAL
+        </span>
+      );
+    }
+    
+    return (
+      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+        transaction.transactionType === 'INFLOW' 
+          ? 'bg-green-100 text-green-800' 
+          : 'bg-red-100 text-red-800'
+      }`}>
+        {transaction.transactionType === 'INFLOW' ? '💰 INFLOW' : '💸 OUTFLOW'}
+      </span>
+    );
+  };
+
   // Clear related fields when document type changes
   useEffect(() => {
     if (formData.relatedDocumentType === 'CONTRIBUTION' || formData.relatedDocumentType === 'LOAN') {
@@ -421,6 +450,11 @@ const CashRegister = () => {
       await fetchTransactions();
       await fetchCashRegisterMasters(); // Refresh cash register balances
       
+      // 🔥 FIX: Refresh credit preview after AR collection payment
+      if (formData.relatedDocumentType === 'AR_COLLECTION' && formData.customerId) {
+        fetchCreditPreview(formData.customerId);
+      }
+      
       resetForm();
       
       if (location.state?.fromAccountsReceivable) {
@@ -466,15 +500,29 @@ const CashRegister = () => {
   };
 
   const handleDelete = async (id: number) => {
-    if (window.confirm('Are you sure you want to delete this transaction?')) {
-      try {
-        await axios.delete(`/cash-register/${id}`);
-        fetchTransactions();
-      } catch (error) {
-        console.error('Error deleting transaction:', error);
-        alert('Error deleting transaction');
-      }
+    // Find the transaction to get its details
+    const transaction = transactions.find(t => t.id === id);
+    if (!transaction) {
+      alert('Transaction not found');
+      return;
     }
+
+    // Navigate to Transaction Deletion page with cash register details
+    navigate('/transaction-deletion', {
+      state: {
+        transactionType: 'CASH_REGISTER',
+        transactionId: id,
+        transactionDetails: {
+          registrationNumber: transaction.registrationNumber,
+          amount: transaction.amount,
+          description: transaction.description,
+          transactionType: transaction.transactionType,
+          relatedDocumentType: transaction.relatedDocumentType,
+          relatedDocumentNumber: transaction.relatedDocumentNumber,
+          clientName: transaction.clientName
+        }
+      }
+    });
   };
 
   const resetForm = () => {
@@ -515,6 +563,12 @@ const CashRegister = () => {
   const handleCustomerCreditAwarePaymentSuccess = () => {
     fetchTransactions();
     fetchCashRegisterMasters(); // Refresh cash register balances
+    
+    // 🔥 FIX: Refresh credit preview to show updated credit balance
+    if (formData.customerId) {
+      fetchCreditPreview(formData.customerId);
+    }
+    
     resetForm();
     
     if (location.state?.fromAccountsReceivable) {
@@ -804,31 +858,46 @@ const CashRegister = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredTransactions.map((transaction) => (
-                <tr key={transaction.id} className="hover:bg-gray-50">
+              {filteredTransactions.map((transaction) => {
+                const isDeleted = transaction.deletion_status === 'EXECUTED';
+                const isReversal = transaction.is_reversal === true;
+                
+                return (
+                <tr 
+                  key={transaction.id} 
+                  className={`hover:bg-gray-50 transition-colors ${
+                    isDeleted ? 'bg-red-50 opacity-75' : 
+                    isReversal ? 'bg-orange-50' : ''
+                  }`}
+                >
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {transaction.registrationNumber}
+                    <div className="flex items-center gap-2">
+                      {isDeleted && <span className="text-red-500">🗑️</span>}
+                      {isReversal && <span className="text-orange-500">↩️</span>}
+                      <span className={isDeleted ? 'line-through text-gray-500' : ''}>
+                        {transaction.registrationNumber}
+                      </span>
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(transaction.registrationDate).toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                      transaction.transactionType === 'INFLOW'
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-red-100 text-red-800'
-                    }`}>
-                      {transaction.transactionType === 'INFLOW' ? t('inflow') : t('outflow')}
-                    </span>
+                    {getTransactionStatusBadge(transaction)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {transaction.paymentMethod}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
-                    {transaction.description}
+                    <span className={isDeleted ? 'line-through text-gray-500' : ''}>
+                      {transaction.description}
+                    </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold">
-                    <span className={transaction.transactionType === 'INFLOW' ? 'text-green-600' : 'text-red-600'}>
+                    <span className={`${
+                      isDeleted ? 'line-through text-gray-500' : 
+                      transaction.transactionType === 'INFLOW' ? 'text-green-600' : 'text-red-600'
+                    }`}>
                       {transaction.transactionType === 'INFLOW' ? '+' : '-'}
                       {formatNumber(transaction.amount)}
                     </span>
@@ -842,7 +911,8 @@ const CashRegister = () => {
                     </button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

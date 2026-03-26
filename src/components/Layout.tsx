@@ -22,9 +22,14 @@ import {
   Receipt,
   TrendingUp,
   FolderTree,
+  LogOut,
+  User,
+  Shield,
+  Trash2,
 } from 'lucide-react';
 import LanguageSwitcher from './LanguageSwitcher';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
 
 interface LayoutProps {
   children: ReactNode;
@@ -33,6 +38,11 @@ interface LayoutProps {
 const Layout = ({ children }: LayoutProps) => {
   const location = useLocation();
   const { t } = useLanguage();
+  const { user, logout, isAuthenticated } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+  };
 
   const menuItems = [
     { path: '/', icon: LayoutDashboard, label: t('dashboard') },
@@ -51,6 +61,7 @@ const Layout = ({ children }: LayoutProps) => {
     { path: '/credit-balances', icon: Receipt, label: 'Credit Balances' },
     { path: '/cash-register', icon: Wallet, label: t('cashRegister') },
     { path: '/bank-register', icon: Building2, label: 'Bank Register' },
+    { path: '/credit-card-register', icon: CreditCard, label: 'Credit Card Register' },
     { path: '/bank-accounts', icon: Building2, label: t('bankAccounts') },
     { path: '/cash-register-masters', icon: DollarSign, label: t('cashRegisters') },
     { path: '/cards', icon: CreditCard, label: t('cards') },
@@ -61,6 +72,8 @@ const Layout = ({ children }: LayoutProps) => {
     { path: '/recent-activity', icon: Clock, label: 'Investors And Loans Recent Activity' },
     { path: '/investment-agreements', icon: FileText, label: 'Investment Agreements' },
     { path: '/adjustments', icon: Settings, label: t('adjustments') },
+    { path: '/data-classification', icon: Shield, label: 'Data Classification' },
+    { path: '/transaction-deletion', icon: Trash2, label: 'Transaction Deletion' },
     { path: '/reports', icon: BarChart3, label: t('reports') },
     //  { path: '/investments', icon: Package, label: t('investments') },
     // { path: '/prepaid-expenses', icon: Package, label: t('prepaidExpenses') },
@@ -106,7 +119,32 @@ const Layout = ({ children }: LayoutProps) => {
             <h2 className="text-xl font-semibold text-gray-800">
               {menuItems.find((item) => item.path === location.pathname)?.label || t('dashboard')}
             </h2>
-            <LanguageSwitcher />
+            
+            <div className="flex items-center space-x-4">
+              <LanguageSwitcher />
+              
+              {/* User Info and Logout - only show if authenticated */}
+              {isAuthenticated && user && (
+                <div className="flex items-center space-x-3">
+                  <div className="flex items-center space-x-2 text-sm text-gray-600">
+                    <User size={16} />
+                    <span>{user.firstName} {user.lastName}</span>
+                    <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
+                      {user.role}
+                    </span>
+                  </div>
+                  
+                  <button
+                    onClick={handleLogout}
+                    className="flex items-center space-x-1 px-3 py-2 text-sm text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                    title="Logout"
+                  >
+                    <LogOut size={16} />
+                    <span>Logout</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 

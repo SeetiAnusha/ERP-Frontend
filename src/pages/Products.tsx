@@ -1,113 +1,116 @@
-import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, Edit, Trash2, X, History } from 'lucide-react';
-import api from '../api/axios';
+import React from 'react';
+import { Plus, History } from 'lucide-react';
 import { Product } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import PriceHistoryModal from '../components/PriceHistoryModal';
-import { notify, handleApiError } from '../utils/notifications';
 import { formatNumber } from '../utils/formatNumber';
+
+// Reusable Components
+import Modal from '../components/common/Modal';
+import DataTable, { Column } from '../components/common/DataTable';
+import SearchBar from '../components/common/SearchBar';
+import ActionButton from '../components/common/ActionButton';
+import FormField from '../components/common/FormField';
+
+// Custom Hooks (simple, no Redux)
+import { useEntityApi } from '../hooks/useApi';
+import { useModal } from '../hooks/useModal';
+import { useForm } from '../hooks/useForm';
+import { useSearch } from '../hooks/useSearch';
+
+// Form validation
+const validateProduct = (values: any) => {
+  const errors: any = {};
+  
+  if (!values.code?.trim()) {
+    errors.code = 'Product code is required';
+  }
+  
+  if (!values.name?.trim()) {
+    errors.name = 'Product name is required';
+  }
+  
+  if (!values.unit?.trim()) {
+    errors.unit = 'Unit of measurement is required';
+  }
+  
+  return errors;
+};
 
 const Products = () => {
   const { t, language } = useLanguage();
-  const [products, setProducts] = useState<Product[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [showPriceHistory, setShowPriceHistory] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<{ id: number; name: string } | null>(null);
-  const [formData, setFormData] = useState({
-    code: '',
-    name: '',
-    description: '',
-    unit: '',
-    quantity: '',
-    unitCost: '',
-    salesPrice: '',
-    taxRate: 0,
-  });
+  
+  // Simple search state (no Redux)
+  const { searchTerm, setSearchTerm } = useSearch('products');
+  
+  // API and data management (now with simple caching)
+  const {
+    items: products,
+    loading,
+    fetchAll: fetchProducts,
+    create: createProduct,
+    update: updateProduct,
+    remove: deleteProduct
+  } = useEntityApi<Product>('/products', 'Product');
 
-  useEffect(() => {
-    fetchProducts();
-  }, []);
+  // Modal management
+  const productModal = useModal<Product>();
+  const priceHistoryModal = useModal<{ id: number; name: string }>();
 
-  const fetchProducts = async () => {
-    try {
-      const response = await api.get('/products');
-      setProducts(response.data);
-    } catch (error) {
-      handleApiError(error, 'Loading products');
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (isSubmitting) return; // Prevent double submission
-    
-    setIsSubmitting(true);
-    
-    try {
-      const amount = Number(formData.quantity) || 0;
-      const unitPrice = Number(formData.unitCost) || 0;
-      const salesPrice = Number(formData.salesPrice) || 0;
+  // Form management
+  const productForm = useForm({
+    initialValues: {
+      code: '',
+      name: '',
+      description: '',
+      unit: '',
+      quantity: '',
+      unitCost: '',
+      salesPrice: '',
+      taxRate: 18,
+    },
+    validate: validateProduct,
+    onSubmit: async (values) => {
+      const amount = Number(values.quantity) || 0;
+      const unitPrice = Number(values.unitCost) || 0;
+      const salesPrice = Number(values.salesPrice) || 0;
       const subtotal = amount * unitPrice;
       
-      // Validate required fields
-      if (!formData.unit || formData.unit.trim() === '') {
-        notify.warning('Missing unit', 'Please enter a unit of measurement (e.g., UNIT, KG, LB)');
-        setIsSubmitting(false);
-        return;
-      }
-      
       const productData = {
-        code: formData.code,
-        name: formData.name,
-        description: formData.description,
-        unit: formData.unit.trim(),
+        code: values.code,
+        name: values.name,
+        description: values.description,
+        unit: values.unit.trim(),
         amount: amount,
         unitCost: unitPrice,
         salesPrice: salesPrice,
         subtotal: subtotal,
         category: 'General',
         minimumStock: 10,
-        taxRate: formData.taxRate,
+        taxRate: values.taxRate,
         status: 'ACTIVE'
       };
 
-      if (editingProduct) {
-        await api.put(`/products/${editingProduct.id}`, productData);
-        notify.success('Product updated', 'Changes saved successfully');
+      if (productModal.data) {
+        await updateProduct(productModal.data.id, productData);
       } else {
-        await api.post('/products', productData);
-        notify.success('Product created', 'New product added to inventory');
+        await createProduct(productData);
       }
-      fetchProducts();
-      closeModal();
-    } catch (error: any) {
-      handleApiError(error, 'Saving product');
-    } finally {
-      setIsSubmitting(false);
+      
+      productModal.close();
+      productForm.reset();
     }
-  };
+  });
 
-  const handleDelete = async (id: number) => {
-    if (window.confirm('Are you sure you want to delete this product?')) {
-      try {
-        await api.delete(`/products/${id}`);
-        notify.success('Product deleted', 'Product removed from inventory');
-        fetchProducts();
-      } catch (error: any) {
-        handleApiError(error, 'Deleting product');
-      }
-    }
-  };
+  // Load products on mount
+  React.useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
 
-  const openModal = (product?: Product) => {
+  // Handle modal opening
+  const handleOpenModal = (product?: Product) => {
     if (product) {
-      setEditingProduct(product);
-      setFormData({
+      productForm.setValues({
         code: product.code,
         name: product.name,
         description: product.description || '',
@@ -115,318 +118,256 @@ const Products = () => {
         quantity: String(product.amount),
         unitCost: String(product.unitCost),
         salesPrice: String(product.salesPrice || 0),
-        taxRate: Number(product.taxRate) || 0,
+        taxRate: Number(product.taxRate) || 18,
       });
     } else {
-      setEditingProduct(null);
-      setFormData({ code: '', name: '', description: '', unit: '', quantity: '', unitCost: '', salesPrice: '', taxRate: 18 });
+      productForm.reset();
     }
-    setShowModal(true);
+    productModal.open(product);
   };
 
-  const closeModal = () => {
-    setShowModal(false);
-    setEditingProduct(null);
-    setFormData({ code: '', name: '', description: '', unit: '', quantity: '', unitCost: '', salesPrice: '', taxRate: 18 });
+  // Table columns configuration
+  const columns: Column<Product>[] = [
+    {
+      key: 'code',
+      label: t('productCode'),
+      render: (value) => <span className="font-medium">{value}</span>
+    },
+    {
+      key: 'name',
+      label: t('productName'),
+      render: (value) => <span className="font-medium">{value}</span>
+    },
+    {
+      key: 'description',
+      label: t('description'),
+      render: (value) => <span className="text-gray-600">{value || '-'}</span>
+    },
+    {
+      key: 'unit',
+      label: t('unitOfMeasurement'),
+      align: 'center'
+    },
+    {
+      key: 'amount',
+      label: t('amount'),
+      align: 'right',
+      render: (value) => formatNumber(Number(value))
+    },
+    {
+      key: 'unitCost',
+      label: t('unitPrice'),
+      align: 'right',
+      render: (value) => formatNumber(Number(value))
+    },
+    {
+      key: 'salesPrice',
+      label: t('salesPrice'),
+      align: 'right',
+      className: 'text-blue-600 font-semibold',
+      render: (value) => formatNumber(Number(value || 0))
+    },
+    {
+      key: 'id',
+      label: t('salesPriceHistory'),
+      align: 'center',
+      render: (_, row) => (
+        <ActionButton
+          onClick={() => priceHistoryModal.open({ id: row.id, name: row.name })}
+          icon={History}
+          variant="secondary"
+          size="sm"
+          className="mx-auto"
+        >
+          {t('history')}
+        </ActionButton>
+      )
+    }
+  ];
+
+  // Handle delete with proper signature
+  const handleDeleteProduct = (product: Product) => {
+    deleteProduct(product.id);
   };
 
-  const filteredProducts = products.filter((product) =>
+  // Filter products based on search
+  const filteredProducts = products.filter((product: Product) =>
     Object.values(product).some((value) =>
-      value.toString().toLowerCase().includes(searchTerm.toLowerCase())
+      value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
     )
   );
 
   return (
     <div>
+      {/* Header with Search and Add Button */}
       <div className="flex justify-between items-center mb-6">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-          <input
-            type="text"
-            placeholder={t('search')}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-        </div>
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => openModal()}
-          className="ml-4 bg-blue-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 shadow-lg"
+        <SearchBar
+          value={searchTerm}
+          onChange={setSearchTerm}
+          placeholder={t('search')}
+        />
+        
+        <ActionButton
+          onClick={() => handleOpenModal()}
+          icon={Plus}
+          className="ml-4"
         >
-          <Plus size={20} />
           {t('newProduct')}
-        </motion.button>
+        </ActionButton>
       </div>
 
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="bg-white rounded-xl shadow-lg overflow-x-auto"
+      {/* Products Table */}
+      <DataTable
+        data={filteredProducts}
+        columns={columns}
+        onEdit={handleOpenModal}
+        onDelete={handleDeleteProduct}
+        loading={loading}
+        emptyMessage="No products found"
+      />
+
+      {/* Product Form Modal */}
+      <Modal
+        isOpen={productModal.isOpen}
+        onClose={() => {
+          productModal.close();
+          productForm.reset();
+        }}
+        title={productModal.data ? `${t('edit')} ${t('products')}` : t('newProduct')}
+        size="lg"
+        maxHeight="95vh"
       >
-        <table className="w-full">
-          <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-20">
-            <tr>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('productCode').toUpperCase()}</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('productName').toUpperCase()}</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('description').toUpperCase()}</th>
-              <th className="px-6 py-4 text-center text-sm font-bold text-gray-800">{t('unitOfMeasurement').toUpperCase()}</th>
-              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('amount').toUpperCase()}</th>
-              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('unitPrice').toUpperCase()}</th>
-              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800 text-blue-600">{t('salesPrice').toUpperCase()}</th>
-              <th className="px-6 py-4 text-center text-sm font-bold text-gray-800 text-purple-600">{t('salesPriceHistory').toUpperCase()}</th>
-              {/* <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('subtotal').toUpperCase()}</th>
-              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('tax').toUpperCase()}</th>
-              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('total').toUpperCase()}</th> */}
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('actions').toUpperCase()}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <AnimatePresence>
-              {filteredProducts.map((product, index) => {
-                // Display stored database values directly
-                const amount = Number(product.amount);           // Amount from DB
-                const unitPrice = Number(product.unitCost);       // Unit Price from DB
-                // const storedSubtotal = Number(product.subtotal);  // SUBTOTAL from DB
-                // const taxRate = Number(product.taxRate);
-                // const tax = taxRate;
-                // const total = storedSubtotal + tax;
-                
-                return (
-                <motion.tr
-                  key={product.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, x: -100 }}
-                  transition={{ delay: index * 0.05 }}
-                  className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
-                >
-                  <td className="px-6 py-4 text-sm font-medium">{product.code}</td>
-                  <td className="px-6 py-4 text-sm font-medium">{product.name}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{product.description || '-'}</td>
-                  <td className="px-6 py-4 text-sm text-center">{product.unit}</td>
-                  <td className="px-6 py-4 text-sm text-right">{formatNumber(amount)}</td>
-                  <td className="px-6 py-4 text-sm text-right">{formatNumber(unitPrice)}</td>
-                  <td className="px-6 py-4 text-sm text-right text-blue-600 font-semibold">{formatNumber(Number(product.salesPrice || 0))}</td>
-                  <td className="px-6 py-4 text-center">
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => {
-                        setSelectedProduct({ id: product.id, name: product.name });
-                        setShowPriceHistory(true);
-                      }}
-                      className="px-3 py-1.5 text-purple-600 hover:bg-purple-50 rounded-lg border border-purple-200 hover:border-purple-300 transition-all flex items-center gap-1 mx-auto"
-                      title={t('viewSalesPriceHistory')}
-                    >
-                      <History size={16} />
-                      <span className="text-xs font-medium">{t('history')}</span>
-                    </motion.button>
-                  </td>
-                  {/* <td className="px-6 py-4 text-sm text-right">{storedSubtotal.toFixed(2)}</td>
-                  <td className="px-6 py-4 text-sm text-right">{tax.toFixed(2)}</td>
-                  <td className="px-6 py-4 text-sm font-semibold text-right text-green-600">{total.toFixed(2)}</td> */}
-                  <td className="px-6 py-4">
-                    <div className="flex gap-2">
-                      <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                        onClick={() => openModal(product)}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
-                        title={t('editProduct')}
-                      >
-                        <Edit size={18} />
-                      </motion.button>
-                      <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                        onClick={() => handleDelete(product.id)}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                        title={t('deleteProduct')}
-                      >
-                        <Trash2 size={18} />
-                      </motion.button>
-                    </div>
-                  </td>
-                </motion.tr>
-                );
-              })}
-            </AnimatePresence>
-          </tbody>
-        </table>
-      </motion.div>
+        <form onSubmit={productForm.handleSubmit} className="flex flex-col h-full">
+          <div className="flex-1 overflow-y-scroll px-6 py-4 space-y-4 max-h-[65vh] scrollbar-always">
+            <FormField label={t('code')} required error={productForm.errors.code}>
+              <input
+                type="text"
+                value={productForm.values.code}
+                onChange={(e) => productForm.setValue('code', e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="PROD001"
+              />
+            </FormField>
 
-      <AnimatePresence>
-        {showModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-            onClick={closeModal}
-          >
-            <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col"
+            <FormField label={t('name')} required error={productForm.errors.name}>
+              <input
+                type="text"
+                value={productForm.values.name}
+                onChange={(e) => productForm.setValue('name', e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder={t('productName')}
+              />
+            </FormField>
+
+            <FormField label={t('description')}>
+              <textarea
+                value={productForm.values.description}
+                onChange={(e) => productForm.setValue('description', e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder={`${t('description')} (${t('optional')})`}
+                rows={3}
+              />
+            </FormField>
+
+            <FormField label={t('unitOfMeasurement')} required error={productForm.errors.unit}>
+              <input
+                type="text"
+                value={productForm.values.unit}
+                onChange={(e) => productForm.setValue('unit', e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="UNIT, KG, LB, etc."
+              />
+              <p className="text-xs text-gray-500 mt-1">Required. Can be updated when making a purchase</p>
+            </FormField>
+
+            <FormField label={`${t('amount')} (${t('optional')})`}>
+              <input
+                type="text"
+                value={productForm.values.quantity}
+                onChange={(e) => productForm.setValue('quantity', e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="0 or 1,000"
+              />
+              <p className="text-xs text-gray-500 mt-1">Stock will be updated from purchases. Format: 1,000.00</p>
+            </FormField>
+
+            <FormField label={`${t('unitPrice')} (${t('optional')})`}>
+              <input
+                type="text"
+                value={productForm.values.unitCost}
+                onChange={(e) => productForm.setValue('unitCost', e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="0.00 or 10.99"
+              />
+              <p className="text-xs text-gray-500 mt-1">Cost will be updated from purchases. Format: 1,000.00</p>
+            </FormField>
+
+            <FormField label={`${t('salesPrice')} (${t('optional')})`}>
+              <input
+                type="text"
+                value={productForm.values.salesPrice}
+                onChange={(e) => productForm.setValue('salesPrice', e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="0.00 or 38.00"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                <span className="font-medium text-blue-600">✓ {language === 'en' ? 'Can be updated at any time.' : 'Puede actualizarse en cualquier momento.'}</span> {language === 'en' ? 'Selling price for this product.' : 'Precio de venta para este producto.'}
+              </p>
+            </FormField>
+
+            <FormField label={t('subtotal').toUpperCase()}>
+              <input
+                type="text"
+                readOnly
+                value={formatNumber((Number(productForm.values.quantity) || 0) * (Number(productForm.values.unitCost) || 0))}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700 font-semibold"
+              />
+              <p className="text-xs text-gray-500 mt-1">{t('amount')} × {t('unitPrice')}</p>
+            </FormField>
+
+            <FormField label={`${t('tax')} (${t('optional')})`}>
+              <input
+                type="text"
+                value={productForm.values.taxRate}
+                onChange={(e) => productForm.setValue('taxRate', parseFloat(e.target.value) || 0)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="18.00"
+              />
+              <p className="text-xs text-gray-500 mt-1">Tax amount (not %). Can be updated from purchases. Format: 10.99</p>
+            </FormField>
+          </div>
+
+          <div className="flex gap-3 p-6 pt-4 border-t border-gray-200 bg-gray-50">
+            <button
+              type="button"
+              onClick={() => {
+                productModal.close();
+                productForm.reset();
+              }}
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 bg-white"
             >
-              <div className="flex justify-between items-center p-6 pb-4 border-b border-gray-200">
-                <h2 className="text-2xl font-bold">{editingProduct ? t('edit') + ' ' + t('products') : t('newProduct')}</h2>
-                <button onClick={closeModal} className="text-gray-400 hover:text-gray-600">
-                  <X size={24} />
-                </button>
-              </div>
-              <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
-                <div className="overflow-y-auto px-6 py-4 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('code')} *</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.code}
-                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="PROD001"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('name')} *</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder={t('productName')}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('description')}</label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder={t('description') + ' (' + t('optional') + ')'}
-                    rows={3}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('unitOfMeasurement')} *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.unit}
-                    onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="UNIT, KG, LB, etc."
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Required. Can be updated when making a purchase</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('amount')} <span className="text-gray-400 text-xs">({t('optional')})</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.quantity}
-                    onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="0 or 1,000"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Stock will be updated from purchases. Format: 1,000.00</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('unitPrice')} <span className="text-gray-400 text-xs">({t('optional')})</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.unitCost}
-                    onChange={(e) => setFormData({ ...formData, unitCost: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="0.00 or 10.99"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Cost will be updated from purchases. Format: 1,000.00</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('salesPrice')} <span className="text-gray-400 text-xs">({t('optional')})</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.salesPrice}
-                    onChange={(e) => setFormData({ ...formData, salesPrice: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="0.00 or 38.00"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    <span className="font-medium text-blue-600">✓ {language === 'en' ? 'Can be updated at any time.' : 'Puede actualizarse en cualquier momento.'}</span> {language === 'en' ? 'Selling price for this product.' : 'Precio de venta para este producto.'}
-                  </p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('subtotal').toUpperCase()}</label>
-                  <input
-                    type="text"
-                    readOnly
-                    value={formatNumber((Number(formData.quantity) || 0) * (Number(formData.unitCost) || 0))}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700 font-semibold"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">{t('amount')} × {t('unitPrice')}</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('tax')} <span className="text-gray-400 text-xs">({t('optional')})</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.taxRate}
-                    onChange={(e) => setFormData({ ...formData, taxRate: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="18.00"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Tax amount (not %). Can be updated from purchases. Format: 10.99</p>
-                </div>
-                </div>
-                <div className="flex gap-3 p-6 pt-4 border-t border-gray-200 bg-gray-50">
-                  <button
-                    type="button"
-                    onClick={closeModal}
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 bg-white"
-                  >
-                    {t('cancel')}
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
-                  >
-                    {isSubmitting ? 'Saving...' : t('save')}
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              {t('cancel')}
+            </button>
+            <button
+              type="submit"
+              disabled={productForm.isSubmitting}
+              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+            >
+              {productForm.isSubmitting ? 'Saving...' : t('save')}
+            </button>
+          </div>
+        </form>
+      </Modal>
 
-      <AnimatePresence>
-        {showPriceHistory && selectedProduct && (
-          <PriceHistoryModal
-            productId={selectedProduct.id}
-            productName={selectedProduct.name}
-            onClose={() => {
-              setShowPriceHistory(false);
-              setSelectedProduct(null);
-            }}
-            onPriceUpdated={fetchProducts}
-          />
-        )}
-      </AnimatePresence>
+      {/* Price History Modal */}
+      {priceHistoryModal.isOpen && priceHistoryModal.data && (
+        <PriceHistoryModal
+          productId={priceHistoryModal.data.id}
+          productName={priceHistoryModal.data.name}
+          onClose={() => priceHistoryModal.close()}
+          onPriceUpdated={fetchProducts}
+        />
+      )}
     </div>
   );
 };

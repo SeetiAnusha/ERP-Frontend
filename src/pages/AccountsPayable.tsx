@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Search, DollarSign, CheckCircle, Clock, XCircle, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -81,6 +81,44 @@ const AccountsPayablePage = () => {
       name: ap.supplierName || t('supplier'),
       badgeClass: 'bg-green-100 text-green-800 border-green-300',
     };
+  };
+
+  // 🔥 NEW: Helper function to check if transaction is deleted
+  const isTransactionDeleted = (ap: AccountsPayable) => {
+    return ap.deletion_status === 'EXECUTED';
+  };
+
+  // 🔥 NEW: Helper function to get deletion status info
+  const getDeletionStatusInfo = (ap: AccountsPayable) => {
+    if (!ap.deletion_status || ap.deletion_status === 'NONE') {
+      return null;
+    }
+
+    const statusConfig = {
+      'REQUESTED': {
+        icon: '⏳',
+        label: 'Deletion Requested',
+        bgClass: 'bg-yellow-50 border-yellow-200',
+        textClass: 'text-yellow-800',
+        badgeClass: 'bg-yellow-100 text-yellow-800'
+      },
+      'APPROVED': {
+        icon: '✅',
+        label: 'Deletion Approved',
+        bgClass: 'bg-orange-50 border-orange-200',
+        textClass: 'text-orange-800',
+        badgeClass: 'bg-orange-100 text-orange-800'
+      },
+      'EXECUTED': {
+        icon: '🗑️',
+        label: 'DELETED',
+        bgClass: 'bg-red-50 border-red-200',
+        textClass: 'text-red-800',
+        badgeClass: 'bg-red-100 text-red-800'
+      }
+    };
+
+    return statusConfig[ap.deletion_status] || null;
   };
 
   const getStatusBadge = (status: string) => {
@@ -327,6 +365,8 @@ const AccountsPayablePage = () => {
             ) : (
               filteredAP.map((ap, index) => {
                 const payableEntity = getPayableEntity(ap); // ✅ DSA: Compute once, use multiple times (efficiency)
+                const deletionInfo = getDeletionStatusInfo(ap);
+                const isDeleted = isTransactionDeleted(ap);
                 
                 return (
                 <motion.tr
@@ -334,7 +374,9 @@ const AccountsPayablePage = () => {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
-                  className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                  className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${
+                    deletionInfo ? deletionInfo.bgClass : ''
+                  } ${isDeleted ? 'opacity-60' : ''}`}
                 >
                   {/* ✅ Phase 6: Payable To Column */}
                   <td className="px-4 py-4 text-sm whitespace-nowrap">
@@ -344,6 +386,13 @@ const AccountsPayablePage = () => {
                         <span>{payableEntity.label}</span>
                       </span>
                       <span className="text-xs text-gray-600 font-medium">{payableEntity.name}</span>
+                      {/* 🔥 NEW: Deletion Status Indicator */}
+                      {deletionInfo && (
+                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-bold border ${deletionInfo.badgeClass} w-fit`}>
+                          <span>{deletionInfo.icon}</span>
+                          <span>{deletionInfo.label}</span>
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="px-4 py-4 text-sm whitespace-nowrap">{ap.type}</td>
@@ -400,7 +449,17 @@ const AccountsPayablePage = () => {
                   </td>
                   <td className="px-4 py-4 text-center whitespace-nowrap">{getStatusBadge(ap.status)}</td>
                   <td className="px-4 py-4 text-center whitespace-nowrap">
-                    {(ap.status !== 'Paid' && ap.status !== 'Received') && Number(ap.balanceAmount) > 0 && (
+                    {/* 🔥 CRITICAL: Disable payment for deleted transactions */}
+                    {isDeleted ? (
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-sm font-medium border border-red-200">
+                          🗑️ Transaction Deleted
+                        </span>
+                        <span className="text-xs text-red-600">
+                          {ap.deleted_at ? `Deleted on ${new Date(ap.deleted_at).toLocaleDateString()}` : 'Cannot be paid'}
+                        </span>
+                      </div>
+                    ) : (ap.status !== 'Paid' && ap.status !== 'Received') && Number(ap.balanceAmount) > 0 ? (
                       <>
                         {/* Show Pay via Bank button for Credit payment type only */}
                         {((ap.paymentType === 'CREDIT' || ap.paymentType === 'Credit') || 
@@ -423,7 +482,7 @@ const AccountsPayablePage = () => {
                           </button>
                         )}
                       </>
-                    )}
+                    ) : null}
                   </td>
                 </motion.tr>
                 );

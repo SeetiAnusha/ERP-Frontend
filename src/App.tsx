@@ -1,6 +1,8 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { LanguageProvider } from './contexts/LanguageContext';
+import { AuthProvider } from './contexts/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Products from './pages/Products';
@@ -15,6 +17,7 @@ import PrepaidExpenses from './pages/PrepaidExpenses';
 // import Payments from './pages/Payments';
 import CashRegister from './pages/CashRegister';
 import BankRegister from './pages/BankRegister';
+import CreditCardRegister from './pages/CreditCardRegister';
 import Adjustments from './pages/Adjustments';
 import Reports from './pages/Reports';
 import PPEReport from './pages/PPEReport';
@@ -35,61 +38,92 @@ import CreditBalances from './pages/CreditBalances';
 // Expense Management
 import BusinessExpenses from './pages/BusinessExpenses';
 import ExpenseCategories from './pages/ExpenseCategories';
+// Data Classification
+import DataClassification from './pages/DataClassification';
+// Transaction Deletion
+import TransactionDeletion from './pages/TransactionDeletion';
+// Authentication
+import Authentication from './pages/Authentication';
 
 function App() {
   return (
     <LanguageProvider>
-      <Toaster 
-        position="top-center" 
-        closeButton 
-        toastOptions={{
-          style: {
-            marginTop: '0px',
-          },
-          classNames: {
-            success: 'toast-success-blue',
-          },
-        }}
-      />
-      <Router>
-        <Layout>
+      <AuthProvider>
+        <Toaster 
+          position="top-center" 
+          closeButton 
+          toastOptions={{
+            style: {
+              marginTop: '0px',
+            },
+            classNames: {
+              success: 'toast-success-blue',
+            },
+          }}
+        />
+        <Router>
           <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/products" element={<Products />} />
-            <Route path="/inventory" element={<Inventory />} />
-            <Route path="/sales" element={<Sales />} />
-            <Route path="/clients" element={<Clients />} />
-            <Route path="/purchases" element={<Purchases />} />
-            <Route path="/suppliers" element={<Suppliers />} />
-            {/* Expense Management Routes */}
-            <Route path="/business-expenses" element={<BusinessExpenses />} />
-            <Route path="/expense-categories" element={<ExpenseCategories />} />
-            <Route path="/fixed-assets" element={<FixedAssets />} />
-            <Route path="/investments" element={<Investments />} /> 
-            <Route path="/prepaid-expenses" element={<PrepaidExpenses />} /> 
-            {/* <Route path="/payments" element={<Payments />} /> */}
-            <Route path="/cash-register" element={<CashRegister />} />
-            <Route path="/bank-register" element={<BankRegister />} />
-            <Route path="/adjustments" element={<Adjustments />} /> 
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/reports/ppe" element={<PPEReport />} />
-            <Route path="/reports/investments" element={<InvestmentReport />} />
-            <Route path="/accounts-receivable" element={<AccountsReceivable />} />
-            <Route path="/accounts-payable" element={<AccountsPayable />} />
-            <Route path="/bank-accounts" element={<BankAccounts />} />
-            <Route path="/cash-register-masters" element={<CashRegisterMasters />} />
-            <Route path="/cards" element={<Cards />} />
-            <Route path="/financers" element={<Financers />} />
-            <Route path="/investors" element={<Investors />} />
-            <Route path="/banks" element={<Banks />} />
-            <Route path="/recent-activity" element={<RecentActivity />} />
-            <Route path="/investment-agreements" element={<InvestmentAgreements />} />
-            <Route path="/card-payment-networks" element={<CardPaymentNetworks />} />
-            <Route path="/credit-balances" element={<CreditBalances />} />
-            <Route path="/expense-debug" element={<ExpenseDebug />} />
+            {/* Public Authentication Route - redirects to dashboard if already logged in */}
+            <Route 
+              path="/auth" 
+              element={
+                <ProtectedRoute requireAuth={false}>
+                  <Authentication />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Protected Application Routes - requires authentication */}
+            <Route 
+              path="/*" 
+              element={
+                <ProtectedRoute requireAuth={true}>
+                  <Layout>
+                    <Routes>
+                      <Route path="/" element={<Dashboard />} />
+                      <Route path="/products" element={<Products />} />
+                      <Route path="/inventory" element={<Inventory />} />
+                      <Route path="/sales" element={<Sales />} />
+                      <Route path="/clients" element={<Clients />} />
+                      <Route path="/purchases" element={<Purchases />} />
+                      <Route path="/suppliers" element={<Suppliers />} />
+                      {/* Expense Management Routes */}
+                      <Route path="/business-expenses" element={<BusinessExpenses />} />
+                      <Route path="/expense-categories" element={<ExpenseCategories />} />
+                      <Route path="/fixed-assets" element={<FixedAssets />} />
+                      <Route path="/investments" element={<Investments />} /> 
+                      <Route path="/prepaid-expenses" element={<PrepaidExpenses />} /> 
+                      {/* <Route path="/payments" element={<Payments />} /> */}
+                      <Route path="/cash-register" element={<CashRegister />} />
+                      <Route path="/bank-register" element={<BankRegister />} />
+                      <Route path="/credit-card-register" element={<CreditCardRegister />} />
+                      <Route path="/adjustments" element={<Adjustments />} /> 
+                      <Route path="/reports" element={<Reports />} />
+                      <Route path="/reports/ppe" element={<PPEReport />} />
+                      <Route path="/reports/investments" element={<InvestmentReport />} />
+                      <Route path="/accounts-receivable" element={<AccountsReceivable />} />
+                      <Route path="/accounts-payable" element={<AccountsPayable />} />
+                      <Route path="/bank-accounts" element={<BankAccounts />} />
+                      <Route path="/cash-register-masters" element={<CashRegisterMasters />} />
+                      <Route path="/cards" element={<Cards />} />
+                      <Route path="/financers" element={<Financers />} />
+                      <Route path="/investors" element={<Investors />} />
+                      <Route path="/banks" element={<Banks />} />
+                      <Route path="/recent-activity" element={<RecentActivity />} />
+                      <Route path="/investment-agreements" element={<InvestmentAgreements />} />
+                      <Route path="/card-payment-networks" element={<CardPaymentNetworks />} />
+                      <Route path="/credit-balances" element={<CreditBalances />} />
+                      <Route path="/data-classification" element={<DataClassification />} />
+                      <Route path="/transaction-deletion" element={<TransactionDeletion />} />
+                      <Route path="/expense-debug" element={<ExpenseDebug />} />
+                    </Routes>
+                  </Layout>
+                </ProtectedRoute>
+              } 
+            />
           </Routes>
-        </Layout>
-      </Router>
+        </Router>
+      </AuthProvider>
     </LanguageProvider>
   );
 }

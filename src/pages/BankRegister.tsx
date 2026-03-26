@@ -30,6 +30,17 @@ interface BankTransaction {
   supplierId?: number;
   supplierName?: string;
   invoiceIds?: string;
+  originalPaymentType?: string; // ⭐ NEW: Original payment type (CREDIT, CASH, etc.)
+  sourceTransactionType?: string; // ⭐ NEW: Source transaction type
+  
+  // ✅ NEW: Deletion tracking fields
+  deletion_status?: string;
+  deleted_at?: string;
+  deleted_by?: number;
+  deletion_reason_code?: string;
+  deletion_memo?: string;
+  is_reversal?: boolean;
+  original_transaction_id?: number;
 }
 
 interface BankAccount {
@@ -107,7 +118,38 @@ const BankRegister = () => {
     fetchTransactions();
     fetchBankAccounts();
     fetchSuppliers();
+  }, []);
+
+  // ✅ NEW: Status badge function for deletion indicators
+  const getTransactionStatusBadge = (transaction: BankTransaction) => {
+    if (transaction.deletion_status === 'EXECUTED') {
+      return (
+        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-300">
+          🗑️ DELETED
+        </span>
+      );
+    }
     
+    if (transaction.is_reversal) {
+      return (
+        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 border border-orange-300">
+          ↩️ REVERSAL
+        </span>
+      );
+    }
+    
+    return (
+      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+        transaction.transactionType === 'INFLOW' 
+          ? 'bg-green-100 text-green-800' 
+          : 'bg-red-100 text-red-800'
+      }`}>
+        {transaction.transactionType === 'INFLOW' ? '📈 INFLOW' : '📉 OUTFLOW'}
+      </span>
+    );
+  };
+
+  useEffect(() => {
     // Handle pre-filled data from Accounts Payable
     if (location.state?.prefilledData && location.state?.fromAccountsPayable) {
       const prefilledData = location.state.prefilledData;
@@ -118,6 +160,7 @@ const BankRegister = () => {
         amount: prefilledData.amount,
         description: prefilledData.description,
         supplierId: prefilledData.supplierId?.toString() || '',
+        clientName: prefilledData.supplierName || '', // ✅ Set client name from supplier name
       }));
       
       // For Accounts Payable payments, we don't need to fetch pending invoices
@@ -518,13 +561,14 @@ const BankRegister = () => {
               <tr>
                 <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('registrationHash')}</th>
                 <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('date')}</th>
+                <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('source')}</th>
+                <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('docNumber')}</th>
                 <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('type')}</th>
                 <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('method')}</th>
                 <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('clientName')}/{t('supplier')}</th>
-                <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('clientRnc')}</th>
-                <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('ncf')}</th>
+                <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('bankAccount')}</th>
+                <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('originalType')}</th>
                 <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('chequeTransferNumber')}</th>
-                <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('description')}</th>
                 <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('amount')}</th>
                 <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('balance')}</th>
                 <th className="px-6 py-4 text-center text-sm font-bold text-gray-800">{t('actions')}</th>
@@ -533,47 +577,100 @@ const BankRegister = () => {
             <tbody>
               {filteredTransactions.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={13} className="px-6 py-8 text-center text-gray-500">
                     {t('noTransactionsFound')}
                   </td>
                 </tr>
               ) : (
-                filteredTransactions.map((transaction, index) => (
+                filteredTransactions.map((transaction, index) => {
+                  const isDeleted = transaction.deletion_status === 'EXECUTED';
+                  const isReversal = transaction.is_reversal === true;
+                  
+                  return (
                   <motion.tr
                     key={transaction.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.05 }}
-                    className="border-b border-gray-100 hover:bg-gray-50"
+                    className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${
+                      isDeleted ? 'bg-red-50 opacity-75' : 
+                      isReversal ? 'bg-orange-50' : ''
+                    }`}
                   >
-                    <td className="px-6 py-4 text-sm font-medium">{transaction.registrationNumber}</td>
+                    <td className="px-6 py-4 text-sm font-medium">
+                      <div className="flex items-center gap-2">
+                        {isDeleted && <span className="text-red-500">🗑️</span>}
+                        {isReversal && <span className="text-orange-500">↩️</span>}
+                        <span className={isDeleted ? 'line-through text-gray-500' : ''}>
+                          {transaction.registrationNumber}
+                        </span>
+                      </div>
+                    </td>
                     <td className="px-6 py-4 text-sm">{new Date(transaction.registrationDate).toLocaleDateString()}</td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${
-                        transaction.transactionType === 'INFLOW' 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-red-100 text-red-800'
+                    
+                    {/* ⭐ NEW: Source Column */}
+                    <td className="px-6 py-4 text-sm">
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                        transaction.relatedDocumentType === 'Purchase' ? 'bg-blue-100 text-blue-800' :
+                        transaction.relatedDocumentType === 'Business Expense' ? 'bg-purple-100 text-purple-800' :
+                        transaction.relatedDocumentType === 'AP' ? 'bg-red-100 text-red-800' :
+                        transaction.relatedDocumentType === 'AR' ? 'bg-green-100 text-green-800' :
+                        transaction.relatedDocumentType === 'Sale' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-gray-100 text-gray-800'
                       }`}>
-                        {transaction.transactionType === 'INFLOW' ? <FaArrowDown /> : <FaArrowUp />}
-                        {transaction.transactionType}
+                        {transaction.relatedDocumentType || 'Manual'}
                       </span>
+                    </td>
+                    
+                    {/* ⭐ NEW: Document Number Column */}
+                    <td className="px-6 py-4 text-sm font-medium text-blue-600">
+                      {transaction.relatedDocumentNumber || '-'}
+                    </td>
+                    
+                    <td className="px-6 py-4">
+                      {getTransactionStatusBadge(transaction)}
                     </td>
                     <td className="px-6 py-4 text-sm">{transaction.paymentMethod}</td>
                     <td className="px-6 py-4 text-sm">{transaction.clientName || '-'}</td>
-                    <td className="px-6 py-4 text-sm">{transaction.clientRnc || '-'}</td>
-                    <td className="px-6 py-4 text-sm">{transaction.ncf || '-'}</td>
+                    
+                    {/* ⭐ NEW: Bank Account Column */}
+                    <td className="px-6 py-4 text-sm">
+                      {transaction.bankAccountName ? (
+                        <span className="text-blue-600 font-medium">
+                          {transaction.bankAccountName}
+                        </span>
+                      ) : '-'}
+                    </td>
+                    
+                    {/* ⭐ NEW: Original Payment Type Column */}
+                    <td className="px-6 py-4 text-sm">
+                      {transaction.originalPaymentType ? (
+                        <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
+                          transaction.originalPaymentType === 'CREDIT' ? 'bg-orange-100 text-orange-800' :
+                          transaction.originalPaymentType === 'CASH' ? 'bg-green-100 text-green-800' :
+                          transaction.originalPaymentType === 'BANK_TRANSFER' ? 'bg-blue-100 text-blue-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {transaction.originalPaymentType}
+                        </span>
+                      ) : '-'}
+                    </td>
+                    
                     <td className="px-6 py-4 text-sm font-medium text-blue-600">
                       {transaction.chequeNumber || transaction.transferNumber || transaction.referenceNumber || '-'}
-                    </td>
-                    <td className="px-6 py-4 text-sm max-w-xs truncate" title={transaction.description}>
-                      {transaction.description}
                     </td>
                     <td className={`px-6 py-4 text-sm font-semibold text-right ${
                       transaction.transactionType === 'INFLOW' ? 'text-green-600' : 'text-red-600'
                     }`}>
-                      {transaction.transactionType === 'INFLOW' ? '+' : '-'}{formatNumber(transaction.amount)}
+                      <span className={isDeleted ? 'line-through text-gray-500' : ''}>
+                        {transaction.transactionType === 'INFLOW' ? '+' : '-'}{formatNumber(transaction.amount)}
+                      </span>
                     </td>
-                    <td className="px-6 py-4 text-sm font-semibold text-right">{formatNumber(transaction.balance)}</td>
+                    <td className="px-6 py-4 text-sm font-semibold text-right">
+                      <span className={isDeleted ? 'line-through text-gray-500' : ''}>
+                        {formatNumber(transaction.balance)}
+                      </span>
+                    </td>
                     <td className="px-6 py-4 text-center">
                       <button
                         onClick={() => handleDelete(transaction.id)}
@@ -584,7 +681,8 @@ const BankRegister = () => {
                       </button>
                     </td>
                   </motion.tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -758,10 +856,10 @@ const BankRegister = () => {
                           selectedInvoices.includes(invoice.id)
                         );
                         totalOutstandingBalance = selectedInvoiceData.reduce((sum, invoice) => 
-                          sum + parseFloat(invoice.balanceAmount.toString()), 0
+                          sum + Number(invoice.balanceAmount.toString()), 0
                         );
                       } else if (location.state?.fromAccountsPayable) {
-                        totalOutstandingBalance = parseFloat(location.state.prefilledData?.amount || '0');
+                        totalOutstandingBalance = Number(location.state.prefilledData?.amount || '0');
                       }
                       
                       if (paymentAmount > totalOutstandingBalance && totalOutstandingBalance > 0) {
@@ -780,6 +878,39 @@ const BankRegister = () => {
                   )}
                 </div>
 
+                {/* <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('clientName')}</label>
+                  <input
+                    type="text"
+                    value={formData.clientName}
+                    onChange={(e) => setFormData({ ...formData, clientName: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder={t('enterClientName')}
+                  />
+                </div> */}
+
+                {/* <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('clientRnc')}</label>
+                  <input
+                    type="text"
+                    value={formData.clientRnc}
+                    onChange={(e) => setFormData({ ...formData, clientRnc: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder={t('enterClientRnc')}
+                  />
+                </div> */}
+
+                {/* <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('referenceNumber')}</label>
+                  <input
+                    type="text"
+                    value={formData.referenceNumber}
+                    onChange={(e) => setFormData({ ...formData, referenceNumber: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder={t('enterReferenceNumber')}
+                  />
+                </div>
+
                 <div className="col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">{t('description')} *</label>
                   <textarea
@@ -790,7 +921,7 @@ const BankRegister = () => {
                     rows={3}
                     placeholder={t('describeTransaction')}
                   />
-                </div>
+                </div> */}
               </div>
 
               {/* Pending Invoices Selection */}
@@ -856,7 +987,7 @@ const BankRegister = () => {
                 </div>
               )}
 
-              {formData.transactionType === 'OUTFLOW' && formData.supplierId && pendingInvoices.length === 0 && (
+              {formData.transactionType === 'OUTFLOW' && formData.supplierId && pendingInvoices.length === 0 && !location.state?.prefilledData?.accountsPayableId && (
                 <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                   <p className="text-yellow-800">{t('noPendingInvoicesForSupplier')}</p>
                 </div>

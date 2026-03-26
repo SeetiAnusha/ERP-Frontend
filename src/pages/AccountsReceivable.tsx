@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Search, DollarSign, CheckCircle, Clock, XCircle, Plus } from 'lucide-react';
+import { Search, DollarSign, CheckCircle, Clock, XCircle, Plus, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { AccountsReceivable } from '../types/accountsTypes';
@@ -184,6 +184,48 @@ const AccountsReceivablePage = () => {
     fetchAccountsReceivable();
   };
 
+  // ✅ NEW: Handle AR deletion - navigate to transaction deletion page
+  const handleDelete = (ar: AccountsReceivable) => {
+    navigate('/transaction-deletion', {
+      state: {
+        entityType: 'ACCOUNTS_RECEIVABLE',
+        entityId: ar.id,
+        transactionDetails: {
+          registrationNumber: ar.registrationNumber,
+          amount: ar.amount,
+          description: `${ar.type} - ${ar.relatedDocumentNumber} - ${ar.clientName || ar.cardNetwork}`,
+          type: ar.type,
+          relatedDocumentType: ar.relatedDocumentType,
+          relatedDocumentNumber: ar.relatedDocumentNumber,
+          clientName: ar.clientName || ar.cardNetwork,
+          receivedAmount: ar.receivedAmount,
+          balanceAmount: ar.balanceAmount
+        }
+      }
+    });
+  };
+
+  // ✅ NEW: Status badge function for deletion indicators
+  const getARStatusBadge = (ar: AccountsReceivable) => {
+    if (ar.deletion_status === 'EXECUTED') {
+      return (
+        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-300">
+          🗑️ DELETED
+        </span>
+      );
+    }
+    
+    if (ar.is_reversal) {
+      return (
+        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 border border-orange-300">
+          ↩️ REVERSAL
+        </span>
+      );
+    }
+    
+    return getStatusBadge(ar.status);
+  };
+
   const renderARTable = (arList: AccountsReceivable[], title?: string) => (
     <div className="mb-6">
       {title && (
@@ -230,69 +272,96 @@ const AccountsReceivablePage = () => {
                 </td>
               </tr>
             ) : (
-              arList.map((ar, index) => (
+              arList.map((ar, index) => {
+                const isDeleted = ar.deletion_status === 'EXECUTED';
+                const isReversal = ar.is_reversal === true;
+                
+                return (
                 <motion.tr
                   key={ar.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
-                  className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                  className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${
+                    isDeleted ? 'bg-red-50 opacity-75' : 
+                    isReversal ? 'bg-orange-50' : ''
+                  }`}
                 >
-                  <td className="px-6 py-4 text-sm font-medium">{ar.registrationNumber}</td>
+                  <td className="px-6 py-4 text-sm font-medium">
+                    <div className="flex items-center gap-2">
+                      {isDeleted && <span className="text-red-500">🗑️</span>}
+                      {isReversal && <span className="text-orange-500">↩️</span>}
+                      <span className={isDeleted ? 'line-through text-gray-500' : ''}>
+                        {ar.registrationNumber}
+                      </span>
+                    </div>
+                  </td>
                   <td className="px-6 py-4 text-sm">{new Date(ar.registrationDate).toLocaleDateString()}</td>
                   <td className="px-6 py-4 text-sm">{ar.type}</td>
                   <td className="px-6 py-4 text-sm">
                     {ar.clientName && ar.cardNetwork ? (
                       <div>
                         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mb-1">
-                          👤 Customer
+                          � Customer
                         </span>
-                        <div className="text-sm font-medium text-gray-900">{ar.clientName}</div>
+                        <div className={`text-sm font-medium ${isDeleted ? 'line-through text-gray-500' : 'text-gray-900'}`}>{ar.clientName}</div>
                         <div className="text-xs text-purple-600 mt-1">via {ar.cardNetwork}</div>
                       </div>
                     ) : ar.clientName && !ar.cardNetwork ? (
                       <div>
                         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mb-1">
-                          👤 Customer
+                          � Customer
                         </span>
-                        <div className="text-sm font-medium text-gray-900">{ar.clientName}</div>
+                        <div className={`text-sm font-medium ${isDeleted ? 'line-through text-gray-500' : 'text-gray-900'}`}>{ar.clientName}</div>
                       </div>
                     ) : ar.cardNetwork || ar.type === 'CREDIT_CARD_SALE' ? (
                       <div>
                         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 mb-1">
                           💳 Card Company
                         </span>
-                        <div className="text-sm font-medium text-gray-900">{ar.cardNetwork || 'Card Company'}</div>
+                        <div className={`text-sm font-medium ${isDeleted ? 'line-through text-gray-500' : 'text-gray-900'}`}>{ar.cardNetwork || 'Card Company'}</div>
                       </div>
                     ) : (
                       <div>
                         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 mb-1">
                           📄 Other
                         </span>
-                        <div className="text-sm font-medium text-gray-900">{ar.clientName || ar.cardNetwork || 'N/A'}</div>
+                        <div className={`text-sm font-medium ${isDeleted ? 'line-through text-gray-500' : 'text-gray-900'}`}>{ar.clientName || ar.cardNetwork || 'N/A'}</div>
                       </div>
                     )}
                   </td>
                   <td className="px-6 py-4 text-sm">
-                    {ar.relatedDocumentType} - {ar.relatedDocumentNumber}
+                    <span className={isDeleted ? 'line-through text-gray-500' : ''}>
+                      {ar.relatedDocumentType} - {ar.relatedDocumentNumber}
+                    </span>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">{ar.clientRnc || '-'}</td>
                   <td className="px-6 py-4 text-sm text-gray-500">{ar.ncf || '-'}</td>
                   <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate" title={ar.saleOf}>
-                    {ar.saleOf || '-'}
+                    <span className={isDeleted ? 'line-through text-gray-500' : ''}>
+                      {ar.saleOf || '-'}
+                    </span>
                   </td>
-                  <td className="px-6 py-4 text-sm font-semibold text-right">{formatNumber(Number(ar.amount))}</td>
+                  <td className="px-6 py-4 text-sm font-semibold text-right">
+                    <span className={isDeleted ? 'line-through text-gray-500' : ''}>
+                      {formatNumber(Number(ar.amount))}
+                    </span>
+                  </td>
                   <td className="px-6 py-4 text-sm font-semibold text-right text-green-600">
-                    {formatNumber(Number(ar.receivedAmount))}
+                    <span className={isDeleted ? 'line-through text-gray-500' : ''}>
+                      {formatNumber(Number(ar.receivedAmount))}
+                    </span>
                   </td>
                   <td className="px-6 py-4 text-sm font-semibold text-right text-orange-600">
-                    {formatNumber(Number(ar.balanceAmount))}
+                    <span className={isDeleted ? 'line-through text-gray-500' : ''}>
+                      {formatNumber(Number(ar.balanceAmount))}
+                    </span>
                   </td>
                   <td className="px-6 py-4 text-sm font-semibold text-right bg-blue-50 text-blue-700">
                     {ar.expectedBankDeposit ? (
                       <div className="flex items-center justify-end gap-1">
                         <span>🏦</span>
-                        <span>{formatNumber(Number(ar.expectedBankDeposit))}</span>
+                        <span className={isDeleted ? 'line-through text-gray-500' : ''}>{formatNumber(Number(ar.expectedBankDeposit))}</span>
                       </div>
                     ) : (
                       <span className="text-gray-400">-</span>
@@ -302,7 +371,7 @@ const AccountsReceivablePage = () => {
                     {ar.actualBankDeposit ? (
                       <div className="flex items-center justify-end gap-1">
                         <span>💳</span>
-                        <span>{formatNumber(Number(ar.actualBankDeposit))}</span>
+                        <span className={isDeleted ? 'line-through text-gray-500' : ''}>{formatNumber(Number(ar.actualBankDeposit))}</span>
                       </div>
                     ) : (
                       <span className="text-gray-400">-</span>
@@ -318,7 +387,7 @@ const AccountsReceivablePage = () => {
                         }
                       >
                         <span>📊</span>
-                        <span>{formatNumber(getExpenseRecordedAmount(ar))}</span>
+                        <span className={isDeleted ? 'line-through text-gray-500' : ''}>{formatNumber(getExpenseRecordedAmount(ar))}</span>
                         {ar.relatedExpenses && ar.relatedExpenses.length > 1 && (
                           <span className="text-xs text-red-500 ml-1">({ar.relatedExpenses.length})</span>
                         )}
@@ -327,44 +396,58 @@ const AccountsReceivablePage = () => {
                       <span className="text-gray-400">-</span>
                     )}
                   </td>
-                  <td className="px-6 py-4 text-center">{getStatusBadge(ar.status)}</td>
+                  <td className="px-6 py-4 text-center">{getARStatusBadge(ar)}</td>
                   <td className="px-6 py-4 text-center">
-                    {ar.status !== 'Received' && (
-                      <>
-                        {/* Show different buttons based on sale type */}
-                        {ar.type === 'CREDIT_SALE' || ar.type === 'CLIENT_CREDIT' ? (
-                          // Credit Sale - Navigate to Cash Register
-                          <button
-                            onClick={() => handleCreditSaleCollection(ar)}
-                            className="inline-flex items-center gap-1 px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
-                          >
-                            <Plus size={16} />
-                            Collect via Cash
-                          </button>
-                        ) : ar.type === 'CREDIT_CARD_SALE' || ar.type === 'DEBIT_CARD_SALE' ? (
-                          // Credit Card Sale - Show modal with bank account selection
-                          <button
-                            onClick={() => handleRecordPayment(ar)}
-                            className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
-                          >
-                            <Plus size={16} />
-                            {t('collect')}
-                          </button>
-                        ) : (
-                          // Other types - Show generic collect button
-                          <button
-                            onClick={() => handleRecordPayment(ar)}
-                            className="inline-flex items-center gap-1 px-3 py-1 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm"
-                          >
-                            <Plus size={16} />
-                            {t('collect')}
-                          </button>
-                        )}
-                      </>
-                    )}
+                    <div className="flex items-center justify-center gap-2">
+                      {ar.status !== 'Received' && !isDeleted && (
+                        <>
+                          {/* Show different buttons based on sale type */}
+                          {ar.type === 'CREDIT_SALE' || ar.type === 'CLIENT_CREDIT' ? (
+                            // Credit Sale - Navigate to Cash Register
+                            <button
+                              onClick={() => handleCreditSaleCollection(ar)}
+                              className="inline-flex items-center gap-1 px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
+                            >
+                              <Plus size={16} />
+                              Collect via Cash
+                            </button>
+                          ) : ar.type === 'CREDIT_CARD_SALE' || ar.type === 'DEBIT_CARD_SALE' ? (
+                            // Credit Card Sale - Show modal with bank account selection
+                            <button
+                              onClick={() => handleRecordPayment(ar)}
+                              className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                            >
+                              <Plus size={16} />
+                              {t('collect')}
+                            </button>
+                          ) : (
+                            // Other types - Show generic collect button
+                            <button
+                              onClick={() => handleRecordPayment(ar)}
+                              className="inline-flex items-center gap-1 px-3 py-1 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm"
+                            >
+                              <Plus size={16} />
+                              {t('collect')}
+                            </button>
+                          )}
+                        </>
+                      )}
+                      
+                      {/* ✅ NEW: Delete button */}
+                      {!isDeleted && (
+                        <button
+                          onClick={() => handleDelete(ar)}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
+                          title="Delete AR record"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </motion.tr>
-              ))
+                );
+              })
             )}
           </tbody>
         </table>

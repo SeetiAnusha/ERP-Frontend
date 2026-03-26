@@ -27,6 +27,14 @@ export interface AccountsReceivable {
   // New fields for expense data
   relatedExpenses?: ExpenseRecord[];
   totalExpenseAmount?: number;
+  // ✅ NEW: Deletion tracking fields
+  deletion_status?: 'NONE' | 'REQUESTED' | 'APPROVED' | 'EXECUTED';
+  deleted_at?: string;
+  deleted_by?: number;
+  deletion_reason_code?: string;
+  deletion_memo?: string;
+  is_reversal?: boolean;
+  original_transaction_id?: number;
 }
 
 export interface ExpenseRecord {
@@ -64,4 +72,10 @@ export interface AccountsPayable {
   notes?: string;
   createdAt?: string;
   updatedAt?: string;
+  // 🔥 NEW: Deletion tracking fields
+  deletion_status?: 'NONE' | 'REQUESTED' | 'APPROVED' | 'EXECUTED';
+  deleted_at?: string;
+  deleted_by?: number;
+  deletion_reason_code?: string;
+  deletion_memo?: string;
 }
