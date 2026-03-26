@@ -7,7 +7,7 @@ import { AccountsReceivable } from '../types/accountsTypes';
 import { handleApiError } from '../utils/notifications';
 import { useLanguage } from '../contexts/LanguageContext';
 import { formatNumber } from '../utils/formatNumber';
-import CustomerCreditAwarePaymentModal from '../components/CustomerCreditAwarePaymentModal';
+// import CustomerCreditAwarePaymentModal from '../components/CustomerCreditAwarePaymentModal';
 
 const AccountsReceivablePage = () => {
   const { t } = useLanguage();
@@ -132,7 +132,7 @@ const AccountsReceivablePage = () => {
         paymentData.processingFeeCategory = expenseCategory;
       }
 
-      const response = await api.post(`/accounts-receivable/${selectedAR.id}/record-payment`, paymentData);
+      await api.post(`/accounts-receivable/${selectedAR.id}/record-payment`, paymentData);
       
       alert('Payment recorded successfully');
       setShowPaymentModal(false);
@@ -180,9 +180,9 @@ const AccountsReceivablePage = () => {
     });
   };
 
-  const handlePaymentSuccess = () => {
-    fetchAccountsReceivable();
-  };
+  // const handlePaymentSuccess = () => {
+  //   fetchAccountsReceivable();
+  // };
 
   // ✅ NEW: Handle AR deletion - navigate to transaction deletion page
   const handleDelete = (ar: AccountsReceivable) => {

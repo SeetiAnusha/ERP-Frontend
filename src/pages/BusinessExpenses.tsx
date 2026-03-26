@@ -165,8 +165,8 @@ const Expenses = () => {
     )
   ) : [];
 
-  const totalExpenses = filteredExpenses.reduce((sum, expense) => sum + expense.amount, 0);
-  const paidExpenses = filteredExpenses.filter(e => e.paymentStatus === 'Paid').reduce((sum, expense) => sum + expense.amount, 0);
+  // const totalExpenses = filteredExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+  // const paidExpenses = filteredExpenses.filter(e => e.paymentStatus === 'Paid').reduce((sum, expense) => sum + expense.amount, 0);
 
   return (
     <div className="space-y-6">

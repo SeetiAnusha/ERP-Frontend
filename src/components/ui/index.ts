@@ -8,9 +8,9 @@ export { default as Table } from './Table';
 export { default as Tabs } from './Tabs';
 export { default as Alert } from './Alert';
 export { default as Progress } from './Progress';
-export { default as Select } from './Select';
-export { default as Input } from './Input';
-export { default as Dialog } from './Dialog';
+// export { default as Select } from './Select';
+// export { default as Input } from './Input';
+// export { default as Dialog } from './Dialog';
 
 // Re-export individual components for convenience
 export * from './Card';
@@ -20,6 +20,6 @@ export * from './Table';
 export * from './Tabs';
 export * from './Alert';
 export * from './Progress';
-export * from './Select';
-export * from './Input';
-export * from './Dialog';
+// export * from './Select';
+// export * from './Input';
+// export * from './Dialog';

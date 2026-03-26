@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Search, Edit2, Trash2, FolderTree, X, Check, AlertCircle } from 'lucide-react';
 import api from '../api/axios';
-import { useLanguage } from '../contexts/LanguageContext';
+// import { useLanguage } from '../contexts/LanguageContext';
 
 interface ExpenseCategory {
   id: number;
@@ -22,7 +22,7 @@ interface ExpenseType {
 }
 
 const ExpenseCategories = () => {
-  const { t } = useLanguage();
+  // const { t } = useLanguage();
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
