@@ -7,6 +7,7 @@ import api from '../api/axios';
 interface ExpenseCategory {
   id: number;
   name: string;
+  code: string;
   description: string;
   isActive: boolean;
   createdAt: string;
@@ -16,6 +17,7 @@ interface ExpenseCategory {
 interface ExpenseType {
   id: number;
   name: string;
+  code: string;
   description: string;
   isActive: boolean;
   categoryId: number;
@@ -33,6 +35,7 @@ const ExpenseCategories = () => {
   // Form state
   const [formData, setFormData] = useState({
     name: '',
+    code: '',
     description: '',
     isActive: true
   });
@@ -44,6 +47,7 @@ const ExpenseCategories = () => {
   const [showAddTypeForm, setShowAddTypeForm] = useState(false);
   const [newTypeData, setNewTypeData] = useState({
     name: '',
+    code: '',
     description: '',
     isActive: true
   });
@@ -56,9 +60,12 @@ const ExpenseCategories = () => {
     try {
       setIsLoading(true);
       const response = await api.get('/expenses/categories');
-      setCategories(response.data.data || response.data);
+      // Handle the backend response structure: { success: true, data: [...] }
+      const categories = response.data.success ? response.data.data : (response.data.data || response.data);
+      setCategories(categories || []);
     } catch (error) {
       console.error('Error fetching expense categories:', error);
+      setCategories([]);
     } finally {
       setIsLoading(false);
     }
@@ -67,7 +74,9 @@ const ExpenseCategories = () => {
   const fetchExpenseTypes = async (categoryId: number) => {
     try {
       const response = await api.get(`/expenses/categories/${categoryId}/types`);
-      setExpenseTypes(response.data.data || response.data);
+      // Handle the backend response structure: { success: true, data: [...] }
+      const types = response.data.success ? response.data.data : (response.data.data || response.data);
+      setExpenseTypes(types || []);
     } catch (error) {
       console.error('Error fetching expense types:', error);
       setExpenseTypes([]);
@@ -84,20 +93,33 @@ const ExpenseCategories = () => {
       return;
     }
 
+    if (!formData.code.trim()) {
+      alert('Category code is required');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
+      const submitData = {
+        name: formData.name.trim(),
+        code: formData.code.trim().toUpperCase(),
+        description: formData.description.trim() || null,
+        isActive: formData.isActive
+      };
+
       if (editingCategory) {
-        await api.put(`/expenses/categories/${editingCategory.id}`, formData);
+        await api.put(`/expenses/categories/${editingCategory.id}`, submitData);
       } else {
-        await api.post('/expenses/categories', formData);
+        await api.post('/expenses/categories', submitData);
       }
       
       fetchCategories();
       closeModal();
     } catch (error: any) {
       console.error('Error saving category:', error);
-      alert(error.response?.data?.error || 'Error saving category');
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Error saving category';
+      alert(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -111,18 +133,29 @@ const ExpenseCategories = () => {
       return;
     }
 
+    if (!newTypeData.code.trim()) {
+      alert('Type code is required');
+      return;
+    }
+
     try {
-      await api.post('/expenses/types', {
-        ...newTypeData,
-        categoryId: selectedCategory.id
-      });
+      const submitData = {
+        categoryId: selectedCategory.id,
+        name: newTypeData.name.trim(),
+        code: newTypeData.code.trim().toUpperCase(),
+        description: newTypeData.description.trim() || null,
+        isActive: newTypeData.isActive
+      };
+
+      await api.post('/expenses/types', submitData);
       
       fetchExpenseTypes(selectedCategory.id);
-      setNewTypeData({ name: '', description: '', isActive: true });
+      setNewTypeData({ name: '', code: '', description: '', isActive: true });
       setShowAddTypeForm(false);
     } catch (error: any) {
       console.error('Error adding expense type:', error);
-      alert(error.response?.data?.error || 'Error adding expense type');
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Error adding expense type';
+      alert(errorMessage);
     }
   };
 
@@ -158,6 +191,7 @@ const ExpenseCategories = () => {
       setEditingCategory(category);
       setFormData({
         name: category.name,
+        code: category.code || '',
         description: category.description,
         isActive: category.isActive
       });
@@ -165,6 +199,7 @@ const ExpenseCategories = () => {
       setEditingCategory(null);
       setFormData({
         name: '',
+        code: '',
         description: '',
         isActive: true
       });
@@ -175,7 +210,7 @@ const ExpenseCategories = () => {
   const closeModal = () => {
     setShowModal(false);
     setEditingCategory(null);
-    setFormData({ name: '', description: '', isActive: true });
+    setFormData({ name: '', code: '', description: '', isActive: true });
   };
 
   const openTypesModal = (category: ExpenseCategory) => {
@@ -189,7 +224,7 @@ const ExpenseCategories = () => {
     setSelectedCategory(null);
     setExpenseTypes([]);
     setShowAddTypeForm(false);
-    setNewTypeData({ name: '', description: '', isActive: true });
+    setNewTypeData({ name: '', code: '', description: '', isActive: true });
   };
 
   const filteredCategories = categories.filter((category) =>
@@ -262,9 +297,14 @@ const ExpenseCategories = () => {
             >
               <div className="flex justify-between items-start mb-4">
                 <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-2">
-                    {category.name}
-                  </h3>
+                  <div className="flex items-center gap-2 mb-2">
+                    <h3 className="text-lg font-semibold text-gray-800">
+                      {category.name}
+                    </h3>
+                    <span className="inline-flex items-center px-2 py-1 rounded text-xs font-mono bg-gray-100 text-gray-600">
+                      {category.code}
+                    </span>
+                  </div>
                   <p className="text-gray-600 text-sm mb-3">
                     {category.description || 'No description'}
                   </p>
@@ -372,6 +412,24 @@ const ExpenseCategories = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Category Code *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.code}
+                    onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="e.g., GEN_ADMIN"
+                    maxLength={10}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Use uppercase letters, numbers, and underscores only (max 10 characters)
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     Description
                   </label>
                   <textarea
@@ -447,7 +505,7 @@ const ExpenseCategories = () => {
               {/* Add Type Form */}
               {showAddTypeForm && (
                 <form onSubmit={handleAddExpenseType} className="mb-6 p-4 bg-blue-50 rounded-lg">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Type Name *
@@ -462,6 +520,20 @@ const ExpenseCategories = () => {
                       />
                     </div>
                     <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Type Code *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={newTypeData.code}
+                        onChange={(e) => setNewTypeData({ ...newTypeData, code: e.target.value.toUpperCase() })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        placeholder="e.g., ELEC"
+                        maxLength={15}
+                      />
+                    </div>
+                    <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Description
                       </label>
@@ -521,7 +593,12 @@ const ExpenseCategories = () => {
                     >
                       <div className="flex justify-between items-start">
                         <div>
-                          <h4 className="font-medium text-gray-800">{type.name}</h4>
+                          <div className="flex items-center gap-2 mb-1">
+                            <h4 className="font-medium text-gray-800">{type.name}</h4>
+                            <span className="inline-flex items-center px-2 py-1 rounded text-xs font-mono bg-blue-100 text-blue-600">
+                              {type.code}
+                            </span>
+                          </div>
                           <p className="text-sm text-gray-600 mt-1">
                             {type.description || 'No description'}
                           </p>

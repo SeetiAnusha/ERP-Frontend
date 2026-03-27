@@ -396,7 +396,7 @@ const TransactionDeletion: React.FC = () => {
                   <option value="Sale">Sale</option>
                   <option value="Purchase">Purchase</option> */}
                   <option value="AccountsPayable">Accounts Payable</option>
-                  {/* <option value="AccountsReceivable">Accounts Receivable</option> */}
+                  <option value="AccountsReceivable">Accounts Receivable</option> 
                   <option value="BankRegister">Bank Register</option>
                   <option value="CashRegister">Cash Register</option>
                 </select>
