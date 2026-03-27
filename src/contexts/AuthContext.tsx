@@ -48,10 +48,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Check if authentication is enabled
   const isAuthEnabled = (): boolean => {
+    // TEMPORARY: Disable auth for testing
+    // return false;
+    
     // Check environment variable first (for development)
     const envEnabled = import.meta.env.VITE_AUTH_ENABLED === 'true';
     // Check localStorage (for runtime control)
     const localEnabled = localStorage.getItem('AUTH_ENABLED') === 'true';
+    
+    console.log('🔐 Auth Check:', { envEnabled, localEnabled, result: envEnabled || localEnabled });
     
     return envEnabled || localEnabled;
   };
@@ -258,6 +263,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     logout,
     refreshToken,
   };
+
+  console.log('🔐 Auth State:', { 
+    user: !!user, 
+    isAuthEnabled: isAuthEnabled(), 
+    isAuthenticated: !!user && isAuthEnabled(),
+    isLoading 
+  });
 
   return (
     <AuthContext.Provider value={value}>
