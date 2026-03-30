@@ -21,12 +21,26 @@ interface PurchaseItem {
   adjustedTotal: number;
 }
 
+// ✅ NEW: Enhanced Purchase interface with deletion tracking
+interface EnhancedPurchase extends Purchase {
+  deletion_status?: string;
+  deleted_at?: string;
+  deleted_by?: number;
+  deletion_reason_code?: string;
+  deletion_memo?: string;
+  is_reversal?: boolean;
+  original_transaction_id?: number;
+}
+
 const Purchases = () => {
   const { t } = useLanguage();
-  const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [purchases, setPurchases] = useState<EnhancedPurchase[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // ✅ NEW: Filter state for deletion status
+  const [filterStatus, setFilterStatus] = useState<string>('All');
   
   // Phase 2: New master data
   const [bankAccounts, setBankAccounts] = useState<any[]>([]);
@@ -488,6 +502,37 @@ const Purchases = () => {
     setAssociatedInvoices([]);
   };
 
+  // ✅ NEW: Status badge function for deletion indicators
+  const getPurchaseStatusBadge = (purchase: EnhancedPurchase) => {
+    if (purchase.deletion_status === 'EXECUTED') {
+      return (
+        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-300">
+          🗑️ DELETED
+        </span>
+      );
+    }
+    
+    if (purchase.is_reversal) {
+      return (
+        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 border border-orange-300">
+          ↩️ REVERSAL
+        </span>
+      );
+    }
+    
+    // Payment status badge
+    const paymentStatus = purchase.paymentStatus || 'Unpaid';
+    return (
+      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+        paymentStatus === 'Paid' ? 'bg-green-100 text-green-800' :
+        paymentStatus === 'Partial' ? 'bg-yellow-100 text-yellow-800' :
+        'bg-red-100 text-red-800'
+      }`}>
+        {paymentStatus}
+      </span>
+    );
+  };
+
   const getStatusBadge = (status: string) => {
     const styles = {
       COMPLETED: 'bg-green-100 text-green-800',
@@ -508,27 +553,49 @@ const Purchases = () => {
     );
   };
 
-  const filteredPurchases = Array.isArray(purchases) ? purchases.filter((purchase) =>
-    Object.values(purchase).some((value) =>
+  const filteredPurchases = Array.isArray(purchases) ? purchases.filter((purchase) => {
+    const matchesSearch = Object.values(purchase).some((value) =>
       value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
-    )
-  ) : [];
+    );
+    
+    const matchesStatus = filterStatus === 'All' || 
+      (filterStatus === 'Active' && purchase.deletion_status !== 'EXECUTED' && !purchase.is_reversal) ||
+      (filterStatus === 'Deleted' && purchase.deletion_status === 'EXECUTED') ||
+      (filterStatus === 'Reversal' && purchase.is_reversal);
+    
+    return matchesSearch && matchesStatus;
+  }) : [];
 
   const totals = calculateTotals();
 
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-          <input
-            type="text"
-            placeholder={t('search')}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
+        <div className="flex gap-4 flex-1">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+            <input
+              type="text"
+              placeholder={t('search')}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+          
+          {/* ✅ NEW: Status Filter */}
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="All">All Purchases</option>
+            <option value="Active">Active Purchases</option>
+            <option value="Deleted">🗑️ Deleted Purchases</option>
+            <option value="Reversal">↩️ Reversal Entries</option>
+          </select>
         </div>
+        
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
@@ -570,25 +637,42 @@ const Purchases = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
-                className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${
+                  purchase.deletion_status === 'EXECUTED' ? 'bg-red-50 opacity-75' : 
+                  purchase.is_reversal ? 'bg-orange-50' : ''
+                }`}
               >
-                <td className="px-6 py-4 text-sm font-medium">{purchase.registrationNumber}</td>
+                <td className="px-6 py-4 text-sm font-medium">
+                  <div className="flex items-center gap-2">
+                    {purchase.deletion_status === 'EXECUTED' && <span className="text-red-500">🗑️</span>}
+                    {purchase.is_reversal && <span className="text-orange-500">↩️</span>}
+                    <span className={purchase.deletion_status === 'EXECUTED' ? 'line-through text-gray-500' : ''}>
+                      {purchase.registrationNumber}
+                    </span>
+                  </div>
+                </td>
                 <td className="px-6 py-4 text-sm">{purchase.supplier?.name || 'N/A'}</td>
                 <td className="px-6 py-4 text-sm">{purchase.supplierRnc || 'N/A'}</td>
                 <td className="px-6 py-4 text-sm">{new Date(purchase.date).toLocaleDateString()}</td>
                 <td className="px-6 py-4 text-sm">{purchase.purchaseType || 'N/A'}</td>
                 <td className="px-6 py-4 text-sm">{purchase.paymentType || 'N/A'}</td>
-                <td className="px-6 py-4 text-sm font-semibold text-right">{formatNumber(purchase.total)}</td>
-                <td className="px-6 py-4 text-sm font-semibold text-right text-green-600">{formatNumber(purchase.paidAmount || 0)}</td>
-                <td className="px-6 py-4 text-sm font-semibold text-right text-orange-600">{formatNumber(purchase.balanceAmount || 0)}</td>
-                <td className="px-6 py-4 text-center">
-                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                    purchase.paymentStatus === 'Paid' ? 'bg-green-100 text-green-800' :
-                    purchase.paymentStatus === 'Partial' ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-red-100 text-red-800'
-                  }`}>
-                    {purchase.paymentStatus || 'Unpaid'}
+                <td className="px-6 py-4 text-sm font-semibold text-right">
+                  <span className={purchase.deletion_status === 'EXECUTED' ? 'line-through text-gray-500' : ''}>
+                    {formatNumber(purchase.total)}
                   </span>
+                </td>
+                <td className="px-6 py-4 text-sm font-semibold text-right text-green-600">
+                  <span className={purchase.deletion_status === 'EXECUTED' ? 'line-through text-gray-500' : ''}>
+                    {formatNumber(purchase.paidAmount || 0)}
+                  </span>
+                </td>
+                <td className="px-6 py-4 text-sm font-semibold text-right text-orange-600">
+                  <span className={purchase.deletion_status === 'EXECUTED' ? 'line-through text-gray-500' : ''}>
+                    {formatNumber(purchase.balanceAmount || 0)}
+                  </span>
+                </td>
+                <td className="px-6 py-4 text-center">
+                  {getPurchaseStatusBadge(purchase)}
                 </td>
                 <td className="px-6 py-4">
                   <div className="flex gap-2 justify-center">

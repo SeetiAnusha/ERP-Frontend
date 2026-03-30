@@ -392,9 +392,9 @@ const TransactionDeletion: React.FC = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">Select transaction type</option>
-                  {/* <option value="Payment">Payment</option>
+                  <option value="Payment">Payment</option>
                   <option value="Sale">Sale</option>
-                  <option value="Purchase">Purchase</option> */}
+                  <option value="Purchase">Purchase</option>
                   <option value="AccountsPayable">Accounts Payable</option>
                   <option value="AccountsReceivable">Accounts Receivable</option> 
                   <option value="BankRegister">Bank Register</option>

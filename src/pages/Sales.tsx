@@ -20,9 +20,20 @@ interface SaleItem {
   total: number;
 }
 
+// ✅ NEW: Enhanced Sale interface with deletion tracking
+interface EnhancedSale extends Sale {
+  deletion_status?: string;
+  deleted_at?: string;
+  deleted_by?: number;
+  deletion_reason_code?: string;
+  deletion_memo?: string;
+  is_reversal?: boolean;
+  original_transaction_id?: number;
+}
+
 const Sales = () => {
   const { t } = useLanguage();
-  const [sales, setSales] = useState<Sale[]>([]);
+  const [sales, setSales] = useState<EnhancedSale[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [cards, setCards] = useState<any[]>([]);
@@ -32,6 +43,9 @@ const Sales = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // ✅ NEW: Filter state for deletion status
+  const [filterStatus, setFilterStatus] = useState<string>('All');
   const [formData, setFormData] = useState({
     documentNumber: '',
     date: new Date().toISOString().split('T')[0],
@@ -267,6 +281,40 @@ const Sales = () => {
     fetchSales(); // Refresh sales list to show updated collection status
   };
 
+  // ✅ NEW: Status badge function for deletion indicators
+  const getSaleStatusBadge = (sale: EnhancedSale) => {
+    if (sale.deletion_status === 'EXECUTED') {
+      return (
+        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-300">
+          🗑️ DELETED
+        </span>
+      );
+    }
+    
+    if (sale.is_reversal) {
+      return (
+        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 border border-orange-300">
+          ↩️ REVERSAL
+        </span>
+      );
+    }
+    
+    // Collection status badge
+    const collectionStatus = sale.collectionStatus || 'Not Collected';
+    return (
+      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+        collectionStatus === 'Collected' || collectionStatus === 'Cobrada' ? 'bg-green-100 text-green-800' :
+        collectionStatus === 'Partial' || collectionStatus === 'Parcial' ? 'bg-yellow-100 text-yellow-800' :
+        'bg-red-100 text-red-800'
+      }`}>
+        {collectionStatus === 'Collected' ? 'Cobrada' : 
+         collectionStatus === 'Not Collected' ? 'No Cobrada' :
+         collectionStatus === 'Partial' ? 'Parcial' :
+         collectionStatus || 'No Cobrada'}
+      </span>
+    );
+  };
+
   const getStatusBadge = (status: string) => {
     // Handle collection status (Cobrada, Parcial, No Cobrada)
     const collectionStyles: Record<string, string> = {
@@ -314,27 +362,50 @@ const Sales = () => {
     );
   };
 
-  const filteredSales = sales.filter((sale) =>
-    Object.values(sale).some((value) =>
-      value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
-    )
-  );
+  const filteredSales = sales.filter((sale) => {
+    const matchesSearch = 
+      Object.values(sale).some((value) =>
+        value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    
+    const matchesStatus = filterStatus === 'All' || 
+      (filterStatus === 'Active' && sale.deletion_status !== 'EXECUTED' && !sale.is_reversal) ||
+      (filterStatus === 'Deleted' && sale.deletion_status === 'EXECUTED') ||
+      (filterStatus === 'Reversal' && sale.is_reversal);
+    
+    return matchesSearch && matchesStatus;
+  });
 
   const totals = calculateTotals();
 
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-          <input
-            type="text"
-            placeholder={t('search')}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
+        <div className="flex gap-4 flex-1">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+            <input
+              type="text"
+              placeholder={t('search')}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+          
+          {/* ✅ NEW: Status Filter */}
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="All">All Sales</option>
+            <option value="Active">Active Sales</option>
+            <option value="Deleted">🗑️ Deleted Sales</option>
+            <option value="Reversal">↩️ Reversal Entries</option>
+          </select>
         </div>
+        
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
@@ -369,34 +440,52 @@ const Sales = () => {
             </tr>
           </thead>
           <tbody>
-            {filteredSales.map((sale, index) => (
+            {filteredSales.map((sale, index) => {
+              const isDeleted = sale.deletion_status === 'EXECUTED';
+              const isReversal = sale.is_reversal === true;
+              
+              return (
               <motion.tr
                 key={sale.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
-                className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${
+                  isDeleted ? 'bg-red-50 opacity-75' : 
+                  isReversal ? 'bg-orange-50' : ''
+                }`}
               >
-                <td className="px-6 py-4 text-sm font-medium">{sale.registrationNumber}</td>
+                <td className="px-6 py-4 text-sm font-medium">
+                  <div className="flex items-center gap-2">
+                    {isDeleted && <span className="text-red-500">🗑️</span>}
+                    {isReversal && <span className="text-orange-500">↩️</span>}
+                    <span className={isDeleted ? 'line-through text-gray-500' : ''}>
+                      {sale.registrationNumber}
+                    </span>
+                  </div>
+                </td>
                 <td className="px-6 py-4 text-sm">{sale.client?.name || 'N/A'}</td>
                 <td className="px-6 py-4 text-sm">{sale.clientRnc || 'N/A'}</td>
                 <td className="px-6 py-4 text-sm">{new Date(sale.date).toLocaleDateString()}</td>
                 <td className="px-6 py-4 text-sm">{sale.saleType || 'N/A'}</td>
                 <td className="px-6 py-4 text-sm">{sale.paymentType || 'N/A'}</td>
-                <td className="px-6 py-4 text-sm font-semibold text-right">{formatNumber(Number(sale.total))}</td>
-                <td className="px-6 py-4 text-sm font-semibold text-right text-green-600">{formatNumber(Number(sale.collectedAmount || 0))}</td>
-                <td className="px-6 py-4 text-sm font-semibold text-right text-orange-600">{formatNumber(Number(sale.balanceAmount || 0))}</td>
-                <td className="px-6 py-4 text-center">
-                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                    sale.collectionStatus === 'Collected' || sale.collectionStatus === 'Cobrada' ? 'bg-green-100 text-green-800' :
-                    sale.collectionStatus === 'Partial' || sale.collectionStatus === 'Parcial' ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-red-100 text-red-800'
-                  }`}>
-                    {sale.collectionStatus === 'Collected' ? 'Cobrada' : 
-                     sale.collectionStatus === 'Not Collected' ? 'No Cobrada' :
-                     sale.collectionStatus === 'Partial' ? 'Parcial' :
-                     sale.collectionStatus || 'No Cobrada'}
+                <td className="px-6 py-4 text-sm font-semibold text-right">
+                  <span className={isDeleted ? 'line-through text-gray-500' : ''}>
+                    {formatNumber(Number(sale.total))}
                   </span>
+                </td>
+                <td className="px-6 py-4 text-sm font-semibold text-right text-green-600">
+                  <span className={isDeleted ? 'line-through text-gray-500' : ''}>
+                    {formatNumber(Number(sale.collectedAmount || 0))}
+                  </span>
+                </td>
+                <td className="px-6 py-4 text-sm font-semibold text-right text-orange-600">
+                  <span className={isDeleted ? 'line-through text-gray-500' : ''}>
+                    {formatNumber(Number(sale.balanceAmount || 0))}
+                  </span>
+                </td>
+                <td className="px-6 py-4 text-center">
+                  {getSaleStatusBadge(sale)}
                 </td>
                 <td className="px-6 py-4">
                   <div className="flex gap-2 justify-center">
@@ -424,8 +513,8 @@ const Sales = () => {
                     >
                       <Package size={18} />
                     </motion.button>
-                    {/* Card Payment Button - Only show if sale has balance */}
-                    {sale.balanceAmount && Number(sale.balanceAmount) > 0 && (
+                    {/* Card Payment Button - Only show if sale has balance and not deleted */}
+                    {sale.balanceAmount && Number(sale.balanceAmount) > 0 && !isDeleted && (
                       <motion.button
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.9 }}
@@ -442,7 +531,8 @@ const Sales = () => {
                   </div>
                 </td>
               </motion.tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
         </div>
