@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { FaFileExcel } from 'react-icons/fa';
 import { useInvestmentReport } from '../hooks/queries/useSharedData';
@@ -193,7 +193,7 @@ const InvestmentReport = () => {
                   </td>
                 </tr>
               ) : (
-                investments.map((investment, index) => (
+                investments.map((investment: InvestmentItem, index: number) => (
                   <tr key={investment.id} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
                     <td className="px-4 py-3">{investment.code}</td>
                     <td className="px-4 py-3">{investment.name}</td>

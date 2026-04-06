@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Trash2, AlertTriangle } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface DeletionButtonProps {
@@ -25,14 +25,14 @@ const DeletionButton: React.FC<DeletionButtonProps> = ({
   registrationNumber,
   isDeleted = false,
   deletedAt,
-  onDeleteSuccess,
+  onDeleteSuccess: _onDeleteSuccess,
   size = 'md',
   variant = 'icon',
   className = '',
   disabled = false
 }) => {
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading] = useState(false);
 
   // If already deleted, show deleted status
   if (isDeleted) {

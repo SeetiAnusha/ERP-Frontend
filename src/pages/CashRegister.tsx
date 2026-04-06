@@ -29,7 +29,7 @@ const CashRegister = () => {
   const cashRegisterMasters = sharedData.cashRegisters || [];
   const bankAccounts = sharedData.bankAccounts || [];
   const customers = sharedData.clients || [];
-  const cards = sharedData.cards || [];
+  // const cards = sharedData.cards || [];
   const paymentNetworks = sharedData.paymentNetworks || [];
   
   const isLoading = transactionsLoading || sharedData.isLoading;

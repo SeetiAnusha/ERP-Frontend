@@ -1,14 +1,13 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { FaPlus, FaEdit, FaTrash, FaFileInvoice, FaSearch } from 'react-icons/fa';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from '../api/axios';
-import { Adjustment, Purchase, Sale, Product } from '../types';
+import { Adjustment } from '../types';
 import { useAdjustments } from '../hooks/queries/useSharedData';
 import { useProducts } from '../hooks/queries/useProducts';
 import { usePurchases } from '../hooks/queries/usePurchases';
 import { useSales } from '../hooks/queries/useSales';
-import { QUERY_KEYS } from '../lib/queryKeys';
 
 interface AdjustmentItem {
   productCode: string;
@@ -219,7 +218,7 @@ const Adjustments = () => {
   // ✅ MEMOIZATION: Memoize document change handler
   const handleDocumentChange = useCallback((docId: string) => {
     if (formData.relatedDocumentType === 'Purchase') {
-      const purchase = purchases.find(p => p.id === parseInt(docId));
+      const purchase = purchases.find((p: any) => p.id === parseInt(docId));
       if (purchase) {
         setFormData({
           ...formData,
@@ -479,7 +478,7 @@ const Adjustments = () => {
                     >
                       <option value="">Select a document</option>
                       {formData.relatedDocumentType === 'Purchase' 
-                        ? purchases.map(purchase => (
+                        ? purchases.map((purchase: any) => (
                             <option key={purchase.id} value={purchase.id}>
                               {purchase.registrationNumber} - {purchase.supplier?.name} - {parseFloat(purchase.total.toString()).toFixed(2)}
                             </option>

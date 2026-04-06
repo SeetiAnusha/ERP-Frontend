@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { FaFileExcel, FaCalendar, FaSearch, FaChartLine } from 'react-icons/fa';
-import { Product, Purchase, Sale } from '../types';
+import { Purchase } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { formatNumber } from '../utils/formatNumber';
 import { useProducts } from '../hooks/queries/useProducts';

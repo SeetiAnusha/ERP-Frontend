@@ -8,42 +8,43 @@ import { toast } from 'sonner';
 import { useInvestmentAgreements, useInvestmentSummary, useFinancers } from '../hooks/queries/useSharedData';
 import { QUERY_KEYS } from '../lib/queryKeys';
 
-interface InvestmentAgreement {
-  id: number;
-  agreementNumber: string;
-  agreementDate: string;
-  investorId: number;
-  investorName: string;
-  agreementType: 'INVESTMENT' | 'LOAN';
-  totalCommittedAmount: number;
-  receivedAmount: number;
-  balanceAmount: number;
-  interestRate?: number;
-  maturityDate?: string;
-  status: 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
-  terms?: string;
-  notes?: string;
-}
+// Interfaces moved to top level to avoid unused warnings
+// interface InvestmentAgreement {
+//   id: number;
+//   agreementNumber: string;
+//   agreementDate: string;
+//   investorId: number;
+//   investorName: string;
+//   agreementType: 'INVESTMENT' | 'LOAN';
+//   totalCommittedAmount: number;
+//   receivedAmount: number;
+//   balanceAmount: number;
+//   interestRate?: number;
+//   maturityDate?: string;
+//   status: 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
+//   terms?: string;
+//   notes?: string;
+// }
 
-interface AgreementSummary {
-  totalAgreements: number;
-  activeAgreements: number;
-  completedAgreements: number;
-  totalCommitted: number;
-  totalReceived: number;
-  totalPending: number;
-  investmentCount: number;
-  loanCount: number;
-  investmentAmount: number;
-  loanAmount: number;
-}
+// interface AgreementSummary {
+//   totalAgreements: number;
+//   activeAgreements: number;
+//   completedAgreements: number;
+//   totalCommitted: number;
+//   totalReceived: number;
+//   totalPending: number;
+//   investmentCount: number;
+//   loanCount: number;
+//   investmentAmount: number;
+//   loanAmount: number;
+// }
 
-interface Financer {
-  id: number;
-  code: string;
-  name: string;
-  type: string;
-}
+// interface Financer {
+//   id: number;
+//   code: string;
+//   name: string;
+//   type: string;
+// }
 
 const InvestmentAgreements = () => {
   // ✅ React Query Hooks

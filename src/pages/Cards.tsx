@@ -27,13 +27,13 @@ interface Card {
   };
 }
 
-interface BankAccount {
-  id: number;
-  code: string;
-  bankName: string;
-  accountNumber: string;
-  balance: number;
-}
+// interface BankAccount {
+//   id: number;
+//   code: string;
+//   bankName: string;
+//   accountNumber: string;
+//   balance: number;
+// }
 
 const Cards = () => {
   const { t } = useLanguage();

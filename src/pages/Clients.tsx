@@ -90,7 +90,7 @@ const Clients = () => {
   const filteredClients = useMemo(() => {
     return clients.filter((client) =>
       Object.values(client).some((value) =>
-        value.toString().toLowerCase().includes(searchTerm.toLowerCase())
+        value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
       )
     );
   }, [clients, searchTerm]);

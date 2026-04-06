@@ -2,28 +2,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../api/axios';
 import { QUERY_KEYS } from '../../lib/queryKeys';
 import { CACHE_STRATEGIES } from '../../lib/queryClient';
+import { Purchase } from '../../types';
 
-// Purchase types
-interface Purchase {
-  id: number;
-  registrationNumber: string;
-  supplierId: string;
-  supplierRnc?: string;
-  ncf?: string;
-  date: string;
-  purchaseType: string;
-  paymentType: string;
-  total: number;
-  paidAmount: number;
-  balanceAmount: number;
-  status: string;
-  deletion_status?: string;
-  is_reversal?: boolean;
-  supplier?: {
-    name: string;
-  };
-}
-
+// Purchase form data type
 interface PurchaseFormData {
   transactionType: string;
   date: string;

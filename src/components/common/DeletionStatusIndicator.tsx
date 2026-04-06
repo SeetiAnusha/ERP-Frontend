@@ -15,7 +15,7 @@ const DeletionStatusIndicator: React.FC<DeletionStatusIndicatorProps> = ({
   deletionStatus,
   isReversal = false,
   deletedAt,
-  deletedBy,
+  deletedBy: _deletedBy,
   deletionReason,
   size = 'md',
   showDetails = false

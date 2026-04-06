@@ -15,7 +15,7 @@ interface UseDeletionProps {
   onDeleteSuccess?: () => void;
 }
 
-export const useDeletion = ({ entityType, onDeleteSuccess }: UseDeletionProps) => {
+export const useDeletion = ({ entityType, onDeleteSuccess: _onDeleteSuccess }: UseDeletionProps) => {
   const navigate = useNavigate();
 
   const navigateToDeletePage = useCallback((entity: DeletionEntity) => {

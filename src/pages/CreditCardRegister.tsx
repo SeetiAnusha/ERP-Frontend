@@ -1,7 +1,6 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { FaCreditCard, FaSearch, FaArrowUp, FaArrowDown, FaEye, FaCalendarAlt } from 'react-icons/fa';
-import axios from '../api/axios';
 import { formatNumber } from '../utils/formatNumber';
 import { useCreditCardTransactions, useCards } from '../hooks/queries/useSharedData';
 
@@ -27,16 +26,16 @@ interface CreditCardTransaction {
   updatedAt: string;
 }
 
-interface CreditCard {
-  id: number;
-  code: string;
-  cardName: string;
-  cardBrand: string;
-  cardNumberLast4: string;
-  creditLimit: number;
-  usedCredit: number;
-  status: 'ACTIVE' | 'INACTIVE';
-}
+// interface CreditCard {
+//   id: number;
+//   code: string;
+//   cardName: string;
+//   cardBrand: string;
+//   cardNumberLast4: string;
+//   creditLimit: number;
+//   usedCredit: number;
+//   status: 'ACTIVE' | 'INACTIVE';
+// }
 
 const CreditCardRegister = () => {
   // ✅ React Query Hooks
@@ -85,7 +84,7 @@ const CreditCardRegister = () => {
 
   // ✅ Memoized: Filtered transactions
   const filteredTransactions = useMemo(() => {
-    return transactions.filter((transaction) => {
+    return transactions.filter((transaction: any) => {
       const matchesSearch = Object.values(transaction).some((value) =>
         value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
       );
@@ -291,7 +290,7 @@ const CreditCardRegister = () => {
                     </td>
                   </tr>
                 ) : (
-                  filteredTransactions.map((transaction, index) => (
+                  filteredTransactions.map((transaction: any, index: number) => (
                     <motion.tr
                       key={transaction.id}
                       initial={{ opacity: 0, y: 20 }}

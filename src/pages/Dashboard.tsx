@@ -1,7 +1,6 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { TrendingUp, Users, ShoppingCart, Package, DollarSign, AlertTriangle } from 'lucide-react';
-import { Sale, Purchase, Client, Product } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { formatNumber } from '../utils/formatNumber';
 import CreditBalanceSummaryWidget from '../components/CreditBalanceSummaryWidget';

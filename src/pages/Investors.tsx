@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Users, TrendingUp, DollarSign, Calendar, MapPin, Phone, Mail, RefreshCw, CheckCircle, Edit } from 'lucide-react';
 import api from '../api/axios';
@@ -41,21 +41,21 @@ interface Financer {
   }[];
 }
 
-interface FinancerSummary {
-  totalFinancers: number;
-  totalProvided: number;
-  totalOutstanding: number;
-  averageProvided: number;
-  topFinancer: Financer | null;
-  recentTransactionsCount: number;
-  recentTransactionsAmount: number;
-  investorCount: number;
-  bankCount: number;
-  otherCount: number;
-  investorAmount: number;
-  bankAmount: number;
-  otherAmount: number;
-}
+// interface FinancerSummary {
+//   totalFinancers: number;
+//   totalProvided: number;
+//   totalOutstanding: number;
+//   averageProvided: number;
+//   topFinancer: Financer | null;
+//   recentTransactionsCount: number;
+//   recentTransactionsAmount: number;
+//   investorCount: number;
+//   bankCount: number;
+//   otherCount: number;
+//   investorAmount: number;
+//   bankAmount: number;
+//   otherAmount: number;
+// }
 
 const Investors = () => {
   // ✅ React Query Hooks

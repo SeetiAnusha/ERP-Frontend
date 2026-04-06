@@ -58,7 +58,7 @@ export const useCreateProduct = () => {
       
       return { previousProducts };
     },
-    onError: (err, newProduct, context) => {
+    onError: (_err, _newProduct, context) => {
       // Rollback on error
       if (context?.previousProducts) {
         queryClient.setQueryData(QUERY_KEYS.products, context.previousProducts);
@@ -111,7 +111,7 @@ export const useUpdateProduct = () => {
       
       return { previousProducts, previousProduct };
     },
-    onError: (err, { id }, context) => {
+    onError: (_err, { id }, context) => {
       // Rollback on error
       if (context?.previousProducts) {
         queryClient.setQueryData(QUERY_KEYS.products, context.previousProducts);
@@ -123,7 +123,7 @@ export const useUpdateProduct = () => {
     onSuccess: () => {
       notify.success('Success', 'Product updated successfully');
     },
-    onSettled: (data, error, { id }) => {
+    onSettled: (_data, _error, { id }) => {
       // Always refetch after error or success
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.products });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.product(Number(id)) });
@@ -155,7 +155,7 @@ export const useDeleteProduct = () => {
       
       return { previousProducts };
     },
-    onError: (err, id, context) => {
+    onError: (_err, _id, context) => {
       // Rollback on error
       if (context?.previousProducts) {
         queryClient.setQueryData(QUERY_KEYS.products, context.previousProducts);
