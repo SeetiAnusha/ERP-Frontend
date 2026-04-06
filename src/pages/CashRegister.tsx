@@ -1,37 +1,52 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { FaPlus, FaTrash, FaWallet, FaArrowUp, FaArrowDown, FaSearch } from 'react-icons/fa';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import axios from '../api/axios';
 import { CashTransaction } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { formatNumber } from '../utils/formatNumber';
-import { cleanFormData } from '../utils/cleanFormData';  // Import utility
+import { cleanFormData } from '../utils/cleanFormData';
 import OverpaymentAlertModal from '../components/OverpaymentAlertModal';
 import CustomerCreditAwarePaymentModal from '../components/CustomerCreditAwarePaymentModal';
+import { QUERY_KEYS } from '../lib/queryKeys';
+
+// ✅ REACT QUERY IMPORTS
+import { useCashTransactions } from '../hooks/queries/useFinancial';
+import { useSharedMasterData } from '../hooks/queries/useSharedData';
 
 const CashRegister = () => {
   const { t } = useLanguage();
   const location = useLocation();
   const navigate = useNavigate();
-  const [transactions, setTransactions] = useState<CashTransaction[]>([]);
+  const queryClient = useQueryClient();
+  
+  // ✅ REACT QUERY HOOKS - Direct usage without feature flags
+  const { data: transactions = [], isLoading: transactionsLoading, isError: transactionsError } = useCashTransactions();
+  const sharedData = useSharedMasterData();
+  
+  const cashRegisterMasters = sharedData.cashRegisters || [];
+  const bankAccounts = sharedData.bankAccounts || [];
+  const customers = sharedData.clients || [];
+  const cards = sharedData.cards || [];
+  const paymentNetworks = sharedData.paymentNetworks || [];
+  
+  const isLoading = transactionsLoading || sharedData.isLoading;
+  const hasError = transactionsError || sharedData.hasError;
+  
+  // ✅ SHARED STATE (USED BY BOTH IMPLEMENTATIONS)
   const [showModal, setShowModal] = useState(false);
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('All');
-  const [isSubmitting, setIsSubmitting] = useState(false);  // Add loading state
-
-  // Phase 3: New state
-  const [cashRegisterMasters, setCashRegisterMasters] = useState<any[]>([]);
-  const [bankAccounts, setBankAccounts] = useState<any[]>([]);
-  const [customers, setCustomers] = useState<any[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Phase 3: Remaining state
   const [activeAgreements, setActiveAgreements] = useState<any[]>([]);
   const [pendingCreditSales, setPendingCreditSales] = useState<any[]>([]);
   const [selectedInvoices, setSelectedInvoices] = useState<number[]>([]);
-  // New state for dynamic payment method dropdowns
-  const [cards, setCards] = useState<any[]>([]);
-  const [paymentNetworks, setPaymentNetworks] = useState<any[]>([]);
 
   // Overpayment detection state
   const [showOverpaymentAlert, setShowOverpaymentAlert] = useState(false);
@@ -77,18 +92,13 @@ const CashRegister = () => {
 
   const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
 
+  // Fetch active agreements (not in shared data yet)
   useEffect(() => {
-    fetchTransactions();
-    fetchCashRegisterMasters();
-    fetchBankAccounts();
-    fetchCustomers();
     fetchActiveAgreements();
-    fetchCards();
-    fetchPaymentNetworks();
   }, []);
 
-  // ✅ NEW: Status badge function for deletion indicators
-  const getTransactionStatusBadge = (transaction: CashTransaction) => {
+  // ✅ MEMOIZED: Status badge function for deletion indicators
+  const getTransactionStatusBadge = useCallback((transaction: CashTransaction) => {
     if (transaction.deletion_status === 'EXECUTED') {
       return (
         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-300">
@@ -114,7 +124,7 @@ const CashRegister = () => {
         {transaction.transactionType === 'INFLOW' ? '💰 INFLOW' : '💸 OUTFLOW'}
       </span>
     );
-  };
+  }, []);
 
   // Clear related fields when document type changes
   useEffect(() => {
@@ -164,67 +174,7 @@ const CashRegister = () => {
     }
   }, [location.state]);
 
-  const fetchTransactions = async () => {
-    try {
-      console.log('🔄 Fetching transactions...');
-      const response = await axios.get('/cash-register');
-      console.log('📦 API Response:', response.data, 'Type:', typeof response.data, 'IsArray:', Array.isArray(response.data));
-      
-      // Ensure response.data is an array
-      if (Array.isArray(response.data)) {
-        setTransactions(response.data);
-        console.log('✅ Transactions set successfully:', response.data.length, 'items');
-      } else if (response.data && response.data.transactions && Array.isArray(response.data.transactions)) {
-        // Handle paginated response format
-        console.log('📦 Detected paginated response, extracting transactions array');
-        setTransactions(response.data.transactions);
-        console.log('✅ Transactions set successfully:', response.data.transactions.length, 'items');
-      } else {
-        console.error('❌ API returned non-array data for transactions:', response.data);
-        setTransactions([]); // Fallback to empty array
-      }
-    } catch (error) {
-      console.error('❌ Error fetching transactions:', error);
-      setTransactions([]); // Ensure transactions remains an array on error
-    }
-  };
-
-  // Phase 3: Fetch cash register masters
-  const fetchCashRegisterMasters = async () => {
-    try {
-      const response = await axios.get('/cash-register-masters');
-      console.log('Cash Register Masters Response:', response.data);
-      const activeRegisters = response.data.filter((r: any) => r.status === 'ACTIVE');
-      console.log('Active Cash Registers:', activeRegisters);
-      setCashRegisterMasters(activeRegisters);
-    } catch (error) {
-      console.error('Error fetching cash registers:', error);
-    }
-  };
-
-  // Phase 3: Fetch bank accounts
-  const fetchBankAccounts = async () => {
-    try {
-      const response = await axios.get('/bank-accounts');
-      const activeAccounts = response.data.filter((a: any) => a.status === 'ACTIVE');
-      setBankAccounts(activeAccounts);
-    } catch (error) {
-      console.error('Error fetching bank accounts:', error);
-    }
-  };
-
-  // Phase 3: Fetch customers
-  const fetchCustomers = async () => {
-    try {
-      const response = await axios.get('/clients');
-      const activeCustomers = response.data.filter((c: any) => c.status === 'ACTIVE');
-      setCustomers(activeCustomers);
-    } catch (error) {
-      console.error('Error fetching customers:', error);
-    }
-  };
-
-  // Fetch active investment agreements
+  // Fetch active investment agreements (not in shared data yet)
   const fetchActiveAgreements = async () => {
     try {
       const response = await axios.get('/investment-agreements/active');
@@ -233,49 +183,9 @@ const CashRegister = () => {
       console.error('Error fetching active agreements:', error);
     }
   };
-  // Fetch cards for debit card selection
-  const fetchCards = async () => {
-    try {
-      const response = await axios.get('/cards');
-      setCards(response.data);
-    } catch (error) {
-      console.error('Error fetching cards:', error);
-    }
-  };
 
-  // Fetch payment networks for credit card selection
-  const fetchPaymentNetworks = async () => {
-    try {
-      const response = await axios.get('/card-payment-networks');
-      setPaymentNetworks(response.data);
-    } catch (error) {
-      console.error('Error fetching payment networks:', error);
-    }
-  };
-
-  // Fetch pending Credit Sale and Credit Card Sale invoices for selected customer
-  const fetchPendingCreditSales = async (customerId: string) => {
-    if (!customerId) {
-      setPendingCreditSales([]);
-      setCreditPreview(null);
-      return;
-    }
-    
-    try {
-      const response = await axios.get(`/cash-register/pending-credit-sales/${customerId}`);
-      setPendingCreditSales(response.data);
-      
-      // Also fetch credit preview for this customer
-      fetchCreditPreview(customerId);
-    } catch (error) {
-      console.error('Error fetching pending credit sales:', error);
-      setPendingCreditSales([]);
-      setCreditPreview(null);
-    }
-  };
-
-  // Fetch credit preview to determine if payment method should be hidden
-  const fetchCreditPreview = async (customerId: string) => {
+  // ✅ MEMOIZED: Fetch credit preview to determine if payment method should be hidden
+  const fetchCreditPreview = useCallback(async (customerId: string) => {
     if (!customerId || !formData.amount) {
       setCreditPreview(null);
       return;
@@ -307,7 +217,28 @@ const CashRegister = () => {
     } finally {
       setIsLoadingCreditPreview(false);
     }
-  };
+  }, [formData.amount, selectedInvoices, location.state]);
+
+  // ✅ MEMOIZED: Fetch pending Credit Sale and Credit Card Sale invoices for selected customer
+  const fetchPendingCreditSales = useCallback(async (customerId: string) => {
+    if (!customerId) {
+      setPendingCreditSales([]);
+      setCreditPreview(null);
+      return;
+    }
+    
+    try {
+      const response = await axios.get(`/cash-register/pending-credit-sales/${customerId}`);
+      setPendingCreditSales(response.data);
+      
+      // Also fetch credit preview for this customer
+      fetchCreditPreview(customerId);
+    } catch (error) {
+      console.error('Error fetching pending credit sales:', error);
+      setPendingCreditSales([]);
+      setCreditPreview(null);
+    }
+  }, [fetchCreditPreview]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -381,8 +312,8 @@ const CashRegister = () => {
     
     // Phase 3: Conditional Cash Register Validation
     const needsCashRegister = 
-      formData.relatedDocumentType === 'CONTRIBUTION' || 
-      formData.relatedDocumentType === 'LOAN' ||
+      (formData.relatedDocumentType === 'CONTRIBUTION' && formData.paymentMethod === 'CASH') || 
+      (formData.relatedDocumentType === 'LOAN' && formData.paymentMethod === 'CASH') ||
       (formData.relatedDocumentType === 'AR_COLLECTION' && formData.paymentMethod === 'CASH');
     
     if (needsCashRegister && !formData.cashRegisterId) {
@@ -412,8 +343,8 @@ const CashRegister = () => {
       }
 
       // Payment method validations
-      if (formData.paymentMethod === 'DEBIT_CARD' && !formData.cardId) {
-        alert('Please select a debit card');
+      if (formData.paymentMethod === 'DEBIT_CARD' && !formData.cardPaymentNetworkId) {
+        alert('Please select a debit card payment network');
         return;
       }
       
@@ -445,12 +376,31 @@ const CashRegister = () => {
         },
         ['cashRegisterId', 'bankAccountId', 'customerId', 'cardId', 'cardPaymentNetworkId']  // Integer fields
       );
+      // ✅ CRITICAL: Validate cash register balance for OUTFLOW
+      if (formData.transactionType === 'OUTFLOW' && formData.cashRegisterId) {
+        const selectedCashRegister = Array.isArray(cashRegisterMasters) ?
+          cashRegisterMasters.find(register => register.id === parseInt(formData.cashRegisterId)) : null;
+        const outflowAmount = parseFloat(formData.amount);
+        
+        if (selectedCashRegister && selectedCashRegister.balance < outflowAmount) {
+          alert(
+            `Insufficient balance in cash register "${selectedCashRegister.name}". ` +
+            `Available: ${selectedCashRegister.balance.toFixed(2)}, Required: ${outflowAmount.toFixed(2)}. ` +
+            `Cannot perform transaction that would result in negative balance.`
+          );
+          return;
+        }
+      }
       
       await axios.post('/cash-register', cleanedData);
-      await fetchTransactions();
-      await fetchCashRegisterMasters(); // Refresh cash register balances
       
-      // 🔥 FIX: Refresh credit preview after AR collection payment
+      // ✅ REACT QUERY: Cache invalidation for automatic UI updates
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashTransactions });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashRegisters });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankAccounts });
+      queryClient.invalidateQueries({ queryKey: ['recent-activity'] });
+      
+      // Refresh credit preview after AR collection payment
       if (formData.relatedDocumentType === 'AR_COLLECTION' && formData.customerId) {
         fetchCreditPreview(formData.customerId);
       }
@@ -474,8 +424,8 @@ const CashRegister = () => {
     }
   };
 
-  // Overpayment handling functions
-  const handleOverpaymentConfirm = () => {
+  // ✅ MEMOIZED: Overpayment handling functions
+  const handleOverpaymentConfirm = useCallback(() => {
     setAllowOverpayment(true);
     setShowOverpaymentAlert(false);
     // Automatically resubmit the form
@@ -486,9 +436,9 @@ const CashRegister = () => {
         form.dispatchEvent(event);
       }
     }, 100);
-  };
+  }, []);
 
-  const handleOverpaymentAdjust = () => {
+  const handleOverpaymentAdjust = useCallback(() => {
     if (overpaymentData) {
       setFormData(prev => ({
         ...prev,
@@ -497,9 +447,9 @@ const CashRegister = () => {
     }
     setShowOverpaymentAlert(false);
     setAllowOverpayment(false);
-  };
+  }, [overpaymentData]);
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = useCallback(async (id: number) => {
     // Find the transaction to get its details
     const transaction = transactions.find(t => t.id === id);
     if (!transaction) {
@@ -523,9 +473,9 @@ const CashRegister = () => {
         }
       }
     });
-  };
+  }, [transactions, navigate]);
 
-  const resetForm = () => {
+  const resetForm = useCallback(() => {
     setFormData({
       registrationDate: new Date().toISOString().split('T')[0],
       transactionType: 'INFLOW',
@@ -557,12 +507,14 @@ const CashRegister = () => {
     if (location.state?.fromAccountsReceivable) {
       window.history.replaceState({}, document.title);
     }
-  };
+  }, [location.state]);
 
-  // ✅ Customer credit-aware payment success handler
-  const handleCustomerCreditAwarePaymentSuccess = () => {
-    fetchTransactions();
-    fetchCashRegisterMasters(); // Refresh cash register balances
+  // ✅ MEMOIZED: Customer credit-aware payment success handler
+  const handleCustomerCreditAwarePaymentSuccess = useCallback(() => {
+    // ✅ REACT QUERY: Cache invalidation
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashTransactions });
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashRegisters });
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.clients });
     
     // 🔥 FIX: Refresh credit preview to show updated credit balance
     if (formData.customerId) {
@@ -579,9 +531,9 @@ const CashRegister = () => {
     } else {
       alert('Smart customer payment completed successfully!');
     }
-  };
+  }, [queryClient, formData.customerId, location.state, navigate, fetchCreditPreview, resetForm]);
 
-  const handleDeposit = async (e: React.FormEvent) => {
+  const handleDeposit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!depositData.cashRegisterId) {
@@ -609,16 +561,21 @@ const CashRegister = () => {
       });
       
       alert('Bank deposit recorded successfully! Cash register balance decreased and bank account increased.');
-      fetchTransactions();
-      fetchCashRegisterMasters(); // Refresh cash register balances
+      
+      // ✅ REACT QUERY: Cache invalidation
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashTransactions });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashRegisters });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankAccounts });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankTransactions });
+      
       resetDepositForm();
     } catch (error: any) {
       console.error('Error recording deposit:', error);
       alert(error.response?.data?.error || 'Error recording deposit');
     }
-  };
+  }, [depositData, queryClient, t]);
 
-  const resetDepositForm = () => {
+  const resetDepositForm = useCallback(() => {
     setDepositData({
       date: new Date().toISOString().split('T')[0],
       cashRegisterId: '',
@@ -627,14 +584,23 @@ const CashRegister = () => {
       description: '',
     });
     setShowDepositModal(false);
-  };
+  }, []);
 
-  // Handle customer selection for AR collection (Credit Sales and Credit Card Sales)
-  const handleCustomerChange = (customerId: string) => {
-    setFormData({ ...formData, customerId });
+  // ✅ MEMOIZED: Handle customer selection for AR collection
+  const handleCustomerChange = useCallback((customerId: string) => {
+    setFormData(prev => ({ ...prev, customerId }));
     setSelectedInvoices([]);
     fetchPendingCreditSales(customerId);
-  };
+  }, [fetchPendingCreditSales]);
+
+  // ✅ MEMOIZED: Toggle invoice selection
+  const toggleInvoiceSelection = useCallback((invoiceId: number) => {
+    setSelectedInvoices(prev =>
+      prev.includes(invoiceId)
+        ? prev.filter(id => id !== invoiceId)
+        : [...prev, invoiceId]
+    );
+  }, []);
 
   // Fetch credit preview when amount or invoices change
   useEffect(() => {
@@ -645,16 +611,8 @@ const CashRegister = () => {
     }
   }, [formData.amount, selectedInvoices, formData.customerId, formData.relatedDocumentType]);
 
-  // Toggle invoice selection for Credit Sales
-  const toggleInvoiceSelection = (invoiceId: number) => {
-    if (selectedInvoices.includes(invoiceId)) {
-      setSelectedInvoices(selectedInvoices.filter(id => id !== invoiceId));
-    } else {
-      setSelectedInvoices([...selectedInvoices, invoiceId]);
-    }
-  };
-
-  const generateReport = () => {
+  // ✅ MEMOIZED: Generate report
+  const generateReport = useCallback(() => {
     const safeTransactions = Array.isArray(transactions) ? transactions : [];
     const filtered = safeTransactions.filter(t => {
       const tDate = new Date(t.registrationDate.split('T')[0]);
@@ -682,9 +640,13 @@ const CashRegister = () => {
     };
 
     return report;
-  };
+  }, [transactions, reportDate]);
 
-  const filteredTransactions = Array.isArray(transactions) ? transactions.filter(transaction => {
+  // ✅ MEMOIZED: Filtered transactions
+  const filteredTransactions = useMemo(() => {
+    if (!Array.isArray(transactions)) return [];
+    
+    return transactions.filter(transaction => {
     const matchesSearch = 
       transaction.registrationNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       transaction.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -693,18 +655,54 @@ const CashRegister = () => {
     const matchesType = filterType === 'All' || transaction.transactionType === filterType;
     
     return matchesSearch && matchesType;
-  }) : [];
+    });
+  }, [transactions, searchTerm, filterType]);
 
-  const totalInflow = Array.isArray(transactions) ? transactions
-    .filter(t => t.transactionType === 'INFLOW')
-    .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0) : 0;
+  // ✅ MEMOIZED: Total calculations
+  const { totalInflow, totalOutflow } = useMemo(() => {
+    if (!Array.isArray(transactions)) return { totalInflow: 0, totalOutflow: 0 };
+    
+    const totalInflow = transactions
+      .filter(t => t.transactionType === 'INFLOW')
+      .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
 
-  const totalOutflow = Array.isArray(transactions) ? transactions
-    .filter(t => t.transactionType === 'OUTFLOW')
-    .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0) : 0;
+    const totalOutflow = transactions
+      .filter(t => t.transactionType === 'OUTFLOW')
+      .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
+    
+    return { totalInflow, totalOutflow };
+  }, [transactions]);
 
   // Safety check - ensure transactions is always an array
   console.log('🔍 CashRegister render - transactions:', transactions, 'Type:', typeof transactions, 'IsArray:', Array.isArray(transactions));
+  
+  // ✅ OPTIMIZED: Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <span className="ml-3 text-gray-600">Loading cash register data...</span>
+      </div>
+    );
+  }
+
+  // ✅ ERROR STATE
+  if (hasError) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="text-red-500 text-4xl mb-4">⚠️</div>
+          <p className="text-gray-600 mb-4">Error loading cash register data</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
   
   if (!Array.isArray(transactions)) {
     console.log('⚠️ Transactions is not an array, showing loading...');
@@ -979,8 +977,8 @@ const CashRegister = () => {
                     }
                     
                     const needsCashRegister = 
-                      formData.relatedDocumentType === 'CONTRIBUTION' || 
-                      formData.relatedDocumentType === 'LOAN' ||
+                      (formData.relatedDocumentType === 'CONTRIBUTION' && formData.paymentMethod === 'CASH') || 
+                      (formData.relatedDocumentType === 'LOAN' && formData.paymentMethod === 'CASH') ||
                       (formData.relatedDocumentType === 'AR_COLLECTION' && formData.paymentMethod === 'CASH');
                     
                     return needsCashRegister ? (
@@ -1153,8 +1151,8 @@ const CashRegister = () => {
                               onChange={(e) => {
                                 const newPaymentMethod = e.target.value;
                                 const needsCashRegister = 
-                                  formData.relatedDocumentType === 'CONTRIBUTION' || 
-                                  formData.relatedDocumentType === 'LOAN' ||
+                                  (formData.relatedDocumentType === 'CONTRIBUTION' && newPaymentMethod === 'CASH') || 
+                                  (formData.relatedDocumentType === 'LOAN' && newPaymentMethod === 'CASH') ||
                                   (formData.relatedDocumentType === 'AR_COLLECTION' && newPaymentMethod === 'CASH');
                                 
                                 setFormData({ 
@@ -1167,8 +1165,13 @@ const CashRegister = () => {
                               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             >
                               <option value="CASH">{t('cash')}</option>
-                              <option value="CREDIT_CARD">{t('creditCard')}</option>
-                              <option value="DEBIT_CARD">{t('debitCard')}</option>
+                              {/* Hide credit/debit card options for CONTRIBUTION and LOAN */}
+                              {formData.relatedDocumentType !== 'CONTRIBUTION' && formData.relatedDocumentType !== 'LOAN' && (
+                                <>
+                                  <option value="CREDIT_CARD">{t('creditCard')}</option>
+                                  <option value="DEBIT_CARD">{t('debitCard')}</option>
+                                </>
+                              )}
                               <option value="BANK_TRANSFER">{t('bankTransfer')}</option>
                               <option value="DEPOSIT">{t('deposit')}</option>
                               <option value="BANK_CHEQUE">{t('bankCheque')}</option>
@@ -1203,13 +1206,21 @@ const CashRegister = () => {
                           onChange={(e) => {
                             const newDocumentType = e.target.value;
                             const needsCashRegister = 
-                              newDocumentType === 'CONTRIBUTION' || 
-                              newDocumentType === 'LOAN' ||
+                              (newDocumentType === 'CONTRIBUTION' && formData.paymentMethod === 'CASH') || 
+                              (newDocumentType === 'LOAN' && formData.paymentMethod === 'CASH') ||
                               (newDocumentType === 'AR_COLLECTION' && formData.paymentMethod === 'CASH');
+                            
+                            // Reset payment method if switching to CONTRIBUTION/LOAN with card payment selected
+                            let newPaymentMethod = formData.paymentMethod;
+                            if ((newDocumentType === 'CONTRIBUTION' || newDocumentType === 'LOAN') && 
+                                (formData.paymentMethod === 'CREDIT_CARD' || formData.paymentMethod === 'DEBIT_CARD')) {
+                              newPaymentMethod = 'CASH'; // Reset to CASH as default
+                            }
                             
                             setFormData({ 
                               ...formData, 
                               relatedDocumentType: newDocumentType,
+                              paymentMethod: newPaymentMethod,
                               // Clear cashRegisterId if not needed
                               cashRegisterId: needsCashRegister ? formData.cashRegisterId : ''
                             });
@@ -1373,28 +1384,27 @@ const CashRegister = () => {
                         </div>
                       )}
 
-                      {/* Debit Card Selection for DEBIT_CARD */}
+                      {/* Payment Network Selection for DEBIT_CARD */}
                       {formData.paymentMethod === 'DEBIT_CARD' && (
                         <div className="md:col-span-2">
                           <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Select Debit Card *
+                            Select Debit Card Network *
                           </label>
                           <select
                             required
-                            value={formData.cardId}
-                            onChange={(e) => setFormData({ ...formData, cardId: e.target.value })}
+                            value={formData.cardPaymentNetworkId}
+                            onChange={(e) => setFormData({ ...formData, cardPaymentNetworkId: e.target.value })}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                           >
-                            <option value="">Select debit card...</option>
-                            {cards.filter(card => card.cardType === 'DEBIT').map(card => (
-                              <option key={card.id} value={card.id}>
-                                {card.cardName ? card.cardName : `${card.cardBrand || 'Debit Card'} ****${card.cardNumberLast4}`}
-                                {card.BankAccount && ` - ${card.BankAccount.bankName} (Balance: ${Number(card.BankAccount.balance).toFixed(2)})`}
+                            <option value="">Select payment network...</option>
+                            {paymentNetworks.filter(network => network.type === 'DEBIT' && network.isActive).map(network => (
+                              <option key={network.id} value={network.id}>
+                                {network.name} - Fee: {(Number(network.processingFee) * 100).toFixed(2)}% - Settlement: {network.settlementDays} day{network.settlementDays !== 1 ? 's' : ''}
                               </option>
                             ))}
                           </select>
                           <p className="text-xs text-gray-500 mt-1">
-                            💳 DEBIT: Payment will be processed through selected debit card
+                            💳 DEBIT: Creates Accounts Receivable from selected payment network
                           </p>
                         </div>
                       )}

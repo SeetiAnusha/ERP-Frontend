@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Building2, TrendingUp, DollarSign, Calendar, MapPin, Phone, Mail, RefreshCw } from 'lucide-react';
 import api from '../api/axios';
@@ -56,7 +56,8 @@ const Banks = () => {
     fetchSummary();
   }, []);
 
-  const fetchBanks = async () => {
+  // ✅ MEMOIZED: Fetch banks
+  const fetchBanks = useCallback(async () => {
     try {
       setLoading(true);
       const response = await api.get('/banks');
@@ -66,21 +67,23 @@ const Banks = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const fetchSummary = async () => {
+  // ✅ MEMOIZED: Fetch summary
+  const fetchSummary = useCallback(async () => {
     try {
       const response = await api.get('/banks/summary/statistics');
       setSummary(response.data);
     } catch (error) {
       console.error('Error fetching bank summary:', error);
     }
-  };
+  }, []);
 
-  const handleRefresh = () => {
+  // ✅ MEMOIZED: Handle refresh
+  const handleRefresh = useCallback(() => {
     fetchBanks();
     fetchSummary();
-  };
+  }, [fetchBanks, fetchSummary]);
 
   if (loading) {
     return (

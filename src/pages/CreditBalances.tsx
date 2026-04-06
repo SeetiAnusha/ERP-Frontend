@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { 
   CreditCard, 
@@ -12,7 +12,7 @@ import {
   TrendingUp,
   Building
 } from 'lucide-react';
-import api from '../api/axios';
+import { useCreditBalances } from '../hooks/queries/useSharedData';
 
 interface CreditBalance {
   id: number;
@@ -45,8 +45,9 @@ interface CreditSummary {
 }
 
 const CreditBalances: React.FC = () => {
-  const [creditBalances, setCreditBalances] = useState<CreditBalance[]>([]);
-  const [filteredCredits, setFilteredCredits] = useState<CreditBalance[]>([]);
+  // ✅ React Query Hook
+  const { data: creditBalances = [], isLoading, isError, refetch } = useCreditBalances();
+  
   const [summary, setSummary] = useState<CreditSummary>({
     totalCustomerCredits: 0,
     totalSupplierCredits: 0,
@@ -55,35 +56,14 @@ const CreditBalances: React.FC = () => {
     totalActiveCredits: 0,
     totalUsedCredits: 0
   });
-  const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('ALL');
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
   const [selectedCredit, setSelectedCredit] = useState<CreditBalance | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
 
-  useEffect(() => {
-    fetchCreditBalances();
-  }, []);
-
-  useEffect(() => {
-    applyFilters();
-  }, [creditBalances, searchTerm, filterType, filterStatus]);
-
-  const fetchCreditBalances = async () => {
-    setIsLoading(true);
-    try {
-      const response = await api.get('/credit-balances');
-      setCreditBalances(response.data);
-      calculateSummary(response.data);
-    } catch (error) {
-      console.error('Error fetching credit balances:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const calculateSummary = (credits: CreditBalance[]) => {
+  // ✅ Memoized: Calculate summary
+  const calculateSummary = useCallback((credits: CreditBalance[]) => {
     const summary = credits.reduce((acc, credit) => {
       if (credit.type === 'CUSTOMER_CREDIT') {
         acc.totalCustomerCredits += credit.creditAmount;
@@ -113,9 +93,16 @@ const CreditBalances: React.FC = () => {
     });
 
     setSummary(summary);
-  };
+  }, []);
 
-  const applyFilters = () => {
+  useEffect(() => {
+    if (creditBalances.length > 0) {
+      calculateSummary(creditBalances);
+    }
+  }, [creditBalances, calculateSummary]);
+
+  // ✅ Memoized: Filtered credits
+  const filteredCredits = useMemo(() => {
     let filtered = creditBalances;
 
     // Search filter
@@ -138,8 +125,8 @@ const CreditBalances: React.FC = () => {
       filtered = filtered.filter(credit => credit.status === filterStatus);
     }
 
-    setFilteredCredits(filtered);
-  };
+    return filtered;
+  }, [creditBalances, searchTerm, filterType, filterStatus]);
 
   const formatNumber = (num: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -166,12 +153,14 @@ const CreditBalances: React.FC = () => {
     return type === 'CUSTOMER_CREDIT' ? 'blue' : 'green';
   };
 
-  const handleViewDetails = (credit: CreditBalance) => {
+  // ✅ Memoized: View details handler
+  const handleViewDetails = useCallback((credit: CreditBalance) => {
     setSelectedCredit(credit);
     setShowDetailModal(true);
-  };
+  }, []);
 
-  const exportToCSV = () => {
+  // ✅ Memoized: Export to CSV
+  const exportToCSV = useCallback(() => {
     const headers = [
       'Registration Number',
       'Date',
@@ -209,7 +198,24 @@ const CreditBalances: React.FC = () => {
     a.download = `credit-balances-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
-  };
+  }, [filteredCredits]);
+
+  // ✅ Error state
+  if (isError) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+          <p className="text-red-600 font-medium">Error loading credit balances</p>
+          <button
+            onClick={() => refetch()}
+            className="mt-4 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -337,7 +343,7 @@ const CreditBalances: React.FC = () => {
         </select>
 
         <button
-          onClick={fetchCreditBalances}
+          onClick={() => refetch()}
           className="bg-gray-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-700"
         >
           <RefreshCw size={16} />

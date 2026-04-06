@@ -1,10 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { DollarSign, Calendar, FileText, AlertTriangle } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
 import { notify } from '../utils/notifications';
+import { QUERY_KEYS } from '../lib/queryKeys';
 import OverpaymentAlertModal from './OverpaymentAlertModal';
 import CreditBalanceDisplay from './CreditBalanceDisplay';
+
+// ✅ Import shared components for Phase 1 refactoring
+import { BankAccountSelector, CardSelector } from './shared';
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -34,6 +39,7 @@ const EnhancedPaymentModal: React.FC<PaymentModalProps> = ({
   transaction,
   title
 }) => {
+  const queryClient = useQueryClient();
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentDate, setPaymentDate] = useState('');
   const [paymentReference, setPaymentReference] = useState('');
@@ -41,8 +47,6 @@ const EnhancedPaymentModal: React.FC<PaymentModalProps> = ({
   const [paymentMethod, setPaymentMethod] = useState<'BANK_ACCOUNT' | 'CREDIT_CARD'>('BANK_ACCOUNT');
   const [selectedBankAccountId, setSelectedBankAccountId] = useState('');
   const [selectedCreditCardId, setSelectedCreditCardId] = useState('');
-  const [bankAccounts, setBankAccounts] = useState<any[]>([]);
-  const [creditCards, setCreditCards] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Overpayment handling
@@ -53,8 +57,6 @@ const EnhancedPaymentModal: React.FC<PaymentModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       resetForm();
-      fetchBankAccounts();
-      fetchCreditCards();
       
       // 🔥 NEW: Auto-select payment method based on AP cardId
       if (transaction.cardId) {
@@ -76,28 +78,6 @@ const EnhancedPaymentModal: React.FC<PaymentModalProps> = ({
     setAllowOverpayment(false);
     setShowOverpaymentAlert(false);
     setOverpaymentData(null);
-  };
-
-  const fetchBankAccounts = async () => {
-    try {
-      const response = await api.get('/bank-accounts');
-      setBankAccounts(response.data);
-    } catch (error) {
-      console.error('Error fetching bank accounts:', error);
-    }
-  };
-
-  const fetchCreditCards = async () => {
-    try {
-      const response = await api.get('/cards');
-      // Filter for active credit cards only
-      const creditCards = response.data.filter((card: any) => 
-        card.cardType === 'CREDIT' && card.status === 'ACTIVE'
-      );
-      setCreditCards(creditCards);
-    } catch (error) {
-      console.error('Error fetching credit cards:', error);
-    }
   };
 
   const validatePaymentAmount = async () => {
@@ -207,6 +187,15 @@ const EnhancedPaymentModal: React.FC<PaymentModalProps> = ({
       } else {
         notify.success('Payment processed successfully');
       }
+      
+      // ✅ CRITICAL: Invalidate all related caches after payment
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.accountsPayable });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.accountsReceivable });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.clients });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.suppliers });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashRegisters });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankAccounts });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cards });
       
       onSuccess();
       onClose();
@@ -400,23 +389,15 @@ const EnhancedPaymentModal: React.FC<PaymentModalProps> = ({
               {/* Bank Account Selection - SIMPLIFIED for all AP payments */}
               {paymentMethod === 'BANK_ACCOUNT' && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {transaction.isCardTransaction 
-                      ? 'Select Bank Account to Pay Credit Card Bill *' 
-                      : 'Select Bank Account to Pay From *'}
-                  </label>
-                  <select
+                  <BankAccountSelector
                     value={selectedBankAccountId}
-                    onChange={(e) => setSelectedBankAccountId(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Select Bank Account</option>
-                    {bankAccounts.map((account) => (
-                      <option key={account.id} value={account.id}>
-                        {account.bankName} - {account.accountNumber} (Balance: ₹{Number(account.balance).toFixed(2)})
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(value) => setSelectedBankAccountId(value)}
+                    required
+                    showBalance
+                    label={transaction.isCardTransaction 
+                      ? 'Select Bank Account to Pay Credit Card Bill' 
+                      : 'Select Bank Account to Pay From'}
+                  />
                   <p className="text-xs text-gray-500 mt-1">
                     {transaction.isCardTransaction 
                       ? '💳 Payment will be transferred from this bank account to the credit card company'
@@ -428,23 +409,15 @@ const EnhancedPaymentModal: React.FC<PaymentModalProps> = ({
               {/* Credit Card Selection */}
               {paymentMethod === 'CREDIT_CARD' && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {transaction.cardId ? 'Credit Card (Auto-Selected)' : 'Select Credit Card to Pay With *'}
-                  </label>
-                  <select
+                  <CardSelector
                     value={selectedCreditCardId}
-                    onChange={(e) => setSelectedCreditCardId(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    onChange={(value) => setSelectedCreditCardId(value)}
+                    cardType="CREDIT"
+                    required
+                    showAvailableLimit
                     disabled={!!transaction.cardId}
-                  >
-                    <option value="">Select Credit Card</option>
-                    {creditCards.map((card) => (
-                      <option key={card.id} value={card.id}>
-                        {card.cardName} - {card.cardBrand} ****{card.cardNumberLast4} 
-                        (Available: ₹{(Number(card.creditLimit) - Number(card.usedCredit)).toFixed(2)})
-                      </option>
-                    ))}
-                  </select>
+                    label={transaction.cardId ? 'Credit Card (Auto-Selected)' : 'Select Credit Card to Pay With'}
+                  />
                   <p className="text-xs text-gray-500 mt-1">
                     {transaction.cardId 
                       ? '💳 Using the same credit card from the original purchase'

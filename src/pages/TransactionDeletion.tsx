@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/Tabs';
 import { Alert, AlertDescription } from '../components/ui/Alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/Table';
 import { Trash2, AlertTriangle, CheckCircle, Clock, Play, Eye, RefreshCw } from 'lucide-react';
 import axios from '../api/axios';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { CACHE_STRATEGIES } from '../lib/queryClient';
 
 interface DeletionReason {
   id: number;
@@ -83,12 +85,38 @@ interface PendingApproval {
 }
 
 const TransactionDeletion: React.FC = () => {
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('request');
-  const [deletionReasons, setDeletionReasons] = useState<DeletionReason[]>([]);
+  
+  // ✅ React Query hooks for data fetching
+  const { data: deletionReasons = [] } = useQuery({
+    queryKey: ['deletion-reasons'],
+    queryFn: async () => {
+      const response = await axios.get('/transaction-deletion/reasons');
+      return response.data.data || [];
+    },
+    ...CACHE_STRATEGIES.MASTER_DATA,
+  });
+
+  const { data: myRequests = [], refetch: refetchMyRequests } = useQuery({
+    queryKey: ['my-deletion-requests'],
+    queryFn: async () => {
+      const response = await axios.get('/transaction-deletion/my-requests');
+      return response.data.data || [];
+    },
+    ...CACHE_STRATEGIES.REAL_TIME_DATA,
+  });
+
+  const { data: pendingApprovals = [] } = useQuery({
+    queryKey: ['pending-deletion-approvals'],
+    queryFn: async () => {
+      const response = await axios.get('/transaction-deletion/pending-approvals');
+      return response.data.data || [];
+    },
+    ...CACHE_STRATEGIES.REAL_TIME_DATA,
+  });
+
   const [availableTransactions, setAvailableTransactions] = useState<AvailableTransaction[]>([]);
-  const [myRequests, setMyRequests] = useState<ApprovalRequest[]>([]);
-  const [pendingApprovals, setPendingApprovals] = useState<PendingApproval[]>([]);
-  const [loading, setLoading] = useState(false);
   const [loadingTransactions, setLoadingTransactions] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -101,22 +129,8 @@ const TransactionDeletion: React.FC = () => {
   const [customMemo, setCustomMemo] = useState('');
   const [impactAnalysis, setImpactAnalysis] = useState<ImpactAnalysis | null>(null);
 
-  useEffect(() => {
-    loadDeletionReasons();
-    loadMyRequests();
-    loadPendingApprovals();
-  }, []);
-
-  const loadDeletionReasons = async () => {
-    try {
-      const response = await axios.get('/transaction-deletion/reasons');
-      setDeletionReasons(response.data.data || []);
-    } catch (error) {
-      console.error('Error loading deletion reasons:', error);
-    }
-  };
-
-  const loadAvailableTransactions = async (selectedEntityType: string) => {
+  // ✅ Memoized load available transactions
+  const loadAvailableTransactions = useCallback(async (selectedEntityType: string) => {
     if (!selectedEntityType) {
       setAvailableTransactions([]);
       return;
@@ -135,75 +149,40 @@ const TransactionDeletion: React.FC = () => {
     } finally {
       setLoadingTransactions(false);
     }
-  };
+  }, []);
 
-  const loadMyRequests = async () => {
-    try {
-      const response = await axios.get('/transaction-deletion/my-requests');
-      setMyRequests(response.data.data || []);
-    } catch (error) {
-      console.error('Error loading my requests:', error);
-    }
-  };
-
-  const loadPendingApprovals = async () => {
-    try {
-      const response = await axios.get('/transaction-deletion/pending-approvals');
-      setPendingApprovals(response.data.data || []);
-    } catch (error) {
-      console.error('Error loading pending approvals:', error);
-    }
-  };
-
-  const analyzeImpact = async () => {
-    if (!selectedTransaction) {
-      setError('Please select a transaction first');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
+  // ✅ Mutation for impact analysis
+  const analyzeImpactMutation = useMutation({
+    mutationFn: async ({ entityType, entityId }: { entityType: string; entityId: number }) => {
       const response = await axios.post('/transaction-deletion/analyze-impact', {
         entityType,
-        entityId: selectedTransaction.id
+        entityId
       });
-
-      setImpactAnalysis(response.data.data);
-    } catch (error: any) {
+      return response.data.data;
+    },
+    onSuccess: (data: any) => {
+      setImpactAnalysis(data);
+      setError(null);
+    },
+    onError: (error: any) => {
       setError(error.response?.data?.message || 'Failed to analyze impact');
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+  });
 
-  const submitDeletionRequest = async () => {
-    if (!selectedTransaction || !reason || !deletionReasonCode) {
-      setError('Please fill all required fields');
-      return;
-    }
-
-    const selectedReason = deletionReasons.find(r => r.reason_code === deletionReasonCode);
-    if (selectedReason?.requires_memo && !customMemo.trim()) {
-      setError('This deletion reason requires a custom memo');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      const response = await axios.post('/transaction-deletion/request-approval', {
-        entityType,
-        entityId: selectedTransaction.id,
-        reason: reason.trim(),
-        deletionReasonCode,
-        customMemo: customMemo.trim() || undefined
-      });
-
-      setSuccess(`✅ Deletion request created successfully: ${response.data.data.requestNumber}`);
+  // ✅ Mutation for submitting deletion request
+  const submitDeletionMutation = useMutation({
+    mutationFn: async (data: {
+      entityType: string;
+      entityId: number;
+      reason: string;
+      deletionReasonCode: string;
+      customMemo?: string;
+    }) => {
+      const response = await axios.post('/transaction-deletion/request-approval', data);
+      return response.data.data;
+    },
+    onSuccess: (data: any) => {
+      setSuccess(`✅ Deletion request created successfully: ${data.requestNumber}`);
       // Reset form completely
       setEntityType('');
       setSelectedTransaction(null);
@@ -212,77 +191,123 @@ const TransactionDeletion: React.FC = () => {
       setDeletionReasonCode('');
       setCustomMemo('');
       setImpactAnalysis(null);
-      // Reload requests to show new submission
-      await loadMyRequests();
-      // Switch to My Requests tab to show the submitted request
+      // Invalidate and refetch
+      queryClient.invalidateQueries({ queryKey: ['my-deletion-requests'] });
+      // Switch to My Requests tab
       setActiveTab('my-requests');
-    } catch (error: any) {
+      setError(null);
+    },
+    onError: (error: any) => {
       setError(error.response?.data?.message || 'Failed to submit deletion request');
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+  });
 
-  const processApprovalStep = async (stepId: number, decision: 'APPROVED' | 'REJECTED', notes?: string) => {
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
-
-    try {
+  // ✅ Mutation for processing approval step
+  const processApprovalMutation = useMutation({
+    mutationFn: async ({ stepId, decision, notes }: {
+      stepId: number;
+      decision: 'APPROVED' | 'REJECTED';
+      notes?: string;
+    }) => {
       await axios.post(`/transaction-deletion/process-step/${stepId}`, {
         decision,
         notes: notes?.trim() || undefined
       });
-
-      setSuccess(`✅ Approval step ${decision.toLowerCase()} successfully`);
-      // Reload both pending approvals and requests to reflect changes
-      await Promise.all([
-        loadPendingApprovals(),
-        loadMyRequests()
-      ]);
-    } catch (error: any) {
+    },
+    onSuccess: () => {
+      setSuccess(`✅ Approval step processed successfully`);
+      // Invalidate both queries
+      queryClient.invalidateQueries({ queryKey: ['pending-deletion-approvals'] });
+      queryClient.invalidateQueries({ queryKey: ['my-deletion-requests'] });
+      setError(null);
+    },
+    onError: (error: any) => {
       console.error('Approval processing error:', error);
-      console.error('Error response data:', error.response?.data);
-      console.error('Error status:', error.response?.status);
-      console.error('Error config:', error.config);
-      
       const errorMessage = error.response?.data?.message || error.message || 'Failed to process approval step';
       setError(`❌ ${errorMessage}`);
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+  });
 
-  // 🔥 NEW: Execute approved deletion
-  const executeApprovedDeletion = async (requestId: number, requestNumber: string) => {
+  // ✅ Mutation for executing approved deletion
+  const executeDeletionMutation = useMutation({
+    mutationFn: async (requestId: number) => {
+      await axios.post(`/transaction-deletion/execute/${requestId}`);
+    },
+    onSuccess: async (_: any, requestId: number) => {
+      const request = myRequests.find((r: ApprovalRequest) => r.id === requestId);
+      setSuccess(`🎉 Deletion ${request?.request_number} executed successfully! All reversal entries have been created.`);
+      
+      // ✅ CRITICAL: Invalidate all deletion-related caches
+      // This ensures balances and lists update immediately without page refresh
+      const { invalidateDeletionCaches } = await import('../utils/cacheInvalidation');
+      invalidateDeletionCaches(queryClient);
+      
+      // Also invalidate requests to show updated status
+      queryClient.invalidateQueries({ queryKey: ['my-deletion-requests'] });
+      
+      setError(null);
+    },
+    onError: (error: any) => {
+      console.error('Execution error:', error);
+      setError(`❌ ${error.response?.data?.message || 'Failed to execute deletion'}`);
+    },
+  });
+
+  // ✅ Memoized analyze impact handler
+  const analyzeImpact = useCallback(async () => {
+    if (!selectedTransaction) {
+      setError('Please select a transaction first');
+      return;
+    }
+
+    analyzeImpactMutation.mutate({
+      entityType,
+      entityId: selectedTransaction.id
+    });
+  }, [selectedTransaction, entityType, analyzeImpactMutation]);
+
+  // ✅ Memoized submit deletion request handler
+  const submitDeletionRequest = useCallback(async () => {
+    if (!selectedTransaction || !reason || !deletionReasonCode) {
+      setError('Please fill all required fields');
+      return;
+    }
+
+    const selectedReason = deletionReasons.find((r: DeletionReason) => r.reason_code === deletionReasonCode);
+    if (selectedReason?.requires_memo && !customMemo.trim()) {
+      setError('This deletion reason requires a custom memo');
+      return;
+    }
+
+    submitDeletionMutation.mutate({
+      entityType,
+      entityId: selectedTransaction.id,
+      reason: reason.trim(),
+      deletionReasonCode,
+      customMemo: customMemo.trim() || undefined
+    });
+  }, [selectedTransaction, reason, deletionReasonCode, customMemo, entityType, deletionReasons, submitDeletionMutation]);
+
+  // ✅ Memoized process approval step handler
+  const processApprovalStep = useCallback(async (stepId: number, decision: 'APPROVED' | 'REJECTED', notes?: string) => {
+    processApprovalMutation.mutate({ stepId, decision, notes });
+  }, [processApprovalMutation]);
+
+  // ✅ Memoized execute approved deletion handler
+  const executeApprovedDeletion = useCallback(async (requestId: number, requestNumber: string) => {
     if (!window.confirm(`⚠️ Are you sure you want to EXECUTE deletion ${requestNumber}?\n\nThis action is IRREVERSIBLE and will:\n- Create reversal entries\n- Soft delete original records\n- Update all related transactions\n\nClick OK to proceed.`)) {
       return;
     }
 
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
+    executeDeletionMutation.mutate(requestId);
+  }, [executeDeletionMutation]);
 
-    try {
-      await axios.post(`/transaction-deletion/execute/${requestId}`);
-
-      setSuccess(`🎉 Deletion ${requestNumber} executed successfully! All reversal entries have been created.`);
-      // Reload requests to show updated status
-      await loadMyRequests();
-    } catch (error: any) {
-      console.error('Execution error:', error);
-      setError(`❌ ${error.response?.data?.message || 'Failed to execute deletion'}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Helper function to get display status
-  const getDisplayStatus = (request: ApprovalRequest): string => {
+  // ✅ Memoized helper functions
+  const getDisplayStatus = useCallback((request: ApprovalRequest): string => {
     return request.executed_at ? 'EXECUTED' : request.status;
-  };
+  }, []);
 
-  const getRiskLevelColor = (riskLevel: string) => {
+  const getRiskLevelColor = useCallback((riskLevel: string) => {
     switch (riskLevel) {
       case 'LOW': return 'text-green-600 bg-green-100';
       case 'MEDIUM': return 'text-yellow-600 bg-yellow-100';
@@ -290,9 +315,9 @@ const TransactionDeletion: React.FC = () => {
       case 'CRITICAL': return 'text-red-600 bg-red-100';
       default: return 'text-gray-600 bg-gray-100';
     }
-  };
+  }, []);
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = useCallback((status: string) => {
     const upperStatus = status.toUpperCase();
     switch (upperStatus) {
       case 'PENDING': return 'text-yellow-600 bg-yellow-100';
@@ -302,9 +327,9 @@ const TransactionDeletion: React.FC = () => {
       case 'CANCELLED': return 'text-gray-600 bg-gray-100';
       default: return 'text-gray-600 bg-gray-100';
     }
-  };
+  }, []);
 
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = useCallback((status: string) => {
     const upperStatus = status.toUpperCase();
     switch (upperStatus) {
       case 'PENDING': return <Clock className="w-4 h-4" />;
@@ -314,7 +339,13 @@ const TransactionDeletion: React.FC = () => {
       case 'CANCELLED': return <Trash2 className="w-4 h-4" />;
       default: return <Clock className="w-4 h-4" />;
     }
-  };
+  }, []);
+
+  // ✅ Combined loading state for mutations
+  const loading = analyzeImpactMutation.isPending || 
+                  submitDeletionMutation.isPending || 
+                  processApprovalMutation.isPending || 
+                  executeDeletionMutation.isPending;
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
@@ -414,7 +445,7 @@ const TransactionDeletion: React.FC = () => {
                   <select
                     value={selectedTransaction?.id || ''}
                     onChange={(e) => {
-                      const transaction = availableTransactions.find(t => t.id === parseInt(e.target.value));
+                      const transaction = availableTransactions.find((t: AvailableTransaction) => t.id === parseInt(e.target.value));
                       setSelectedTransaction(transaction || null);
                       setImpactAnalysis(null);
                     }}
@@ -525,7 +556,7 @@ const TransactionDeletion: React.FC = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">Select deletion reason</option>
-                  {deletionReasons.map((reason) => (
+                  {deletionReasons.map((reason: DeletionReason) => (
                     <option key={reason.reason_code} value={reason.reason_code}>
                       {reason.reason_name} {reason.requires_memo && '(requires memo)'}
                     </option>
@@ -547,7 +578,7 @@ const TransactionDeletion: React.FC = () => {
               </div>
             </div>
 
-            {deletionReasons.find(r => r.reason_code === deletionReasonCode)?.requires_memo && (
+            {deletionReasons.find((r: DeletionReason) => r.reason_code === deletionReasonCode)?.requires_memo && (
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Custom Memo *
@@ -613,7 +644,7 @@ const TransactionDeletion: React.FC = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {pendingApprovals.map((approval) => (
+                    {pendingApprovals.map((approval: PendingApproval) => (
                       <TableRow key={approval.step_id}>
                         <TableCell className="font-medium">{approval.request_number}</TableCell>
                         <TableCell>{approval.entity_type}</TableCell>
@@ -664,7 +695,7 @@ const TransactionDeletion: React.FC = () => {
                 <p className="text-gray-600">Track your deletion requests and their approval status</p>
               </div>
               <button
-                onClick={() => loadMyRequests()}
+                onClick={() => refetchMyRequests()}
                 className="flex items-center space-x-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-md text-sm"
               >
                 <RefreshCw className="w-4 h-4" />
@@ -694,7 +725,7 @@ const TransactionDeletion: React.FC = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {myRequests.map((request) => (
+                    {myRequests.map((request: ApprovalRequest) => (
                       <TableRow key={request.id} className={request.executed_at ? 'bg-blue-50' : ''}>
                         <TableCell className="font-medium">{request.request_number}</TableCell>
                         <TableCell>
@@ -724,12 +755,12 @@ const TransactionDeletion: React.FC = () => {
                                 <div 
                                   className="bg-blue-600 h-2 rounded-full" 
                                   style={{ 
-                                    width: `${(request.steps.filter(s => s.status === 'Approved').length / request.steps.length) * 100}%` 
+                                    width: `${(request.steps.filter((s: any) => s.status === 'Approved').length / request.steps.length) * 100}%` 
                                   }}
                                 ></div>
                               </div>
                               <span className="text-xs whitespace-nowrap">
-                                {request.steps.filter(s => s.status === 'Approved').length} / {request.steps.length}
+                                {request.steps.filter((s: any) => s.status === 'Approved').length} / {request.steps.length}
                               </span>
                             </div>
                           </div>

@@ -1,8 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { FaPlus, FaEdit, FaTrash, FaFileInvoice, FaSearch } from 'react-icons/fa';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from '../api/axios';
 import { Adjustment, Purchase, Sale, Product } from '../types';
+import { useAdjustments } from '../hooks/queries/useSharedData';
+import { useProducts } from '../hooks/queries/useProducts';
+import { usePurchases } from '../hooks/queries/usePurchases';
+import { useSales } from '../hooks/queries/useSales';
+import { QUERY_KEYS } from '../lib/queryKeys';
 
 interface AdjustmentItem {
   productCode: string;
@@ -16,14 +22,19 @@ interface AdjustmentItem {
 }
 
 const Adjustments = () => {
-  const [adjustments, setAdjustments] = useState<Adjustment[]>([]);
-  const [purchases, setPurchases] = useState<Purchase[]>([]);
-  const [sales, setSales] = useState<Sale[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
+  const queryClient = useQueryClient();
+  
+  // ✅ REACT QUERY: Replace manual API calls with hooks
+  const { data: adjustments = [], isLoading: isLoadingAdjustments } = useAdjustments();
+  const { data: purchases = [] } = usePurchases();
+  const { data: sales = [] } = useSales();
+  const { data: products = [] } = useProducts();
+  
   const [showModal, setShowModal] = useState(false);
   const [editingAdjustment, setEditingAdjustment] = useState<Adjustment | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('All');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
     registrationDate: new Date().toISOString().split('T')[0],
@@ -48,50 +59,38 @@ const Adjustments = () => {
   const [quantity, setQuantity] = useState(1);
   const [unitCost, setUnitCost] = useState(0);
 
-  useEffect(() => {
-    fetchAdjustments();
-    fetchPurchases();
-    fetchSales();
-    fetchProducts();
-  }, []);
+  // ✅ REACT QUERY: Mutations with automatic cache invalidation
+  const createMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const response = await axios.post('/adjustments', data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['adjustments'] });
+    },
+  });
 
-  const fetchAdjustments = async () => {
-    try {
-      const response = await axios.get('/adjustments');
-      setAdjustments(response.data);
-    } catch (error) {
-      console.error('Error fetching adjustments:', error);
-    }
-  };
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: any }) => {
+      const response = await axios.put(`/adjustments/${id}`, data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['adjustments'] });
+    },
+  });
 
-  const fetchPurchases = async () => {
-    try {
-      const response = await axios.get('/purchases');
-      setPurchases(response.data);
-    } catch (error) {
-      console.error('Error fetching purchases:', error);
-    }
-  };
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await axios.delete(`/adjustments/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['adjustments'] });
+    },
+  });
 
-  const fetchSales = async () => {
-    try {
-      const response = await axios.get('/sales');
-      setSales(response.data);
-    } catch (error) {
-      console.error('Error fetching sales:', error);
-    }
-  };
-
-  const fetchProducts = async () => {
-    try {
-      const response = await axios.get('/products');
-      setProducts(response.data);
-    } catch (error) {
-      console.error('Error fetching products:', error);
-    }
-  };
-
-  const addProductToAdjustment = () => {
+  // ✅ MEMOIZATION: Memoize product addition function
+  const addProductToAdjustment = useCallback(() => {
     if (!selectedProduct || quantity <= 0) return;
     
     const product = products.find(p => p.id === parseInt(selectedProduct));
@@ -115,21 +114,27 @@ const Adjustments = () => {
     setSelectedProduct('');
     setQuantity(1);
     setUnitCost(0);
-  };
+  }, [selectedProduct, quantity, unitCost, products, adjustmentItems]);
 
-  const removeItem = (index: number) => {
+  // ✅ MEMOIZATION: Memoize remove item function
+  const removeItem = useCallback((index: number) => {
     setAdjustmentItems(adjustmentItems.filter((_, i) => i !== index));
-  };
+  }, [adjustmentItems]);
 
-  const calculateTotals = () => {
+  // ✅ MEMOIZATION: Memoize totals calculation
+  const calculateTotals = useCallback(() => {
     const subtotal = adjustmentItems.reduce((sum, item) => sum + item.subtotal, 0);
     const tax = adjustmentItems.reduce((sum, item) => sum + item.tax, 0);
     const total = adjustmentItems.reduce((sum, item) => sum + item.total, 0);
     return { subtotal, tax, total };
-  };
+  }, [adjustmentItems]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // ✅ MEMOIZATION: Memoize submit handler
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+    
+    setIsSubmitting(true);
     try {
       const totals = calculateTotals();
       const adjustmentData = {
@@ -139,31 +144,33 @@ const Adjustments = () => {
       };
 
       if (editingAdjustment) {
-        await axios.put(`/adjustments/${editingAdjustment.id}`, adjustmentData);
+        await updateMutation.mutateAsync({ id: editingAdjustment.id, data: adjustmentData });
       } else {
-        await axios.post('/adjustments', adjustmentData);
+        await createMutation.mutateAsync(adjustmentData);
       }
-      fetchAdjustments();
       resetForm();
     } catch (error) {
       console.error('Error saving adjustment:', error);
       alert('Error saving adjustment');
+    } finally {
+      setIsSubmitting(false);
     }
-  };
+  }, [isSubmitting, formData, editingAdjustment, calculateTotals, createMutation, updateMutation]);
 
-  const handleDelete = async (id: number) => {
+  // ✅ MEMOIZATION: Memoize delete handler
+  const handleDelete = useCallback(async (id: number) => {
     if (window.confirm('Are you sure you want to delete this adjustment?')) {
       try {
-        await axios.delete(`/adjustments/${id}`);
-        fetchAdjustments();
+        await deleteMutation.mutateAsync(id);
       } catch (error) {
         console.error('Error deleting adjustment:', error);
         alert('Error deleting adjustment');
       }
     }
-  };
+  }, [deleteMutation]);
 
-  const handleEdit = (adjustment: Adjustment) => {
+  // ✅ MEMOIZATION: Memoize edit handler
+  const handleEdit = useCallback((adjustment: Adjustment) => {
     setEditingAdjustment(adjustment);
     setFormData({
       registrationDate: adjustment.registrationDate.split('T')[0],
@@ -183,9 +190,10 @@ const Adjustments = () => {
       notes: adjustment.notes || '',
     });
     setShowModal(true);
-  };
+  }, []);
 
-  const resetForm = () => {
+  // ✅ MEMOIZATION: Memoize reset form function
+  const resetForm = useCallback(() => {
     setFormData({
       registrationDate: new Date().toISOString().split('T')[0],
       type: 'Debit Note',
@@ -206,9 +214,10 @@ const Adjustments = () => {
     setAdjustmentItems([]);
     setEditingAdjustment(null);
     setShowModal(false);
-  };
+  }, []);
 
-  const handleDocumentChange = (docId: string) => {
+  // ✅ MEMOIZATION: Memoize document change handler
+  const handleDocumentChange = useCallback((docId: string) => {
     if (formData.relatedDocumentType === 'Purchase') {
       const purchase = purchases.find(p => p.id === parseInt(docId));
       if (purchase) {
@@ -232,20 +241,24 @@ const Adjustments = () => {
         });
       }
     }
-  };
+  }, [formData, purchases, sales]);
 
-  const filteredAdjustments = adjustments.filter(adjustment => {
-    const matchesSearch = 
-      adjustment.registrationNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      adjustment.supplierName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      adjustment.clientName?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesType = filterType === 'All' || adjustment.type === filterType;
-    
-    return matchesSearch && matchesType;
-  });
+  // ✅ MEMOIZATION: Memoize filtered adjustments
+  const filteredAdjustments = useMemo(() => {
+    return adjustments.filter(adjustment => {
+      const matchesSearch = 
+        adjustment.registrationNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        adjustment.supplierName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        adjustment.clientName?.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesType = filterType === 'All' || adjustment.type === filterType;
+      
+      return matchesSearch && matchesType;
+    });
+  }, [adjustments, searchTerm, filterType]);
 
-  const totals = calculateTotals();
+  // ✅ MEMOIZATION: Memoize totals
+  const totals = useMemo(() => calculateTotals(), [calculateTotals]);
 
   return (
     <motion.div
@@ -269,8 +282,16 @@ const Adjustments = () => {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white rounded-xl shadow-lg p-6">
+      {/* ✅ LOADING STATE */}
+      {isLoadingAdjustments ? (
+        <div className="bg-white rounded-xl shadow-lg p-12 text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading adjustments...</p>
+        </div>
+      ) : (
+        <>
+          {/* Filters */}
+          <div className="bg-white rounded-xl shadow-lg p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="relative">
             <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
@@ -650,6 +671,8 @@ const Adjustments = () => {
             </div>
           </motion.div>
         </div>
+      )}
+        </>
       )}
     </motion.div>
   );

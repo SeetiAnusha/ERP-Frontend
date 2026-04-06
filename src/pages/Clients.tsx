@@ -1,13 +1,20 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Search, Edit, Trash2, X } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
 import { Client } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useClients } from '../hooks/queries/useSharedData';
+import { QUERY_KEYS } from '../lib/queryKeys';
 
 const Clients = () => {
   const { t } = useLanguage();
-  const [clients, setClients] = useState<Client[]>([]);
+  const queryClient = useQueryClient();
+  
+  // ✅ REACT QUERY: Use shared data hook instead of local state
+  const { data: clients = [], isLoading, isError } = useClients();
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -20,20 +27,8 @@ const Clients = () => {
     address: '',
   });
 
-  useEffect(() => {
-    fetchClients();
-  }, []);
-
-  const fetchClients = async () => {
-    try {
-      const response = await api.get('/clients');
-      setClients(response.data);
-    } catch (error) {
-      console.error('Error fetching clients:', error);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  // ✅ MEMOIZED: Handle form submission
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (isSubmitting) return; // Prevent double submission
@@ -46,27 +41,34 @@ const Clients = () => {
       } else {
         await api.post('/clients', formData);
       }
-      fetchClients();
+      
+      // ✅ REACT QUERY: Cache invalidation for automatic UI updates
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.clients });
+      
       closeModal();
     } catch (error) {
       console.error('Error saving client:', error);
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [isSubmitting, editingClient, formData, queryClient]);
 
-  const handleDelete = async (id: number) => {
+  // ✅ MEMOIZED: Handle delete
+  const handleDelete = useCallback(async (id: number) => {
     if (window.confirm(t('confirmDelete'))) {
       try {
         await api.delete(`/clients/${id}`);
-        fetchClients();
+        
+        // ✅ REACT QUERY: Cache invalidation for automatic UI updates
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.clients });
       } catch (error) {
         console.error('Error deleting client:', error);
       }
     }
-  };
+  }, [queryClient, t]);
 
-  const openModal = (client?: Client) => {
+  // ✅ MEMOIZED: Open modal
+  const openModal = useCallback((client?: Client) => {
     if (client) {
       setEditingClient(client);
       setFormData(client);
@@ -75,19 +77,51 @@ const Clients = () => {
       setFormData({ code: '', name: '', rncCedula: '', phone: '', address: '' });
     }
     setShowModal(true);
-  };
+  }, []);
 
-  const closeModal = () => {
+  // ✅ MEMOIZED: Close modal
+  const closeModal = useCallback(() => {
     setShowModal(false);
     setEditingClient(null);
     setFormData({ code: '', name: '', rncCedula: '', phone: '', address: '' });
-  };
+  }, []);
 
-  const filteredClients = clients.filter((client) =>
-    Object.values(client).some((value) =>
-      value.toString().toLowerCase().includes(searchTerm.toLowerCase())
-    )
-  );
+  // ✅ MEMOIZED: Filtered clients
+  const filteredClients = useMemo(() => {
+    return clients.filter((client) =>
+      Object.values(client).some((value) =>
+        value.toString().toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    );
+  }, [clients, searchTerm]);
+
+  // ✅ OPTIMIZED: Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <span className="ml-3 text-gray-600">Loading clients...</span>
+      </div>
+    );
+  }
+
+  // ✅ ERROR STATE
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="text-red-500 text-4xl mb-4">⚠️</div>
+          <p className="text-gray-600 mb-4">Error loading clients</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>

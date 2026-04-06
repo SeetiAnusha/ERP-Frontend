@@ -1,8 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Search, Edit2, Trash2, X, Landmark } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useFinancers } from '../hooks/queries/useSharedData';
+import { QUERY_KEYS } from '../lib/queryKeys';
 
 interface Financer {
   id: number;
@@ -19,11 +22,14 @@ interface Financer {
 
 const Financers = () => {
   const { t } = useLanguage();
-  const [financers, setFinancers] = useState<Financer[]>([]);
+  // ✅ React Query Hooks
+  const { data: financers = [], isLoading, isError, refetch } = useFinancers();
+  const queryClient = useQueryClient();
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingFinancer, setEditingFinancer] = useState<Financer | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false); // Add loading state
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     contactPerson: '',
@@ -35,20 +41,8 @@ const Financers = () => {
     status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE',
   });
 
-  useEffect(() => {
-    fetchFinancers();
-  }, []);
-
-  const fetchFinancers = async () => {
-    try {
-      const response = await api.get('/financers');
-      setFinancers(response.data);
-    } catch (error) {
-      console.error('Error fetching financers:', error);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  // ✅ Memoized: Handle submit
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Prevent double submission
@@ -61,27 +55,33 @@ const Financers = () => {
       } else {
         await api.post('/financers', formData);
       }
-      fetchFinancers();
+      // ✅ Invalidate cache
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.financers });
+      refetch();
       closeModal();
     } catch (error) {
       console.error('Error saving financer:', error);
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [isSubmitting, editingFinancer, formData, queryClient, refetch]);
 
-  const handleDelete = async (id: number) => {
+  // ✅ Memoized: Handle delete
+  const handleDelete = useCallback(async (id: number) => {
     if (window.confirm('Are you sure you want to delete this financer?')) {
       try {
         await api.delete(`/financers/${id}`);
-        fetchFinancers();
+        // ✅ Invalidate cache
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.financers });
+        refetch();
       } catch (error) {
         console.error('Error deleting financer:', error);
       }
     }
-  };
+  }, [queryClient, refetch]);
 
-  const openModal = (financer?: Financer) => {
+  // ✅ Memoized: Open modal
+  const openModal = useCallback((financer?: Financer) => {
     if (financer) {
       setEditingFinancer(financer);
       setFormData({
@@ -108,19 +108,49 @@ const Financers = () => {
       });
     }
     setShowModal(true);
-  };
+  }, []);
 
-  const closeModal = () => {
+  // ✅ Memoized: Close modal
+  const closeModal = useCallback(() => {
     setShowModal(false);
     setEditingFinancer(null);
-    setIsSubmitting(false); // Reset loading state
-  };
+    setIsSubmitting(false);
+  }, []);
 
-  const filteredFinancers = financers.filter((financer) =>
-    Object.values(financer).some((value) =>
-      value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
-    )
-  );
+  // ✅ Memoized: Filtered financers
+  const filteredFinancers = useMemo(() => {
+    return financers.filter((financer) =>
+      Object.values(financer).some((value) =>
+        value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    );
+  }, [financers, searchTerm]);
+
+  // ✅ Error state
+  if (isError) {
+    return (
+      <div>
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+          <p className="text-red-600 font-medium">Error loading financers</p>
+          <button
+            onClick={() => refetch()}
+            className="mt-4 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ✅ Loading state
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div>

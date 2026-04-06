@@ -1,83 +1,64 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { TrendingUp, Users, ShoppingCart, Package, DollarSign, AlertTriangle } from 'lucide-react';
-import axios from '../api/axios';
 import { Sale, Purchase, Client, Product } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { formatNumber } from '../utils/formatNumber';
 import CreditBalanceSummaryWidget from '../components/CreditBalanceSummaryWidget';
+import { useSales } from '../hooks/queries/useSales';
+import { usePurchases } from '../hooks/queries/usePurchases';
+import { useClients } from '../hooks/queries/useSharedData';
+import { useProducts } from '../hooks/queries/useProducts';
 
 const Dashboard = () => {
   const { t } = useLanguage();
-  const [sales, setSales] = useState<Sale[]>([]);
-  const [purchases, setPurchases] = useState<Purchase[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+  
+  // ✅ REACT QUERY: Replace manual API calls with hooks
+  const { data: sales = [], isLoading: isLoadingSales } = useSales();
+  const { data: purchases = [], isLoading: isLoadingPurchases } = usePurchases();
+  const { data: clients = [], isLoading: isLoadingClients } = useClients();
+  const { data: products = [], isLoading: isLoadingProducts } = useProducts();
+  
+  // ✅ Combined loading state
+  const loading = isLoadingSales || isLoadingPurchases || isLoadingClients || isLoadingProducts;
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
+  // ✅ Memoized: Calculate statistics
+  const totalSalesAmount = useMemo(() => {
+    return Array.isArray(sales) ? sales.reduce((sum, sale) => sum + parseFloat(sale.total.toString()), 0) : 0;
+  }, [sales]);
 
-  const fetchDashboardData = async () => {
-    try {
-      const [salesRes, purchasesRes, clientsRes, productsRes] = await Promise.all([
-        axios.get('/sales'),
-        axios.get('/purchases'),
-        axios.get('/clients'),
-        axios.get('/products'),
-      ]);
+  const totalPurchasesAmount = useMemo(() => {
+    return Array.isArray(purchases) ? purchases.reduce((sum, purchase) => sum + parseFloat(purchase.total.toString()), 0) : 0;
+  }, [purchases]);
 
-      // Handle structured API responses
-      const salesData = Array.isArray(salesRes.data) ? salesRes.data : 
-                       (salesRes.data.data && Array.isArray(salesRes.data.data)) ? salesRes.data.data : [];
-      
-      const purchasesData = Array.isArray(purchasesRes.data) ? purchasesRes.data : 
-                           (purchasesRes.data.data && Array.isArray(purchasesRes.data.data)) ? purchasesRes.data.data : [];
-      
-      const clientsData = Array.isArray(clientsRes.data) ? clientsRes.data : 
-                         (clientsRes.data.data && Array.isArray(clientsRes.data.data)) ? clientsRes.data.data : [];
-      
-      const productsData = Array.isArray(productsRes.data) ? productsRes.data : 
-                          (productsRes.data.data && Array.isArray(productsRes.data.data)) ? productsRes.data.data : [];
+  const totalRevenue = useMemo(() => {
+    return totalSalesAmount - totalPurchasesAmount;
+  }, [totalSalesAmount, totalPurchasesAmount]);
 
-      setSales(salesData);
-      setPurchases(purchasesData);
-      setClients(clientsData);
-      setProducts(productsData);
-      setLoading(false);
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      // Set empty arrays on error to prevent crashes
-      setSales([]);
-      setPurchases([]);
-      setClients([]);
-      setProducts([]);
-      setLoading(false);
-    }
-  };
+  const lowStockProducts = useMemo(() => {
+    return Array.isArray(products) ? products.filter(p => {
+      const amount = p.amount ? parseFloat(p.amount.toString()) : 0;
+      const minStock = p.minimumStock ? parseFloat(p.minimumStock.toString()) : 0;
+      return amount <= minStock;
+    }) : [];
+  }, [products]);
 
-  // Calculate statistics with safety checks
-  const totalSalesAmount = Array.isArray(sales) ? sales.reduce((sum, sale) => sum + parseFloat(sale.total.toString()), 0) : 0;
-  const totalPurchasesAmount = Array.isArray(purchases) ? purchases.reduce((sum, purchase) => sum + parseFloat(purchase.total.toString()), 0) : 0;
-  const totalRevenue = totalSalesAmount - totalPurchasesAmount;
-  const lowStockProducts = Array.isArray(products) ? products.filter(p => {
-    const amount = p.amount ? parseFloat(p.amount.toString()) : 0;
-    const minStock = p.minimumStock ? parseFloat(p.minimumStock.toString()) : 0;
-    return amount <= minStock;
-  }) : [];
+  // ✅ Memoized: Get recent sales (last 5)
+  const recentSales = useMemo(() => {
+    return Array.isArray(sales) ? [...sales]
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 5) : [];
+  }, [sales]);
 
-  // Get recent sales (last 5) with safety check
-  const recentSales = Array.isArray(sales) ? [...sales]
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 5) : [];
+  // ✅ Memoized: Get recent purchases (last 5)
+  const recentPurchases = useMemo(() => {
+    return Array.isArray(purchases) ? [...purchases]
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 5) : [];
+  }, [purchases]);
 
-  // Get recent purchases (last 5) with safety check
-  const recentPurchases = Array.isArray(purchases) ? [...purchases]
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 5) : [];
-
-  const stats = [
+  // ✅ Memoized: Stats array
+  const stats = useMemo(() => [
     { 
       label: 'Total Sales', 
       value: `${formatNumber(totalSalesAmount)}`, 
@@ -106,7 +87,7 @@ const Dashboard = () => {
       icon: TrendingUp, 
       color: totalRevenue >= 0 ? 'bg-orange-500' : 'bg-red-500' 
     },
-  ];
+  ], [totalSalesAmount, totalPurchasesAmount, totalRevenue, sales, purchases, clients]);
 
   if (loading) {
     return (

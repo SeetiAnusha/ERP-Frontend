@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { Plus, History } from 'lucide-react';
 import { Product } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -17,6 +17,10 @@ import { useEntityApi } from '../hooks/useApi';
 import { useModal } from '../hooks/useModal';
 import { useForm } from '../hooks/useForm';
 import { useSearch } from '../hooks/useSearch';
+
+// React Query hooks
+import { useProducts, useCreateProduct, useUpdateProduct, useDeleteProduct } from '../hooks/queries/useProducts';
+import { useFeatureFlag } from '../lib/featureFlags';
 
 // Form validation
 const validateProduct = (values: any) => {
@@ -40,18 +44,46 @@ const validateProduct = (values: any) => {
 const Products = () => {
   const { t, language } = useLanguage();
   
+  // Feature flag for React Query migration
+  const useReactQuery = useFeatureFlag('react-query-products');
+  
   // Simple search state (no Redux)
   const { searchTerm, setSearchTerm } = useSearch('products');
   
-  // API and data management (now with simple caching)
-  const {
-    items: products,
-    loading,
-    fetchAll: fetchProducts,
-    create: createProduct,
-    update: updateProduct,
-    remove: deleteProduct
-  } = useEntityApi<Product>('/products', 'Product');
+  // React Query hooks (new implementation)
+  const reactQueryProducts = useProducts();
+  const createProductMutation = useCreateProduct();
+  const updateProductMutation = useUpdateProduct();
+  const deleteProductMutation = useDeleteProduct();
+  
+  // Legacy API hooks (old implementation)
+  const legacyApi = useEntityApi<Product>('/products', 'Product');
+
+  // Conditional data and functions based on feature flag
+  const products = useReactQuery ? (reactQueryProducts.data || []) : legacyApi.items;
+  const loading = useReactQuery ? reactQueryProducts.isLoading : legacyApi.loading;
+  
+  // Conditional functions based on feature flag
+  const fetchProducts = useReactQuery ? 
+    () => reactQueryProducts.refetch() : 
+    legacyApi.fetchAll;
+    
+  const createProduct = useReactQuery ?
+    (data: Partial<Product>) => createProductMutation.mutateAsync(data) :
+    legacyApi.create;
+    
+  const updateProduct = useReactQuery ?
+    (id: number | string, data: Partial<Product>) => updateProductMutation.mutateAsync({ id, data }) :
+    legacyApi.update;
+    
+  const deleteProduct = useReactQuery ?
+    (id: number | string) => {
+      if (window.confirm(`Are you sure you want to delete this product?`)) {
+        return deleteProductMutation.mutateAsync(id);
+      }
+      return Promise.resolve(null);
+    } :
+    legacyApi.remove;
 
   // Modal management
   const productModal = useModal<Product>();
@@ -102,13 +134,16 @@ const Products = () => {
     }
   });
 
-  // Load products on mount
+  // Load products on mount (only for legacy API)
   React.useEffect(() => {
-    fetchProducts();
-  }, [fetchProducts]);
+    if (!useReactQuery) {
+      legacyApi.fetchAll();
+    }
+    // React Query automatically fetches on mount
+  }, [useReactQuery, legacyApi.fetchAll]);
 
-  // Handle modal opening
-  const handleOpenModal = (product?: Product) => {
+  // ✅ OPTIMIZED: Memoized modal handler to prevent unnecessary re-renders
+  const handleOpenModal = useCallback((product?: Product) => {
     if (product) {
       productForm.setValues({
         code: product.code,
@@ -124,10 +159,10 @@ const Products = () => {
       productForm.reset();
     }
     productModal.open(product);
-  };
+  }, [productForm, productModal]);
 
-  // Table columns configuration
-  const columns: Column<Product>[] = [
+  // ✅ OPTIMIZED: Memoized table columns to prevent recreation on every render
+  const columns: Column<Product>[] = useMemo(() => [
     {
       key: 'code',
       label: t('productCode'),
@@ -183,19 +218,42 @@ const Products = () => {
         </ActionButton>
       )
     }
-  ];
+  ], [t, priceHistoryModal]); // ✅ Only recreate when translation function or modal changes
 
   // Handle delete with proper signature
-  const handleDeleteProduct = (product: Product) => {
+  const handleDeleteProduct = useCallback((product: Product) => {
     deleteProduct(product.id);
-  };
+  }, [deleteProduct]);
 
-  // Filter products based on search
-  const filteredProducts = products.filter((product: Product) =>
-    Object.values(product).some((value) =>
-      value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
-    )
-  );
+  // ✅ OPTIMIZED: Memoized product filtering for better performance
+  const filteredProducts = useMemo(() => {
+    // Early return if no search term - avoid unnecessary filtering
+    if (!searchTerm.trim()) {
+      return products;
+    }
+    
+    const lowerSearchTerm = searchTerm.toLowerCase();
+    
+    return products.filter((product: Product) => {
+      // ✅ PERFORMANCE: Check most likely matches first (name, code)
+      if (product.name?.toLowerCase().includes(lowerSearchTerm)) return true;
+      if (product.code?.toLowerCase().includes(lowerSearchTerm)) return true;
+      
+      // ✅ PERFORMANCE: Check other string fields
+      if (product.description?.toLowerCase().includes(lowerSearchTerm)) return true;
+      if (product.unit?.toLowerCase().includes(lowerSearchTerm)) return true;
+      if (product.category?.toLowerCase().includes(lowerSearchTerm)) return true;
+      if (product.status?.toLowerCase().includes(lowerSearchTerm)) return true;
+      
+      // ✅ PERFORMANCE: Check numeric fields (convert to string only when needed)
+      if (product.amount?.toString().includes(lowerSearchTerm)) return true;
+      if (product.unitCost?.toString().includes(lowerSearchTerm)) return true;
+      if (product.salesPrice?.toString().includes(lowerSearchTerm)) return true;
+      if (product.taxRate?.toString().includes(lowerSearchTerm)) return true;
+      
+      return false;
+    });
+  }, [products, searchTerm]); // ✅ Only re-compute when products or searchTerm changes
 
   return (
     <div>

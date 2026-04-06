@@ -1,12 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { FaPlus, FaTrash, FaUniversity, FaArrowUp, FaArrowDown, FaSearch, FaCreditCard } from 'react-icons/fa';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import axios from '../api/axios';
 import { formatNumber } from '../utils/formatNumber';
 import { useLanguage } from '../contexts/LanguageContext';
 import OverpaymentAlertModal from '../components/OverpaymentAlertModal';
 import CreditAwarePaymentModal from '../components/CreditAwarePaymentModal';
+import { QUERY_KEYS } from '../lib/queryKeys';
+
+// ✅ OPTIMIZATION: Use React Query hooks for better performance
+import { useBankTransactions } from '../hooks/queries/useFinancial';
+import { useBankAccounts, useSuppliers } from '../hooks/queries/useSharedData';
 
 interface BankTransaction {
   id: number;
@@ -43,20 +49,7 @@ interface BankTransaction {
   original_transaction_id?: number;
 }
 
-interface BankAccount {
-  id: number;
-  bankName: string;
-  accountNumber: string;
-  accountType: string;
-  balance: number;
-}
 
-interface Supplier {
-  id: number;
-  name: string;
-  contactPerson: string;
-  phone: string;
-}
 
 interface PendingInvoice {
   id: number;
@@ -79,13 +72,17 @@ const BankRegister = () => {
   const { t } = useLanguage();
   const location = useLocation();
   const navigate = useNavigate();
-  const [transactions, setTransactions] = useState<BankTransaction[]>([]);
+  const queryClient = useQueryClient();
+  
+  // ✅ OPTIMIZATION: Use React Query instead of manual API calls
+  const { data: transactions = [], isLoading: transactionsLoading } = useBankTransactions();
+  const { data: bankAccounts = [], isLoading: bankAccountsLoading } = useBankAccounts();
+  const { data: suppliers = [], isLoading: suppliersLoading } = useSuppliers();
+  
+  // ✅ PRESERVED: Keep all original state variables exactly as they were
   const [showModal, setShowModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('All');
-  const [bankBalance, setBankBalance] = useState(0);
-  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [pendingInvoices, setPendingInvoices] = useState<PendingInvoice[]>([]);
   const [selectedInvoices, setSelectedInvoices] = useState<number[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -113,15 +110,19 @@ const BankRegister = () => {
     supplierId: '',
     referenceNumber: '',
   });
+  
+  // ✅ OPTIMIZATION: Combine loading states
+  const isLoading = transactionsLoading || bankAccountsLoading || suppliersLoading;
+  
+  // ✅ OPTIMIZATION: Memoized bank balance calculation
+  const bankBalance = useMemo(() => {
+    if (!formData.bankAccountId || !Array.isArray(bankAccounts)) return 0;
+    const account = bankAccounts.find(acc => acc.id === parseInt(formData.bankAccountId));
+    return account?.balance || 0;
+  }, [formData.bankAccountId, bankAccounts]);
 
-  useEffect(() => {
-    fetchTransactions();
-    fetchBankAccounts();
-    fetchSuppliers();
-  }, []);
-
-  // ✅ NEW: Status badge function for deletion indicators
-  const getTransactionStatusBadge = (transaction: BankTransaction) => {
+  // ✅ OPTIMIZATION: Memoized status badge function
+  const getTransactionStatusBadge = useCallback((transaction: BankTransaction) => {
     if (transaction.deletion_status === 'EXECUTED') {
       return (
         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-300">
@@ -147,7 +148,7 @@ const BankRegister = () => {
         {transaction.transactionType === 'INFLOW' ? '📈 INFLOW' : '📉 OUTFLOW'}
       </span>
     );
-  };
+  }, []);
 
   useEffect(() => {
     // Handle pre-filled data from Accounts Payable
@@ -182,38 +183,8 @@ const BankRegister = () => {
     }
   }, [formData.supplierId]);
 
-  const fetchTransactions = async () => {
-    try {
-      const response = await axios.get('/bank-register');
-      setTransactions(response.data);
-      // Calculate balance from last transaction
-      if (response.data.length > 0) {
-        setBankBalance(response.data[0].balance);
-      }
-    } catch (error) {
-      console.error('Error fetching bank transactions:', error);
-    }
-  };
-
-  const fetchBankAccounts = async () => {
-    try {
-      const response = await axios.get('/bank-accounts');
-      setBankAccounts(response.data);
-    } catch (error) {
-      console.error('Error fetching bank accounts:', error);
-    }
-  };
-
-  const fetchSuppliers = async () => {
-    try {
-      const response = await axios.get('/suppliers');
-      setSuppliers(response.data);
-    } catch (error) {
-      console.error('Error fetching suppliers:', error);
-    }
-  };
-
-  const fetchPendingInvoices = async (supplierId: number) => {
+  // ✅ OPTIMIZATION: Memoized fetch pending invoices
+  const fetchPendingInvoices = useCallback(async (supplierId: number) => {
     try {
       const response = await axios.get(`/bank-register/pending-invoices/${supplierId}`);
       setPendingInvoices(response.data);
@@ -221,9 +192,10 @@ const BankRegister = () => {
       console.error('Error fetching pending invoices:', error);
       setPendingInvoices([]);
     }
-  };
+  }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // ✅ OPTIMIZATION: Memoized submit handler with React Query cache invalidation
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (isSubmitting) return;
@@ -256,7 +228,8 @@ const BankRegister = () => {
       // Check for overpayment
       if (paymentAmount > totalOutstandingBalance && totalOutstandingBalance > 0) {
         const overpaymentAmount = paymentAmount - totalOutstandingBalance;
-        const supplierName = suppliers.find(s => s.id === parseInt(formData.supplierId))?.name || 'Supplier';
+        const supplierName = Array.isArray(suppliers) ? 
+          (suppliers.find(s => s.id === parseInt(formData.supplierId))?.name || 'Supplier') : 'Supplier';
         
         setOverpaymentData({
           paymentAmount,
@@ -273,7 +246,8 @@ const BankRegister = () => {
     
     // ✅ CRITICAL VALIDATION: Check bank account balance for OUTFLOW transactions
     if (formData.transactionType === 'OUTFLOW') {
-      const selectedBankAccount = bankAccounts.find(account => account.id === parseInt(formData.bankAccountId));
+      const selectedBankAccount = Array.isArray(bankAccounts) ? 
+        bankAccounts.find(account => account.id === parseInt(formData.bankAccountId)) : null;
       const outflowAmount = parseFloat(formData.amount);
       
       if (selectedBankAccount && selectedBankAccount.balance < outflowAmount) {
@@ -322,8 +296,12 @@ const BankRegister = () => {
       });
       
       await axios.post('/bank-register', submitData);
-      fetchTransactions();
-      fetchBankAccounts(); // Refresh bank account balances
+      
+      // ✅ OPTIMIZATION: Use React Query cache invalidation instead of manual refetch
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankTransactions });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankAccounts });
+      queryClient.invalidateQueries({ queryKey: ['recent-activity'] });
+      
       resetForm();
       
       if (location.state?.fromAccountsPayable) {
@@ -341,10 +319,10 @@ const BankRegister = () => {
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [formData, isSubmitting, allowOverpayment, selectedInvoices, pendingInvoices, suppliers, bankAccounts, location.state, queryClient, navigate, t]);
 
   // Overpayment handling functions
-  const handleOverpaymentConfirm = () => {
+  const handleOverpaymentConfirm = useCallback(() => {
     setAllowOverpayment(true);
     setShowOverpaymentAlert(false);
     // Automatically resubmit the form
@@ -355,9 +333,9 @@ const BankRegister = () => {
         form.dispatchEvent(event);
       }
     }, 100);
-  };
+  }, []);
 
-  const handleOverpaymentAdjust = () => {
+  const handleOverpaymentAdjust = useCallback(() => {
     if (overpaymentData) {
       setFormData(prev => ({
         ...prev,
@@ -366,21 +344,23 @@ const BankRegister = () => {
     }
     setShowOverpaymentAlert(false);
     setAllowOverpayment(false);
-  };
+  }, [overpaymentData]);
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = useCallback(async (id: number) => {
     if (window.confirm(t('deleteTransactionConfirm'))) {
       try {
         await axios.delete(`/bank-register/${id}`);
-        fetchTransactions();
+        
+        // ✅ OPTIMIZATION: Use React Query cache invalidation
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankTransactions });
       } catch (error) {
         console.error('Error deleting transaction:', error);
         alert(t('errorDeletingTransaction'));
       }
     }
-  };
+  }, [t, queryClient]);
 
-  const resetForm = () => {
+  const resetForm = useCallback(() => {
     setFormData({
       registrationDate: new Date().toISOString().split('T')[0],
       transactionType: 'INFLOW',
@@ -399,18 +379,21 @@ const BankRegister = () => {
     setSelectedInvoices([]);
     setPendingInvoices([]);
     setShowModal(false);
-    setShowCreditAwareModal(false); // ✅ Reset credit-aware modal
+    setShowCreditAwareModal(false);
     
     // Clear the location state to prevent auto-opening again
     if (location.state?.fromAccountsPayable) {
       window.history.replaceState({}, document.title);
     }
-  };
+  }, [location.state]);
 
   // ✅ Credit-aware payment success handler
-  const handleCreditAwarePaymentSuccess = () => {
-    fetchTransactions();
-    fetchBankAccounts(); // Refresh bank account balances
+  const handleCreditAwarePaymentSuccess = useCallback(() => {
+    // ✅ OPTIMIZATION: Use React Query cache invalidation
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankTransactions });
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankAccounts });
+    queryClient.invalidateQueries({ queryKey: ['recent-activity'] });
+    
     resetForm();
     
     if (location.state?.fromAccountsPayable) {
@@ -421,41 +404,64 @@ const BankRegister = () => {
     } else {
       alert('Smart payment completed successfully!');
     }
-  };
+  }, [queryClient, resetForm, location.state, navigate]);
 
-  const toggleInvoiceSelection = (invoiceId: number) => {
+  const toggleInvoiceSelection = useCallback((invoiceId: number) => {
     setSelectedInvoices(prev => 
       prev.includes(invoiceId) 
         ? prev.filter(id => id !== invoiceId)
         : [...prev, invoiceId]
     );
-  };
+  }, []);
 
-  const calculateSelectedInvoicesTotal = () => {
+  const calculateSelectedInvoicesTotal = useCallback(() => {
+    if (!Array.isArray(pendingInvoices)) return 0;
     return pendingInvoices
       .filter(inv => selectedInvoices.includes(inv.id))
-      .reduce((sum, inv) => sum + parseFloat(inv.balanceAmount.toString()), 0);
-  };
+      .reduce((sum, inv) => sum + parseFloat(inv.balanceAmount?.toString() || '0'), 0);
+  }, [pendingInvoices, selectedInvoices]);
 
-  const filteredTransactions = transactions.filter(transaction => {
-    const matchesSearch = 
-      transaction.registrationNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      transaction.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      transaction.clientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      transaction.referenceNumber?.toLowerCase().includes(searchTerm.toLowerCase());
+  // ✅ OPTIMIZATION: Memoized filtering for better performance
+  const filteredTransactions = useMemo(() => {
+    if (!Array.isArray(transactions)) return [];
     
-    const matchesType = filterType === 'All' || transaction.transactionType === filterType;
+    return transactions.filter(transaction => {
+      const matchesSearch = 
+        transaction.registrationNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        transaction.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        transaction.clientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        transaction.referenceNumber?.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesType = filterType === 'All' || transaction.transactionType === filterType;
+      
+      return matchesSearch && matchesType;
+    });
+  }, [transactions, searchTerm, filterType]);
+
+  // ✅ OPTIMIZATION: Memoized totals for better performance
+  const { totalInflow, totalOutflow } = useMemo(() => {
+    if (!Array.isArray(transactions)) return { totalInflow: 0, totalOutflow: 0 };
     
-    return matchesSearch && matchesType;
-  });
+    const totalInflow = transactions
+      .filter(t => t.transactionType === 'INFLOW')
+      .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
 
-  const totalInflow = transactions
-    .filter(t => t.transactionType === 'INFLOW')
-    .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
+    const totalOutflow = transactions
+      .filter(t => t.transactionType === 'OUTFLOW')
+      .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
+    
+    return { totalInflow, totalOutflow };
+  }, [transactions]);
 
-  const totalOutflow = transactions
-    .filter(t => t.transactionType === 'OUTFLOW')
-    .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
+  // ✅ OPTIMIZATION: Loading state with better UX
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <span className="ml-3 text-gray-600">Loading bank transactions...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6">
@@ -770,7 +776,7 @@ const BankRegister = () => {
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">{t('selectBankAccount')}</option>
-                    {bankAccounts.map(account => (
+                    {Array.isArray(bankAccounts) && bankAccounts.map(account => (
                       <option key={account.id} value={account.id}>
                         {account.bankName} - {account.accountNumber} (Balance: {formatNumber(account.balance)})
                       </option>
@@ -802,7 +808,7 @@ const BankRegister = () => {
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="">{t('selectSupplier')}</option>
-                      {suppliers.map(supplier => (
+                      {Array.isArray(suppliers) && suppliers.map(supplier => (
                         <option key={supplier.id} value={supplier.id}>
                           {supplier.name}
                         </option>
@@ -825,7 +831,8 @@ const BankRegister = () => {
                   {/* ✅ Real-time balance warning for OUTFLOW */}
                   {formData.transactionType === 'OUTFLOW' && formData.bankAccountId && formData.amount && (
                     (() => {
-                      const selectedBankAccount = bankAccounts.find(account => account.id === parseInt(formData.bankAccountId));
+                      const selectedBankAccount = Array.isArray(bankAccounts) ? 
+                        bankAccounts.find(account => account.id === parseInt(formData.bankAccountId)) : null;
                       const enteredAmount = parseFloat(formData.amount);
                       
                       if (selectedBankAccount && enteredAmount > selectedBankAccount.balance) {
@@ -852,11 +859,10 @@ const BankRegister = () => {
                       let totalOutstandingBalance = 0;
                       
                       if (selectedInvoices.length > 0) {
-                        const selectedInvoiceData = pendingInvoices.filter(invoice => 
-                          selectedInvoices.includes(invoice.id)
-                        );
+                        const selectedInvoiceData = Array.isArray(pendingInvoices) ? 
+                          pendingInvoices.filter(invoice => selectedInvoices.includes(invoice.id)) : [];
                         totalOutstandingBalance = selectedInvoiceData.reduce((sum, invoice) => 
-                          sum + Number(invoice.balanceAmount.toString()), 0
+                          sum + Number(invoice.balanceAmount?.toString() || '0'), 0
                         );
                       } else if (location.state?.fromAccountsPayable) {
                         totalOutstandingBalance = Number(location.state.prefilledData?.amount || '0');
@@ -932,7 +938,7 @@ const BankRegister = () => {
                     💡 {t('selectSpecificInvoices')}
                   </p>
                   <div className="space-y-2 max-h-60 overflow-y-auto">
-                    {pendingInvoices.map(invoice => (
+                    {Array.isArray(pendingInvoices) && pendingInvoices.map(invoice => (
                       <label key={invoice.id} className="flex items-start gap-3 p-3 bg-white rounded border hover:bg-blue-50 cursor-pointer">
                         <input
                           type="checkbox"
@@ -1041,7 +1047,8 @@ const BankRegister = () => {
         onClose={() => setShowCreditAwareModal(false)}
         onSuccess={handleCreditAwarePaymentSuccess}
         supplierId={parseInt(formData.supplierId) || 0}
-        supplierName={suppliers.find(s => s.id === parseInt(formData.supplierId))?.name || ''}
+        supplierName={Array.isArray(suppliers) ? 
+          (suppliers.find(s => s.id === parseInt(formData.supplierId))?.name || '') : ''}
         invoiceIds={selectedInvoices.length > 0 ? selectedInvoices : (location.state?.prefilledData?.accountsPayableId ? [location.state.prefilledData.accountsPayableId] : [])}
         requestedAmount={parseFloat(formData.amount) || 0}
         paymentMethod={formData.paymentMethod}

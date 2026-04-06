@@ -1,27 +1,46 @@
-import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, Eye, CheckCircle, Clock, XCircle, X, Trash2, ShoppingCart, Package, CreditCard } from 'lucide-react';
-import api from '../api/axios';
-import { Sale, Client, Product } from '../types';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { motion } from 'framer-motion';
+import { Plus, Eye, CheckCircle, Clock, XCircle, Trash2, ShoppingCart, Package, CreditCard } from 'lucide-react';
+import { Sale } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
-import { notify, handleApiError } from '../utils/notifications';
+import { notify } from '../utils/notifications';
 import { formatNumber } from '../utils/formatNumber';
 import CardPaymentModal from '../components/CardPaymentModal.tsx';
 
+// ✅ LESSON LEARNED: Import standardized components from start
+import { useSearch } from '../hooks/useSearch';
+import { useForm } from '../hooks/useForm';
+import { useModal } from '../hooks/useModal';
+import SearchBar from '../components/common/SearchBar';
+import ActionButton from '../components/common/ActionButton';
+import DataTable, { Column } from '../components/common/DataTable';
+import Modal from '../components/common/Modal';
+
+// React Query hooks
+import { useSales, useCreateSale } from '../hooks/queries/useSales';
+import { useProducts } from '../hooks/queries/useProducts';
+import { useClients, useBankAccounts, useCards, useCashRegisters, usePaymentNetworks } from '../hooks/queries/useSharedData';
+
 interface SaleItem {
+  id?: number;
+  saleId?: number;
   productId: number;
+  productCode?: string;
   productName: string;
   productAmount: number;
   quantity: number;
   productUnitCost: number;
   unitPrice: number;
+  unitOfMeasurement?: string;
   subtotal: number;
   tax: number;
   total: number;
+  costOfGoodsSold?: number;
+  grossMargin?: number;
 }
 
 // ✅ NEW: Enhanced Sale interface with deletion tracking
-interface EnhancedSale extends Sale {
+interface EnhancedSale extends Omit<Sale, 'collectionStatus'> {
   deletion_status?: string;
   deleted_at?: string;
   deleted_by?: number;
@@ -29,127 +48,277 @@ interface EnhancedSale extends Sale {
   deletion_memo?: string;
   is_reversal?: boolean;
   original_transaction_id?: number;
+  collectionStatus?: string;
 }
 
 const Sales = () => {
   const { t } = useLanguage();
-  const [sales, setSales] = useState<EnhancedSale[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [cards, setCards] = useState<any[]>([]);
-  const [cashRegisters, setCashRegisters] = useState<any[]>([]);
-  const [bankAccounts, setBankAccounts] = useState<any[]>([]);
-  const [paymentNetworks, setPaymentNetworks] = useState<any[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // ✅ LESSON LEARNED: Complete hook migration - NO mixed patterns
+  const { searchTerm, setSearchTerm } = useSearch('sales');
+  
+  // ✅ Modal management using useModal hook like Products/Purchases
+  const salesModal = useModal<Sale>();
+  const viewDetailsModal = useModal();
+  const viewProductsModal = useModal();
+  const cardPaymentModal = useModal();
+  
+  // ✅ DAY 2: Use React Query by default (remove feature flag complexity)
+  const { data: sales = [], isLoading: salesLoading } = useSales();
+  const { data: products = [], isLoading: productsLoading } = useProducts();
+  
+  // ✅ FIXED: Use React Query hooks for shared data instead of manual API calls
+  const { data: clients = [], isLoading: clientsLoading } = useClients();
+  const { data: cards = [], isLoading: cardsLoading } = useCards();
+  const { data: cashRegisters = [], isLoading: cashRegistersLoading } = useCashRegisters();
+  const { data: bankAccounts = [], isLoading: bankAccountsLoading } = useBankAccounts();
+  const { data: paymentNetworks = [], isLoading: paymentNetworksLoading } = usePaymentNetworks();
+  
+  // ✅ FIXED: Use simple mutation without callbacks - handle in form submission like Purchases
+  const createSaleMutation = useCreateSale();
+  
+  // Current data (simplified - always use React Query)
+  const currentSales: EnhancedSale[] = sales;
+  const currentProducts = products;
+  const isLoading = salesLoading || productsLoading || clientsLoading || cardsLoading || 
+                   cashRegistersLoading || bankAccountsLoading || paymentNetworksLoading;
   
   // ✅ NEW: Filter state for deletion status
   const [filterStatus, setFilterStatus] = useState<string>('All');
-  const [formData, setFormData] = useState({
-    documentNumber: '',
-    date: new Date().toISOString().split('T')[0],
-    clientId: '',
-    clientRnc: '',
-    ncf: '',
-    saleType: 'Merchandise for sale',
-    paymentType: 'CASH',
-    cashRegisterId: '',
-    cardPaymentNetworkId: '', // Changed from cardId
-    bankAccountId: '',
-    paidAmount: 0,
-    status: 'COMPLETED',
-  });
+  
+  // ✅ LESSON LEARNED: Remove ALL old state variables, use only hooks
+  // Products (keep these as they're for the product selection modal)
   const [saleItems, setSaleItems] = useState<SaleItem[]>([]);
   const [selectedProduct, setSelectedProduct] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [salesPrice, setSalesPrice] = useState(0);
   const [taxAmount, setTaxAmount] = useState(0);
-  const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
-  const [viewDetailsModal, setViewDetailsModal] = useState(false);
-  const [viewProductsModal, setViewProductsModal] = useState(false);
-  const [cardPaymentModal, setCardPaymentModal] = useState(false);
+  const [selectedSale, setSelectedSale] = useState<EnhancedSale | null>(null);
+
+  // ✅ LESSON LEARNED: Static field validation only - NO dynamic validation
+  const validateSales = useCallback((values: any) => {
+    const errors: any = {};
+    
+    // ✅ FRONTEND: Required field validations only
+    if (!values.clientId?.trim()) {
+      errors.clientId = 'Client is required';
+    }
+    
+    if (!values.date?.trim()) {
+      errors.date = 'Date is required';
+    }
+    
+    if (!values.saleType?.trim()) {
+      errors.saleType = 'Sale type is required';
+    }
+    
+    if (!values.paymentType?.trim()) {
+      errors.paymentType = 'Payment type is required';
+    }
+    
+    // ✅ FRONTEND: Payment method requirements validation (NO balance checks)
+    if ((values.paymentType === 'CASH' || values.paymentType === 'CHEQUE') && !values.cashRegisterId?.trim()) {
+      errors.cashRegisterId = 'Cash register is required for cash/cheque payments';
+    }
+    
+    if ((values.paymentType === 'DEBIT_CARD' || values.paymentType === 'CREDIT_CARD') && !values.cardPaymentNetworkId?.trim()) {
+      errors.cardPaymentNetworkId = 'Payment network is required for card payments';
+    }
+    
+    if ((values.paymentType === 'BANK_TRANSFER' || values.paymentType === 'DEPOSIT') && !values.bankAccountId?.trim()) {
+      errors.bankAccountId = 'Bank account is required for bank transfers/deposits';
+    }
+    
+    // ❌ REMOVED: All balance validation - Backend handles with real-time data
+    // Frontend should NOT validate balances using potentially stale cached data
+    // Backend will validate cash register balances, card limits, and account balances with accurate, real-time data
+    
+    return errors;
+  }, []); // ✅ CORRECTED: Only static dependencies
+
+  // ✅ Form management using useForm hook like Products/Purchases
+  const salesForm = useForm({
+    initialValues: {
+      documentNumber: `INV-${Date.now()}`,
+      date: new Date().toISOString().split('T')[0],
+      clientId: '',
+      clientRnc: '',
+      ncf: '',
+      saleType: 'Merchandise for sale',
+      paymentType: 'CASH',
+      cashRegisterId: '',
+      cardPaymentNetworkId: '',
+      bankAccountId: '',
+      paidAmount: 0,
+      status: 'COMPLETED',
+    },
+    validate: validateSales,
+    onSubmit: async (values) => {
+      if (saleItems.length === 0) {
+        notify.warning('No products', 'Please add at least one product to the sale');
+        return;
+      }
+      
+      // ✅ Use memoized totals instead of recalculating
+      const paidAmount = values.paymentType === 'CREDIT' ? 0 : totals.total;
+      
+      const saleData = {
+        ...values,
+        clientId: parseInt(values.clientId),
+        cashRegisterId: values.cashRegisterId ? parseInt(values.cashRegisterId) : undefined,
+        cardPaymentNetworkId: values.cardPaymentNetworkId ? parseInt(values.cardPaymentNetworkId) : undefined,
+        bankAccountId: values.bankAccountId ? parseInt(values.bankAccountId) : undefined,
+        subtotal: totals.subtotal,
+        tax: totals.tax,
+        discount: 0,
+        total: totals.total,
+        paidAmount: paidAmount,
+        balanceAmount: totals.total - paidAmount,
+        clientRnc: values.clientRnc,
+        ncf: values.ncf,
+        saleType: values.saleType,
+        items: saleItems.map((item) => ({
+          ...item,
+          id: 0, // Temporary ID for new items
+          saleId: 0, // Will be set by backend
+          productCode: currentProducts.find(p => p.id === item.productId)?.code || '',
+          unitOfMeasurement: currentProducts.find(p => p.id === item.productId)?.unit || '',
+          costOfGoodsSold: item.productUnitCost * item.quantity,
+          grossMargin: (item.unitPrice - item.productUnitCost) * item.quantity,
+        })),
+      };
+      
+      // ✅ FIXED: Proper error handling like Purchases - DON'T close modal until backend responds
+      try {
+        console.log('🚀 FRONTEND - Submitting sale data:', saleData);
+        
+        // ✅ CRITICAL: Wait for backend response before closing modal (like Purchases)
+        await createSaleMutation.mutateAsync(saleData);
+        
+        // ✅ Only close modal and reset form AFTER successful backend response
+        salesModal.close();
+        salesForm.reset();
+        setSaleItems([]);
+        
+        // ✅ Success notification
+        notify.success('Sale Created', 'Sale has been created successfully');
+        
+      } catch (error: any) {
+        console.error('Error creating sale:', error);
+        console.error('Error response:', error.response?.data);
+        
+        // ✅ CRITICAL: Handle backend errors with popup messages (like Purchases)
+        const errorMessage = error.response?.data?.error || 
+                           error.response?.data?.message || 
+                           error.message || 
+                           'Error creating sale';
+        
+        // ✅ Show backend error in popup (like Purchases)
+        notify.error('Sale Creation Failed', errorMessage);
+        
+        // ✅ IMPORTANT: Keep modal open so user can fix the issue
+      }
+    }
+  });
+
+  // ✅ LESSON LEARNED: Performance optimizations with correct dependencies
+  const memoizedCalculations = useMemo(() => {
+    // Memoize filtered data based on payment type
+    const filteredDebitCards = cards.filter((card: any) => card.cardType === 'DEBIT');
+    const filteredCreditCards = cards.filter((card: any) => card.cardType === 'CREDIT');
+    const activeCashRegisters = cashRegisters.filter(cr => cr.status === 'ACTIVE');
+    const activeProducts = currentProducts.filter(p => p.status === 'ACTIVE');
+    
+    // Memoize sale totals
+    const subtotal = saleItems.reduce((sum, item) => sum + item.subtotal, 0);
+    const tax = saleItems.reduce((sum, item) => sum + item.tax, 0);
+    const total = saleItems.reduce((sum, item) => sum + item.total, 0);
+    
+    return {
+      filteredDebitCards,
+      filteredCreditCards,
+      activeCashRegisters,
+      activeProducts,
+      totals: { subtotal, tax, total }
+    };
+  }, [cards, cashRegisters, currentProducts, saleItems]); // ✅ Correct dependencies
+
+  // ✅ Use memoized totals instead of recalculating
+  const totals = memoizedCalculations.totals;
 
   useEffect(() => {
-    fetchSales();
-    fetchClients();
-    fetchProducts();
-    fetchCards();
-    fetchCashRegisters();
-    fetchBankAccounts();
-    fetchPaymentNetworks();
+    // ✅ FIXED: No need for manual API calls - React Query handles everything automatically
+    // All data (sales, products, clients, cards, cash registers, bank accounts, payment networks) 
+    // is now fetched via React Query hooks and will auto-update when invalidated
   }, []);
 
-  const fetchBankAccounts = async () => {
-    try {
-      const response = await api.get('/bank-accounts');
-      setBankAccounts(response.data);
-    } catch (error) {
-      console.error('Error fetching bank accounts:', error);
-    }
-  };
+  // ✅ REMOVED: Old addProductToSale function - replaced with memoized handleAddProduct
 
-  const fetchCards = async () => {
-    try {
-      const response = await api.get('/cards');
-      setCards(response.data);
-    } catch (error) {
-      console.error('Error fetching cards:', error);
-    }
-  };
+  // ✅ REMOVED: Old removeItem function - replaced with memoized handleRemoveItem
 
-  const fetchCashRegisters = async () => {
-    try {
-      const response = await api.get('/cash-register-masters');
-      setCashRegisters(response.data);
-    } catch (error) {
-      console.error('Error fetching cash registers:', error);
-    }
-  };
+  // ✅ LESSON LEARNED: Remove old calculateTotals function - use memoized totals instead
 
-  const fetchPaymentNetworks = async () => {
-    try {
-      const response = await api.get('/card-payment-networks');
-      setPaymentNetworks(response.data);
-    } catch (error) {
-      console.error('Error fetching payment networks:', error);
-    }
-  };
+  // ✅ Memoized filtering for sales with performance optimization
+  const filteredSales = useMemo(() => {
+    return currentSales.filter((sale) => {
+      const matchesSearch = 
+        Object.values(sale).some((value) =>
+          value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
+        );
+      
+      const matchesStatus = filterStatus === 'All' || 
+        (filterStatus === 'Active' && sale.deletion_status !== 'EXECUTED' && !sale.is_reversal) ||
+        (filterStatus === 'Deleted' && sale.deletion_status === 'EXECUTED') ||
+        (filterStatus === 'Reversal' && sale.is_reversal);
+      
+      return matchesSearch && matchesStatus;
+    });
+  }, [currentSales, searchTerm, filterStatus]);
 
-  const fetchSales = async () => {
-    try {
-      const response = await api.get('/sales');
-      setSales(response.data);
-    } catch (error) {
-      handleApiError(error, 'Loading sales');
-    }
-  };
+  // ✅ LESSON LEARNED: Remove old handleSubmit function - handled by useForm
 
-  const fetchClients = async () => {
-    try {
-      const response = await api.get('/clients');
-      setClients(response.data);
-    } catch (error) {
-      handleApiError(error, 'Loading clients');
-    }
-  };
+  // ✅ Memoized event handlers with useCallback for stable references
+  const handleOpenModal = useCallback(() => {
+    salesForm.reset();
+    setSaleItems([]);
+    salesModal.open();
+  }, [salesForm, salesModal]);
 
-  const fetchProducts = async () => {
-    try {
-      const response = await api.get('/products');
-      setProducts(response.data);
-    } catch (error) {
-      handleApiError(error, 'Loading products');
-    }
-  };
+  const handleCloseModal = useCallback(() => {
+    salesModal.close();
+    salesForm.reset();
+    setSaleItems([]);
+  }, [salesModal, salesForm]);
 
-  const addProductToSale = () => {
+  const handleViewDetails = useCallback((sale: EnhancedSale) => {
+    setSelectedSale(sale);
+    viewDetailsModal.open();
+  }, [viewDetailsModal]);
+
+  const handleViewProducts = useCallback((sale: EnhancedSale) => {
+    setSelectedSale(sale);
+    viewProductsModal.open();
+  }, [viewProductsModal]);
+
+  const handleCardPayment = useCallback((sale: EnhancedSale) => {
+    setSelectedSale(sale);
+    cardPaymentModal.open();
+  }, [cardPaymentModal]);
+
+  const handleCardPaymentSuccess = useCallback(() => {
+    notify.success('Card payment processed', 'Payment has been recorded successfully');
+    // ✅ Cache invalidation is now handled by CardPaymentModal
+    // React Query will automatically refetch when needed
+  }, []);
+
+  // ✅ Memoized product addition handler
+  const handleAddProduct = useCallback(() => {
     if (!selectedProduct || quantity <= 0) {
       notify.warning('Invalid input', 'Please select a product and enter valid quantity');
       return;
     }
     
-    const product = products.find(p => p.id === parseInt(selectedProduct));
+    const product = currentProducts.find(p => p.id === parseInt(selectedProduct));
     if (!product) return;
     
     // Check stock
@@ -162,7 +331,7 @@ const Sales = () => {
     const subtotal = quantity * salesPrice;
     const total = subtotal + taxAmount;
     
-    setSaleItems([...saleItems, {
+    setSaleItems(prev => [...prev, {
       productId: product.id,
       productName: product.name,
       productAmount: Number(product.amount),
@@ -178,111 +347,15 @@ const Sales = () => {
     setQuantity(1);
     setSalesPrice(0);
     setTaxAmount(0);
-  };
+  }, [selectedProduct, quantity, salesPrice, taxAmount, currentProducts]);
 
-  const removeItem = (index: number) => {
-    setSaleItems(saleItems.filter((_, i) => i !== index));
-  };
+  // ✅ Memoized item removal handler
+  const handleRemoveItem = useCallback((index: number) => {
+    setSaleItems(prev => prev.filter((_, i) => i !== index));
+  }, []);
 
-  const calculateTotals = () => {
-    const subtotal = saleItems.reduce((sum, item) => sum + item.subtotal, 0);
-    const tax = saleItems.reduce((sum, item) => sum + item.tax, 0);
-    const total = saleItems.reduce((sum, item) => sum + item.total, 0);
-    return { subtotal, tax, total };
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (isSubmitting) return; // Prevent double submission
-    
-    if (saleItems.length === 0) {
-      notify.warning('No products', 'Please add at least one product to the sale');
-      return;
-    }
-    
-    // ✅ Validation: Check cash register for CASH/CHEQUE
-    if ((formData.paymentType === 'CASH' || formData.paymentType === 'CHEQUE') && !formData.cashRegisterId) {
-      notify.warning('Cash Register Required', `Please select a cash register for ${formData.paymentType} payments`);
-      return;
-    }
-    
-    // ✅ Validation: Check payment network for DEBIT_CARD/CREDIT_CARD
-    if ((formData.paymentType === 'DEBIT_CARD' || formData.paymentType === 'CREDIT_CARD') && !formData.cardPaymentNetworkId) {
-      notify.warning('Payment Network Required', `Please select a ${formData.paymentType.toLowerCase().replace('_', ' ')} payment network`);
-      return;
-    }
-    
-    // ✅ Validation: Check bank account for BANK_TRANSFER/DEPOSIT
-    if ((formData.paymentType === 'BANK_TRANSFER' || formData.paymentType === 'DEPOSIT') && !formData.bankAccountId) {
-      notify.warning('Bank Account Required', `Please select a bank account for ${formData.paymentType} payments`);
-      return;
-    }
-    
-    setIsSubmitting(true);
-    
-    try {
-      const totals = calculateTotals();
-      const paidAmount = formData.paymentType === 'CREDIT' ? 0 : totals.total;
-      
-      await api.post('/sales', {
-        ...formData,
-        clientId: parseInt(formData.clientId),
-        cashRegisterId: formData.cashRegisterId ? parseInt(formData.cashRegisterId) : undefined,
-        cardPaymentNetworkId: formData.cardPaymentNetworkId ? parseInt(formData.cardPaymentNetworkId) : undefined,
-        bankAccountId: formData.bankAccountId ? parseInt(formData.bankAccountId) : undefined,
-        subtotal: totals.subtotal,
-        tax: totals.tax,
-        discount: 0,
-        total: totals.total,
-        paidAmount: paidAmount,
-        balanceAmount: totals.total - paidAmount,
-        clientRnc: formData.clientRnc,
-        ncf: formData.ncf,
-        saleType: formData.saleType,
-        items: saleItems,
-      });
-      notify.success('Sale created', `Invoice ${formData.documentNumber} created successfully`);
-      fetchSales();
-      closeModal();
-    } catch (error: any) {
-      handleApiError(error, 'Creating sale');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const openModal = () => {
-    setFormData({
-      documentNumber: `INV-${Date.now()}`,
-      date: new Date().toISOString().split('T')[0],
-      clientId: '',
-      clientRnc: '',
-      ncf: '',
-      saleType: 'Merchandise for sale',
-      paymentType: 'CASH',
-      cashRegisterId: '',
-      cardPaymentNetworkId: '',
-      bankAccountId: '',
-      paidAmount: 0,
-      status: 'COMPLETED',
-    });
-    setSaleItems([]);
-    setShowModal(true);
-  };
-
-  const closeModal = () => {
-    setShowModal(false);
-    setSaleItems([]);
-  };
-
-  const handleCardPaymentSuccess = () => {
-    notify.success('Card payment processed', 'Payment has been recorded successfully');
-    fetchSales(); // Refresh sales list to show updated collection status
-  };
-
-  // ✅ NEW: Status badge function for deletion indicators
-  const getSaleStatusBadge = (sale: EnhancedSale) => {
+  // ✅ Memoized status badge functions for stable references
+  const getSaleStatusBadge = useCallback((sale: EnhancedSale) => {
     if (sale.deletion_status === 'EXECUTED') {
       return (
         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-300">
@@ -313,9 +386,9 @@ const Sales = () => {
          collectionStatus || 'No Cobrada'}
       </span>
     );
-  };
+  }, []);
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = useCallback((status: string) => {
     // Handle collection status (Cobrada, Parcial, No Cobrada)
     const collectionStyles: Record<string, string> = {
       'Collected': 'bg-green-100 text-green-800',
@@ -360,38 +433,136 @@ const Sales = () => {
         {status}
       </span>
     );
-  };
+  }, []);
 
-  const filteredSales = sales.filter((sale) => {
-    const matchesSearch = 
-      Object.values(sale).some((value) =>
-        value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    
-    const matchesStatus = filterStatus === 'All' || 
-      (filterStatus === 'Active' && sale.deletion_status !== 'EXECUTED' && !sale.is_reversal) ||
-      (filterStatus === 'Deleted' && sale.deletion_status === 'EXECUTED') ||
-      (filterStatus === 'Reversal' && sale.is_reversal);
-    
-    return matchesSearch && matchesStatus;
-  });
+  // ✅ LESSON LEARNED: Memoized DataTable columns configuration
+  const salesColumns = useMemo((): Column<EnhancedSale>[] => [
+    {
+      key: 'registrationNumber',
+      label: 'Registration Number',
+      render: (value, sale) => (
+        <div className="flex items-center gap-2">
+          {sale.deletion_status === 'EXECUTED' && <span className="text-red-500">🗑️</span>}
+          {sale.is_reversal && <span className="text-orange-500">↩️</span>}
+          <span className={sale.deletion_status === 'EXECUTED' ? 'line-through text-gray-500' : ''}>
+            {value}
+          </span>
+        </div>
+      )
+    },
+    {
+      key: 'client.name',
+      label: 'Client',
+      render: (value) => value || 'N/A'
+    },
+    {
+      key: 'clientRnc',
+      label: 'Client RNC',
+      render: (value) => value || 'N/A'
+    },
+    {
+      key: 'date',
+      label: 'Date',
+      render: (value) => new Date(value).toLocaleDateString()
+    },
+    {
+      key: 'saleType',
+      label: 'Sale Of',
+      render: (value) => value || 'N/A'
+    },
+    {
+      key: 'paymentType',
+      label: 'Payment Type',
+      render: (value) => value || 'N/A'
+    },
+    {
+      key: 'total',
+      label: 'Total',
+      align: 'right',
+      render: (value, sale) => (
+        <span className={sale.deletion_status === 'EXECUTED' ? 'line-through text-gray-500' : 'font-semibold'}>
+          {formatNumber(Number(value))}
+        </span>
+      )
+    },
+    {
+      key: 'collectedAmount',
+      label: 'Monto Cobrado',
+      align: 'right',
+      render: (value, sale) => (
+        <span className={`font-semibold text-green-600 ${sale.deletion_status === 'EXECUTED' ? 'line-through text-gray-500' : ''}`}>
+          {formatNumber(Number(value || 0))}
+        </span>
+      )
+    },
+    {
+      key: 'balanceAmount',
+      label: 'Balance',
+      align: 'right',
+      render: (value, sale) => (
+        <span className={`font-semibold text-orange-600 ${sale.deletion_status === 'EXECUTED' ? 'line-through text-gray-500' : ''}`}>
+          {formatNumber(Number(value || 0))}
+        </span>
+      )
+    },
+    {
+      key: 'collectionStatus',
+      label: 'Estado de Cobro',
+      align: 'center',
+      render: (_, sale) => getSaleStatusBadge(sale)
+    }
+  ], [getSaleStatusBadge]);
 
-  const totals = calculateTotals();
+  // ✅ LESSON LEARNED: Memoized custom actions for DataTable
+  const customActions = useCallback((sale: EnhancedSale) => (
+    <>
+      <motion.button
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
+        onClick={() => handleViewDetails(sale)}
+        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+        title="Sale Details"
+      >
+        <Eye size={18} />
+      </motion.button>
+      <motion.button
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
+        onClick={() => handleViewProducts(sale)}
+        className="p-2 text-green-600 hover:bg-green-50 rounded-lg"
+        title="Product Details"
+      >
+        <Package size={18} />
+      </motion.button>
+      {/* Card Payment Button - Only show if sale has balance and not deleted */}
+      {sale.balanceAmount && Number(sale.balanceAmount) > 0 && sale.deletion_status !== 'EXECUTED' && (
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={() => handleCardPayment(sale)}
+          className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg"
+          title="Process Card Payment"
+        >
+          <CreditCard size={18} />
+        </motion.button>
+      )}
+    </>
+  ), [handleViewDetails, handleViewProducts, handleCardPayment]);
+
+  // ✅ LESSON LEARNED: Remove old openModal and closeModal functions - use memoized handlers
+
+
 
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
         <div className="flex gap-4 flex-1">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-            <input
-              type="text"
-              placeholder={t('search')}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
+          {/* ✅ LESSON LEARNED: Replace custom search with SearchBar component */}
+          <SearchBar
+            value={searchTerm}
+            onChange={setSearchTerm}
+            placeholder={t('search')}
+          />
           
           {/* ✅ NEW: Status Filter */}
           <select
@@ -406,714 +577,546 @@ const Sales = () => {
           </select>
         </div>
         
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={openModal}
-          className="ml-4 bg-blue-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 shadow-lg"
+        {/* ✅ LESSON LEARNED: Replace custom motion button with ActionButton */}
+        <ActionButton
+          onClick={handleOpenModal}
+          icon={Plus}
+          variant="primary"
+          className="ml-4"
         >
-          <Plus size={20} />
           {t('newSale')}
-        </motion.button>
+        </ActionButton>
       </div>
 
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="bg-white rounded-xl shadow-lg overflow-hidden"
+      {/* ✅ LESSON LEARNED: Replace custom table with DataTable component */}
+      <DataTable
+        data={filteredSales}
+        columns={salesColumns}
+        customActions={customActions}
+        loading={isLoading}
+        emptyMessage="No sales found"
+      />
+
+      {/* ✅ LESSON LEARNED: Replace custom AnimatePresence modal with Modal component */}
+      <Modal
+        isOpen={salesModal.isOpen}
+        onClose={handleCloseModal}
+        title={
+          <div className="flex items-center gap-2">
+            <ShoppingCart className="text-blue-600" />
+            {t('newSale')}
+          </div>
+        }
+        size="xl"
+        maxHeight="90vh"
       >
-        <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-          <table className="w-full min-w-max">
-          <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-20">
-            <tr>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('registrationNumber').toUpperCase()}</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('client').toUpperCase()}</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">CLIENT RNC</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('date').toUpperCase()}</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">SALE OF</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">PAYMENT TYPE</th>
-              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('total').toUpperCase()}</th>
-              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">MONTO COBRADO</th>
-              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">BALANCE</th>
-              <th className="px-6 py-4 text-center text-sm font-bold text-gray-800">ESTADO DE COBRO</th>
-              <th className="px-6 py-4 text-center text-sm font-bold text-gray-800">{t('actions').toUpperCase()}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredSales.map((sale, index) => {
-              const isDeleted = sale.deletion_status === 'EXECUTED';
-              const isReversal = sale.is_reversal === true;
-              
-              return (
-              <motion.tr
-                key={sale.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-                className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${
-                  isDeleted ? 'bg-red-50 opacity-75' : 
-                  isReversal ? 'bg-orange-50' : ''
-                }`}
+        <div className="max-h-[75vh] overflow-y-auto">
+          <form onSubmit={salesForm.handleSubmit} className="space-y-6 p-6">
+          {/* Header Info */}
+          <div className="grid grid-cols-4 gap-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('registrationNumber')}</label>
+              <input
+                type="text"
+                required
+                value={salesForm.values.documentNumber}
+                onChange={(e) => salesForm.setValue('documentNumber', e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="RV0001"
+              />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('registrationDate')} *</label>
+              <input
+                type="date"
+                required
+                value={salesForm.values.date}
+                onChange={(e) => salesForm.setValue('date', e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          {/* Client Information */}
+          <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('client')} *</label>
+              <select
+                required
+                value={salesForm.values.clientId}
+                onChange={(e) => {
+                  const client = clients.find(c => c.id === parseInt(e.target.value));
+                  salesForm.setValue('clientId', e.target.value);
+                  salesForm.setValue('clientRnc', client?.rncCedula || '');
+                }}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               >
-                <td className="px-6 py-4 text-sm font-medium">
-                  <div className="flex items-center gap-2">
-                    {isDeleted && <span className="text-red-500">🗑️</span>}
-                    {isReversal && <span className="text-orange-500">↩️</span>}
-                    <span className={isDeleted ? 'line-through text-gray-500' : ''}>
-                      {sale.registrationNumber}
-                    </span>
-                  </div>
-                </td>
-                <td className="px-6 py-4 text-sm">{sale.client?.name || 'N/A'}</td>
-                <td className="px-6 py-4 text-sm">{sale.clientRnc || 'N/A'}</td>
-                <td className="px-6 py-4 text-sm">{new Date(sale.date).toLocaleDateString()}</td>
-                <td className="px-6 py-4 text-sm">{sale.saleType || 'N/A'}</td>
-                <td className="px-6 py-4 text-sm">{sale.paymentType || 'N/A'}</td>
-                <td className="px-6 py-4 text-sm font-semibold text-right">
-                  <span className={isDeleted ? 'line-through text-gray-500' : ''}>
-                    {formatNumber(Number(sale.total))}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-sm font-semibold text-right text-green-600">
-                  <span className={isDeleted ? 'line-through text-gray-500' : ''}>
-                    {formatNumber(Number(sale.collectedAmount || 0))}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-sm font-semibold text-right text-orange-600">
-                  <span className={isDeleted ? 'line-through text-gray-500' : ''}>
-                    {formatNumber(Number(sale.balanceAmount || 0))}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-center">
-                  {getSaleStatusBadge(sale)}
-                </td>
-                <td className="px-6 py-4">
-                  <div className="flex gap-2 justify-center">
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => {
-                        setSelectedSale(sale);
-                        setViewDetailsModal(true);
-                      }}
-                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
-                      title={t('saleDetails')}
-                    >
-                      <Eye size={18} />
-                    </motion.button>
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => {
-                        setSelectedSale(sale);
-                        setViewProductsModal(true);
-                      }}
-                      className="p-2 text-green-600 hover:bg-green-50 rounded-lg"
-                      title={t('productDetails')}
-                    >
-                      <Package size={18} />
-                    </motion.button>
-                    {/* Card Payment Button - Only show if sale has balance and not deleted */}
-                    {sale.balanceAmount && Number(sale.balanceAmount) > 0 && !isDeleted && (
-                      <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                        onClick={() => {
-                          setSelectedSale(sale);
-                          setCardPaymentModal(true);
-                        }}
-                        className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg"
-                        title={t('processCardPayment')}
-                      >
-                        <CreditCard size={18} />
-                      </motion.button>
-                    )}
-                  </div>
-                </td>
-              </motion.tr>
-              );
-            })}
-          </tbody>
-        </table>
-        </div>
-      </motion.div>
+                <option value="">{t('selectClient')}</option>
+                {clients.map((client) => (
+                  <option key={client.id} value={client.id}>
+                    {client.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('clientRnc')}</label>
+              <input
+                type="text"
+                value={salesForm.values.clientRnc}
+                onChange={(e) => salesForm.setValue('clientRnc', e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder={t('clientRnc')}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('ncf')}</label>
+              <input
+                type="text"
+                value={salesForm.values.ncf}
+                onChange={(e) => salesForm.setValue('ncf', e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder={t('ncf')}
+              />
+            </div>
+          </div>
 
-      <AnimatePresence>
-        {showModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-            onClick={closeModal}
-          >
-            <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-5xl max-h-[90vh] overflow-y-auto"
-            >
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold flex items-center gap-2">
-                  <ShoppingCart className="text-blue-600" />
-                  {t('newSale')}
-                </h2>
-                <button onClick={closeModal} className="text-gray-400 hover:text-gray-600">
-                  <X size={24} />
-                </button>
+          {/* Payment Information */}
+          <div className="grid grid-cols-2 gap-4 p-4 bg-green-50 rounded-lg border border-green-200">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Sale of *</label>
+              <select
+                required
+                value={salesForm.values.saleType}
+                onChange={(e) => salesForm.setValue('saleType', e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="Merchandise for sale">Merchandise for sale</option>
+                <option value="Service">Service</option>
+                <option value="Good for internal use">Good for internal use</option>
+                <option value="Investment good">Investment good</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Payment Type *</label>
+              <select
+                required
+                value={salesForm.values.paymentType}
+                onChange={(e) => {
+                  salesForm.setValue('paymentType', e.target.value);
+                  salesForm.setValue('cashRegisterId', '');
+                  salesForm.setValue('cardPaymentNetworkId', '');
+                  salesForm.setValue('bankAccountId', '');
+                }}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="CASH">Cash</option>
+                <option value="CHEQUE">Cheque</option>
+                <option value="DEBIT_CARD">Debit Card</option>
+                <option value="CREDIT_CARD">Credit Card</option>
+                <option value="BANK_TRANSFER">Bank Transfer</option>
+                <option value="DEPOSIT">Deposit</option>
+                <option value="CREDIT">Credit</option>
+              </select>
+            </div>
+            
+            {/* Cash Register Selection for CASH/CHEQUE */}
+            {(salesForm.values.paymentType === 'CASH' || salesForm.values.paymentType === 'CHEQUE') && (
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Select Cash Register *
+                </label>
+                <select
+                  required
+                  value={salesForm.values.cashRegisterId}
+                  onChange={(e) => salesForm.setValue('cashRegisterId', e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select cash register...</option>
+                  {cashRegisters.map(cr => (
+                    <option key={cr.id} value={cr.id}>
+                      {cr.name} (Balance: ${Number(cr.balance || 0).toFixed(2)})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  💰 Cash register will be updated with this sale
+                </p>
               </div>
-              
-              <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Header Info */}
-                <div className="grid grid-cols-4 gap-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('registrationNumber')}</label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.documentNumber}
-                      onChange={(e) => setFormData({ ...formData, documentNumber: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="RV0001"
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('registrationDate')} *</label>
-                    <input
-                      type="date"
-                      required
-                      value={formData.date}
-                      onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                </div>
+            )}
+            
+            {/* Debit Card Selection for DEBIT_CARD */}
+            {salesForm.values.paymentType === 'DEBIT_CARD' && (
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Select Debit Card Network *
+                </label>
+                <select
+                  required
+                  value={salesForm.values.cardPaymentNetworkId}
+                  onChange={(e) => salesForm.setValue('cardPaymentNetworkId', e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select payment network...</option>
+                  {paymentNetworks.filter(network => network.type === 'DEBIT' && network.isActive).map(network => (
+                    <option key={network.id} value={network.id}>
+                      {network.name} - Fee: {(Number(network.processingFee) * 100).toFixed(2)}% - Settlement: {network.settlementDays} day{network.settlementDays !== 1 ? 's' : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  💳 DEBIT: Creates Accounts Receivable from selected payment network
+                </p>
+              </div>
+            )}
 
-                {/* Client Information */}
-                <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('client')} *</label>
-                    <select
-                      required
-                      value={formData.clientId}
-                      onChange={(e) => {
-                        const client = clients.find(c => c.id === parseInt(e.target.value));
-                        setFormData({ 
-                          ...formData, 
-                          clientId: e.target.value,
-                          clientRnc: client?.rncCedula || ''
-                        });
-                      }}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">{t('selectClient')}</option>
-                      {clients.map((client) => (
-                        <option key={client.id} value={client.id}>
-                          {client.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('clientRnc')}</label>
-                    <input
-                      type="text"
-                      value={formData.clientRnc}
-                      onChange={(e) => setFormData({ ...formData, clientRnc: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder={t('clientRnc')}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('ncf')}</label>
-                    <input
-                      type="text"
-                      value={formData.ncf}
-                      onChange={(e) => setFormData({ ...formData, ncf: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder={t('ncf')}
-                    />
-                  </div>
-                </div>
+            {/* Payment Network Selection for CREDIT_CARD */}
+            {salesForm.values.paymentType === 'CREDIT_CARD' && (
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Select Credit Card Network *
+                </label>
+                <select
+                  required
+                  value={salesForm.values.cardPaymentNetworkId}
+                  onChange={(e) => salesForm.setValue('cardPaymentNetworkId', e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select payment network...</option>
+                  {paymentNetworks.filter(network => network.type === 'CREDIT' && network.isActive).map(network => (
+                    <option key={network.id} value={network.id}>
+                      {network.name} - Fee: {(Number(network.processingFee) * 100).toFixed(2)}% - Settlement: {network.settlementDays} day{network.settlementDays !== 1 ? 's' : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  💳 CREDIT: Creates Accounts Receivable from selected payment network
+                </p>
+              </div>
+            )}
+            
+            {/* Bank Account Selection for BANK_TRANSFER/DEPOSIT */}
+            {(salesForm.values.paymentType === 'BANK_TRANSFER' || salesForm.values.paymentType === 'DEPOSIT') && (
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Select Bank Account *
+                </label>
+                <select
+                  required
+                  value={salesForm.values.bankAccountId}
+                  onChange={(e) => salesForm.setValue('bankAccountId', e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select bank account...</option>
+                  {bankAccounts.map(account => (
+                    <option key={account.id} value={account.id}>
+                      {account.bankName} - {account.accountNumber} (Balance: ${Number(account.balance || 0).toFixed(2)})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  🏦 Money will be transferred directly to this bank account
+                </p>
+              </div>
+            )}
+          </div>
 
-                {/* Payment Information */}
-                <div className="grid grid-cols-2 gap-4 p-4 bg-green-50 rounded-lg border border-green-200">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Sale of *</label>
-                    <select
-                      required
-                      value={formData.saleType}
-                      onChange={(e) => setFormData({ ...formData, saleType: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="Merchandise for sale">Merchandise for sale</option>
-                      <option value="Service">Service</option>
-                      <option value="Good for internal use">Good for internal use</option>
-                      <option value="Investment good">Investment good</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Payment Type *</label>
-                    <select
-                      required
-                      value={formData.paymentType}
-                      onChange={(e) => setFormData({ ...formData, paymentType: e.target.value, cashRegisterId: '', cardPaymentNetworkId: '', bankAccountId: '' })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="CASH">Cash</option>
-                      <option value="CHEQUE">Cheque</option>
-                      <option value="DEBIT_CARD">Debit Card</option>
-                      {/* TODO: Discuss with client - Credit Card sales logic */}
-                      <option value="CREDIT_CARD">Credit Card</option>
-                      <option value="BANK_TRANSFER">Bank Transfer</option>
-                      <option value="DEPOSIT">Deposit</option>
-                      <option value="CREDIT">Credit</option>
-                    </select>
-                  </div>
-                  
-                  {/* ✅ Cash Register Selection for CASH/CHEQUE */}
-                  {(formData.paymentType === 'CASH' || formData.paymentType === 'CHEQUE') && (
-                    <div className="col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Select Cash Register *
-                      </label>
-                      <select
-                        required
-                        value={formData.cashRegisterId}
-                        onChange={(e) => setFormData({ ...formData, cashRegisterId: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="">Select cash register...</option>
-                        {cashRegisters.map(cr => (
-                          <option key={cr.id} value={cr.id}>
-                            {cr.name} (Balance: ${Number(cr.balance || 0).toFixed(2)})
-                          </option>
-                        ))}
-                      </select>
-                      <p className="text-xs text-gray-500 mt-1">
-                        💰 Cash register will be updated with this sale
-                      </p>
-                    </div>
-                  )}
-                  
-                  {/* ✅ Debit Card Selection for DEBIT_CARD */}
-                  {formData.paymentType === 'DEBIT_CARD' && (
-                    <div className="col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Select Debit Card Network *
-                      </label>
-                      <select
-                        required
-                        value={formData.cardPaymentNetworkId}
-                        onChange={(e) => setFormData({ ...formData, cardPaymentNetworkId: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="">Select payment network...</option>
-                        {cards.filter(card => card.cardType === 'DEBIT').map(card => (
-                          <option key={card.id} value={card.id}>
-                            {card.cardName ? card.cardName : `${card.cardBrand || 'Debit Card'} ****${card.cardNumberLast4}`}
-                            {card.BankAccount && ` - ${card.BankAccount.bankName} (Balance: $${Number(card.BankAccount.balance).toFixed(2)})`}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="text-xs text-gray-500 mt-1">
-                        💳 DEBIT: Creates Accounts Receivable from selected payment network
-                      </p>
-                    </div>
-                  )}
+          {/* Add Products */}
+          <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+            <h3 className="font-semibold mb-3">{t('addProducts')}</h3>
+            <div className="grid grid-cols-5 gap-3">
+              <select
+                value={selectedProduct}
+                onChange={(e) => {
+                  setSelectedProduct(e.target.value);
+                  const product = currentProducts.find(p => p.id === parseInt(e.target.value));
+                  if (product) {
+                    setSalesPrice(Number(product.salesPrice) || 0);
+                    setTaxAmount(0);
+                  }
+                }}
+                className="col-span-5 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select product...</option>
+                {currentProducts.filter(p => p.status === 'ACTIVE').map((product) => (
+                  <option key={product.id} value={product.id}>
+                    {product.name} - Sales Price: {formatNumber(Number(product.salesPrice || 0))} | Stock: {product.amount}
+                  </option>
+                ))}
+              </select>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Quantity *</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={quantity}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setQuantity(val === '' ? '' as any : parseInt(val) || 1);
+                  }}
+                  onBlur={(e) => {
+                    if (e.target.value === '' || parseInt(e.target.value) < 1) {
+                      setQuantity(1);
+                    }
+                  }}
+                  placeholder="Qty"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Sales Price</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={salesPrice}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setSalesPrice(val === '' ? 0 : parseFloat(val) || 0);
+                  }}
+                  onBlur={(e) => {
+                    if (e.target.value === '' || parseFloat(e.target.value) < 0) {
+                      setSalesPrice(0);
+                    }
+                  }}
+                  placeholder="0.00"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">Enter 0 for free items</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tax *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={taxAmount}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setTaxAmount(val === '' ? '' as any : parseFloat(val) || 0);
+                  }}
+                  onBlur={(e) => {
+                    if (e.target.value === '' || parseFloat(e.target.value) < 0) {
+                      setTaxAmount(0);
+                    }
+                  }}
+                  placeholder="0.00"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="flex items-end">
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleAddProduct}
+                  className="w-full px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                >
+                  {t('add')}
+                </motion.button>
+              </div>
+            </div>
+          </div>
 
-                  {/* ✅ Payment Network Selection for CREDIT_CARD */}
-                  {formData.paymentType === 'CREDIT_CARD' && (
-                    <div className="col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Select Credit Card Network *
-                      </label>
-                      <select
-                        required
-                        value={formData.cardPaymentNetworkId}
-                        onChange={(e) => setFormData({ ...formData, cardPaymentNetworkId: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="">Select payment network...</option>
-                        {paymentNetworks.filter(network => network.type === 'CREDIT' && network.isActive).map(network => (
-                          <option key={network.id} value={network.id}>
-                            {network.name} - Fee: {(Number(network.processingFee) * 100).toFixed(2)}% - Settlement: {network.settlementDays} day{network.settlementDays !== 1 ? 's' : ''}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="text-xs text-gray-500 mt-1">
-                        💳 CREDIT: Creates Accounts Receivable from selected payment network
-                      </p>
-                    </div>
-                  )}
-                  
-                  {/* ✅ Bank Account Selection for BANK_TRANSFER/DEPOSIT */}
-                  {(formData.paymentType === 'BANK_TRANSFER' || formData.paymentType === 'DEPOSIT') && (
-                    <div className="col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Select Bank Account *
-                      </label>
-                      <select
-                        required
-                        value={formData.bankAccountId}
-                        onChange={(e) => setFormData({ ...formData, bankAccountId: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="">Select bank account...</option>
-                        {bankAccounts.map(account => (
-                          <option key={account.id} value={account.id}>
-                            {account.bankName} - {account.accountNumber} (Balance: ${Number(account.balance || 0).toFixed(2)})
-                          </option>
-                        ))}
-                      </select>
-                      <p className="text-xs text-gray-500 mt-1">
-                        🏦 Money will be transferred directly to this bank account
-                      </p>
-                    </div>
-                  )}
-                </div>
+          {/* Items Table */}
+          {saleItems.length > 0 && (
+            <div className="border rounded-lg overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">{t('product')}</th>
+                    <th className="px-4 py-3 text-right text-sm font-semibold">Stock</th>
+                    <th className="px-4 py-3 text-right text-sm font-semibold">{t('qty')}</th>
+                    <th className="px-4 py-3 text-right text-sm font-semibold">Sales Price</th>
+                    <th className="px-4 py-3 text-right text-sm font-semibold">{t('subtotal')}</th>
+                    <th className="px-4 py-3 text-right text-sm font-semibold">{t('tax')}</th>
+                    <th className="px-4 py-3 text-right text-sm font-semibold">{t('total')}</th>
+                    <th className="px-4 py-3"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {saleItems.map((item, index) => (
+                    <tr key={index} className="border-t">
+                      <td className="px-4 py-3 text-sm">{item.productName}</td>
+                      <td className="px-4 py-3 text-sm text-right">{item.productAmount}</td>
+                      <td className="px-4 py-3 text-sm text-right">{item.quantity}</td>
+                      <td className="px-4 py-3 text-sm text-right">{formatNumber(Number(item.unitPrice))}</td>
+                      <td className="px-4 py-3 text-sm text-right">{formatNumber(Number(item.subtotal))}</td>
+                      <td className="px-4 py-3 text-sm text-right">{formatNumber(Number(item.tax))}</td>
+                      <td className="px-4 py-3 text-sm text-right font-semibold">{formatNumber(Number(item.total))}</td>
+                      <td className="px-4 py-3">
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveItem(index)}
+                          className="text-red-600 hover:text-red-800"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="bg-gray-50 font-semibold">
+                  <tr>
+                    <td colSpan={4} className="px-4 py-3 text-right">{t('subtotal')}:</td>
+                    <td className="px-4 py-3 text-right">{formatNumber(totals.subtotal)}</td>
+                    <td className="px-4 py-3 text-right">{formatNumber(totals.tax)}</td>
+                    <td className="px-4 py-3 text-right text-green-600 text-lg">{formatNumber(totals.total)}</td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
 
-                {/* Add Products */}
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
-                  <h3 className="font-semibold mb-3">{t('addProducts')}</h3>
-                  <div className="grid grid-cols-5 gap-3">
-                    <select
-                      value={selectedProduct}
-                      onChange={(e) => {
-                        setSelectedProduct(e.target.value);
-                        const product = products.find(p => p.id === parseInt(e.target.value));
-                        if (product) {
-                          setSalesPrice(Number(product.salesPrice) || 0);
-                          setTaxAmount(0);
-                        }
-                      }}
-                      className="col-span-5 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select product...</option>
-                      {products.filter(p => p.status === 'ACTIVE').map((product) => (
-                        <option key={product.id} value={product.id}>
-                          {product.name} - Sales Price: {formatNumber(Number(product.salesPrice || 0))} | Stock: {product.amount}
-                        </option>
-                      ))}
-                    </select>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Quantity *</label>
-                      <input
-                        type="number"
-                        min="1"
-                        value={quantity}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setQuantity(val === '' ? '' as any : parseInt(val) || 1);
-                        }}
-                        onBlur={(e) => {
-                          if (e.target.value === '' || parseInt(e.target.value) < 1) {
-                            setQuantity(1);
-                          }
-                        }}
-                        placeholder="Qty"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Sales Price</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={salesPrice}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setSalesPrice(val === '' ? 0 : parseFloat(val) || 0);
-                        }}
-                        onBlur={(e) => {
-                          if (e.target.value === '' || parseFloat(e.target.value) < 0) {
-                            setSalesPrice(0);
-                          }
-                        }}
-                        placeholder="0.00"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">Enter 0 for free items</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Tax *</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={taxAmount}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setTaxAmount(val === '' ? '' as any : parseFloat(val) || 0);
-                        }}
-                        onBlur={(e) => {
-                          if (e.target.value === '' || parseFloat(e.target.value) < 0) {
-                            setTaxAmount(0);
-                          }
-                        }}
-                        placeholder="0.00"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div className="flex items-end">
-                      <motion.button
-                        type="button"
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={addProductToSale}
-                        className="w-full px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                      >
-                        {t('add')}
-                      </motion.button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Items Table */}
-                {saleItems.length > 0 && (
-                  <div className="border rounded-lg overflow-hidden">
-                    <table className="w-full">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-sm font-semibold">{t('product')}</th>
-                          <th className="px-4 py-3 text-right text-sm font-semibold">Stock</th>
-                          <th className="px-4 py-3 text-right text-sm font-semibold">{t('qty')}</th>
-                          <th className="px-4 py-3 text-right text-sm font-semibold">Sales Price</th>
-                          <th className="px-4 py-3 text-right text-sm font-semibold">{t('subtotal')}</th>
-                          <th className="px-4 py-3 text-right text-sm font-semibold">{t('tax')}</th>
-                          <th className="px-4 py-3 text-right text-sm font-semibold">{t('total')}</th>
-                          <th className="px-4 py-3"></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {saleItems.map((item, index) => (
-                          <tr key={index} className="border-t">
-                            <td className="px-4 py-3 text-sm">{item.productName}</td>
-                            <td className="px-4 py-3 text-sm text-right">{item.productAmount}</td>
-                            <td className="px-4 py-3 text-sm text-right">{item.quantity}</td>
-                            <td className="px-4 py-3 text-sm text-right">{formatNumber(Number(item.unitPrice))}</td>
-                            <td className="px-4 py-3 text-sm text-right">{formatNumber(Number(item.subtotal))}</td>
-                            <td className="px-4 py-3 text-sm text-right">{formatNumber(Number(item.tax))}</td>
-                            <td className="px-4 py-3 text-sm text-right font-semibold">{formatNumber(Number(item.total))}</td>
-                            <td className="px-4 py-3">
-                              <button
-                                type="button"
-                                onClick={() => removeItem(index)}
-                                className="text-red-600 hover:text-red-800"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot className="bg-gray-50 font-semibold">
-                        <tr>
-                          <td colSpan={4} className="px-4 py-3 text-right">{t('subtotal')}:</td>
-                          <td className="px-4 py-3 text-right">{formatNumber(totals.subtotal)}</td>
-                          <td className="px-4 py-3 text-right">{formatNumber(totals.tax)}</td>
-                          <td className="px-4 py-3 text-right text-green-600 text-lg">{formatNumber(totals.total)}</td>
-                          <td></td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                )}
-
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={closeModal}
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                  >
-                    {t('cancel')}
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={saleItems.length === 0 || isSubmitting}
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
-                  >
-                    {isSubmitting ? 'Creating...' : `${t('createSale')} - $${formatNumber(totals.total)}`}
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          <div className="flex gap-3 pt-4">
+            <button
+              type="button"
+              onClick={handleCloseModal}
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              {t('cancel')}
+            </button>
+            <button
+              type="submit"
+              disabled={saleItems.length === 0 || salesForm.isSubmitting}
+              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+            >
+              {salesForm.isSubmitting ? 'Creating...' : `${t('createSale')} - ${formatNumber(totals.total)}`}
+            </button>
+          </div>
+        </form>
+        </div>
+      </Modal>
 
       {/* View Details Modal */}
-      <AnimatePresence>
-        {viewDetailsModal && selectedSale && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-            onClick={() => setViewDetailsModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-2xl"
-            >
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold flex items-center gap-2">
-                  <Eye className="text-blue-600" />
-                  Sale Details
-                </h2>
-                <button onClick={() => setViewDetailsModal(false)} className="text-gray-400 hover:text-gray-600">
-                  <X size={24} />
-                </button>
+      <Modal
+        isOpen={viewDetailsModal.isOpen}
+        onClose={viewDetailsModal.close}
+        title={
+          <div className="flex items-center gap-2">
+            <Eye className="text-blue-600" />
+            Sale Details
+          </div>
+        }
+        size="lg"
+        maxHeight="90vh"
+      >
+        <div className="max-h-[70vh] overflow-y-auto p-6">
+          {selectedSale && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm text-gray-600">Registration Number</label>
+                <p className="font-semibold">{selectedSale.registrationNumber}</p>
               </div>
-
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm text-gray-600">Registration Number</label>
-                    <p className="font-semibold">{selectedSale.registrationNumber}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm text-gray-600">Date</label>
-                    <p className="font-semibold">{new Date(selectedSale.date).toLocaleDateString()}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm text-gray-600">Client</label>
-                    <p className="font-semibold">{selectedSale.client?.name || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm text-gray-600">Client RNC</label>
-                    <p className="font-semibold">{selectedSale.clientRnc || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm text-gray-600">NCF</label>
-                    <p className="font-semibold">{selectedSale.ncf || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm text-gray-600">Payment Type</label>
-                    <p className="font-semibold">{selectedSale.paymentType}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm text-gray-600">Subtotal</label>
-                    <p className="font-semibold">{formatNumber(Number(selectedSale.subtotal))}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm text-gray-600">Tax</label>
-                    <p className="font-semibold">{formatNumber(Number(selectedSale.tax))}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm text-gray-600">Total</label>
-                    <p className="font-semibold text-lg text-green-600">{formatNumber(Number(selectedSale.total))}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm text-gray-600">Estado de Cobro</label>
-                    <p>{getStatusBadge(selectedSale.collectionStatus)}</p>
-                  </div>
-                </div>
+              <div>
+                <label className="text-sm text-gray-600">Date</label>
+                <p className="font-semibold">{new Date(selectedSale.date).toLocaleDateString()}</p>
               </div>
-
-              <div className="flex justify-end mt-6">
-                <button
-                  onClick={() => setViewDetailsModal(false)}
-                  className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
-                >
-                  Close
-                </button>
+              <div>
+                <label className="text-sm text-gray-600">Client</label>
+                <p className="font-semibold">{selectedSale.client?.name || 'N/A'}</p>
               </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              <div>
+                <label className="text-sm text-gray-600">Client RNC</label>
+                <p className="font-semibold">{selectedSale.clientRnc || 'N/A'}</p>
+              </div>
+              <div>
+                <label className="text-sm text-gray-600">NCF</label>
+                <p className="font-semibold">{selectedSale.ncf || 'N/A'}</p>
+              </div>
+              <div>
+                <label className="text-sm text-gray-600">Payment Type</label>
+                <p className="font-semibold">{selectedSale.paymentType}</p>
+              </div>
+              <div>
+                <label className="text-sm text-gray-600">Subtotal</label>
+                <p className="font-semibold">{formatNumber(Number(selectedSale.subtotal))}</p>
+              </div>
+              <div>
+                <label className="text-sm text-gray-600">Tax</label>
+                <p className="font-semibold">{formatNumber(Number(selectedSale.tax))}</p>
+              </div>
+              <div>
+                <label className="text-sm text-gray-600">Total</label>
+                <p className="font-semibold text-lg text-green-600">{formatNumber(Number(selectedSale.total))}</p>
+              </div>
+              <div>
+                <label className="text-sm text-gray-600">Estado de Cobro</label>
+                <p>{getStatusBadge(selectedSale.collectionStatus || 'Not Collected')}</p>
+              </div>
+            </div>
+          </div>
+          )}
+        </div>
+      </Modal>
 
       {/* View Products Modal */}
-      <AnimatePresence>
-        {viewProductsModal && selectedSale && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-            onClick={() => setViewProductsModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-5xl max-h-[90vh] overflow-y-auto"
-            >
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold flex items-center gap-2">
-                  <Package className="text-green-600" />
-                  Product Details - {selectedSale.registrationNumber}
-                </h2>
-                <button onClick={() => setViewProductsModal(false)} className="text-gray-400 hover:text-gray-600">
-                  <X size={24} />
-                </button>
-              </div>
-
-              <div className="border rounded-lg overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-3 py-2 text-left font-semibold">Code</th>
-                      <th className="px-3 py-2 text-left font-semibold">Product</th>
-                      <th className="px-3 py-2 text-left font-semibold">Unit</th>
-                      <th className="px-3 py-2 text-right font-semibold">Qty</th>
-                      <th className="px-3 py-2 text-right font-semibold">Sale Price</th>
-                      <th className="px-3 py-2 text-right font-semibold">Subtotal</th>
-                      <th className="px-3 py-2 text-right font-semibold">Tax</th>
-                      <th className="px-3 py-2 text-right font-semibold">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectedSale.items && selectedSale.items.length > 0 ? (
-                      selectedSale.items.map((item: any, index: number) => (
-                        <tr key={index} className="border-t">
-                          <td className="px-3 py-2">{item.productCode}</td>
-                          <td className="px-3 py-2">{item.productName}</td>
-                          <td className="px-3 py-2">{item.unitOfMeasurement}</td>
-                          <td className="px-3 py-2 text-right">{item.quantity}</td>
-                          <td className="px-3 py-2 text-right">{formatNumber(Number(item.unitPrice))}</td>
-                          <td className="px-3 py-2 text-right">{formatNumber(Number(item.subtotal))}</td>
-                          <td className="px-3 py-2 text-right">{formatNumber(Number(item.tax))}</td>
-                          <td className="px-3 py-2 text-right font-semibold">{formatNumber(Number(item.total))}</td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr className="border-t">
-                        <td colSpan={8} className="px-3 py-4 text-center text-gray-500">
-                          No products found
-                        </td>
+      <Modal
+        isOpen={viewProductsModal.isOpen}
+        onClose={viewProductsModal.close}
+        title={
+          <div className="flex items-center gap-2">
+            <Package className="text-green-600" />
+            Product Details - {selectedSale?.registrationNumber}
+          </div>
+        }
+        size="xl"
+        maxHeight="90vh"
+      >
+        <div className="max-h-[70vh] overflow-y-auto p-6">
+        {selectedSale && (
+          <div>
+            <div className="border rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-semibold">Code</th>
+                    <th className="px-3 py-2 text-left font-semibold">Product</th>
+                    <th className="px-3 py-2 text-left font-semibold">Unit</th>
+                    <th className="px-3 py-2 text-right font-semibold">Qty</th>
+                    <th className="px-3 py-2 text-right font-semibold">Sale Price</th>
+                    <th className="px-3 py-2 text-right font-semibold">Subtotal</th>
+                    <th className="px-3 py-2 text-right font-semibold">Tax</th>
+                    <th className="px-3 py-2 text-right font-semibold">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedSale.items && selectedSale.items.length > 0 ? (
+                    selectedSale.items.map((item: any, index: number) => (
+                      <tr key={index} className="border-t">
+                        <td className="px-3 py-2">{item.productCode}</td>
+                        <td className="px-3 py-2">{item.productName}</td>
+                        <td className="px-3 py-2">{item.unitOfMeasurement}</td>
+                        <td className="px-3 py-2 text-right">{item.quantity}</td>
+                        <td className="px-3 py-2 text-right">{formatNumber(Number(item.unitPrice))}</td>
+                        <td className="px-3 py-2 text-right">{formatNumber(Number(item.subtotal))}</td>
+                        <td className="px-3 py-2 text-right">{formatNumber(Number(item.tax))}</td>
+                        <td className="px-3 py-2 text-right font-semibold">{formatNumber(Number(item.total))}</td>
                       </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="flex justify-end mt-6">
-                <button
-                  onClick={() => setViewProductsModal(false)}
-                  className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
-                >
-                  Close
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
+                    ))
+                  ) : (
+                    <tr className="border-t">
+                      <td colSpan={8} className="px-3 py-4 text-center text-gray-500">
+                        No products found
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
-      </AnimatePresence>
+        </div>
+      </Modal>
 
       {/* Card Payment Modal */}
       {selectedSale && (
         <CardPaymentModal
-          isOpen={cardPaymentModal}
-          onClose={() => setCardPaymentModal(false)}
+          isOpen={cardPaymentModal.isOpen}
+          onClose={cardPaymentModal.close}
           saleId={selectedSale.id}
           saleAmount={Number(selectedSale.balanceAmount || selectedSale.total)}
           saleNumber={selectedSale.registrationNumber}

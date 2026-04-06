@@ -1,8 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Search, Edit, Trash2, CreditCard, X, Building2, Calendar, DollarSign } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
 import { notify } from '../utils/notifications';
+import { usePaymentNetworks } from '../hooks/queries/useSharedData';
+import { QUERY_KEYS } from '../lib/queryKeys';
 
 interface CardPaymentNetwork {
   id: number;
@@ -17,7 +20,11 @@ interface CardPaymentNetwork {
 }
 
 const CardPaymentNetworks = () => {
-  const [networks, setNetworks] = useState<CardPaymentNetwork[]>([]);
+  const queryClient = useQueryClient();
+  
+  // ✅ REACT QUERY: Use shared data hook instead of local state
+  const { data: networks = [], isLoading, isError } = usePaymentNetworks();
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingNetwork, setEditingNetwork] = useState<CardPaymentNetwork | null>(null);
@@ -30,21 +37,8 @@ const CardPaymentNetworks = () => {
     description: '',
   });
 
-  useEffect(() => {
-    fetchNetworks();
-  }, []);
-
-  const fetchNetworks = async () => {
-    try {
-      const response = await api.get('/card-payment-networks');
-      setNetworks(response.data);
-    } catch (error) {
-      console.error('Error fetching payment networks:', error);
-      notify.error('Failed to load payment networks');
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  // ✅ MEMOIZED: Handle form submission
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
@@ -57,7 +51,9 @@ const CardPaymentNetworks = () => {
         notify.success('Payment network created successfully');
       }
       
-      fetchNetworks();
+      // ✅ REACT QUERY: Cache invalidation for automatic UI updates
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.paymentNetworks });
+      
       closeModal();
     } catch (error: any) {
       console.error('Error saving payment network:', error);
@@ -65,9 +61,10 @@ const CardPaymentNetworks = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [editingNetwork, formData, queryClient]);
 
-  const handleEdit = (network: CardPaymentNetwork) => {
+  // ✅ MEMOIZED: Handle edit
+  const handleEdit = useCallback((network: CardPaymentNetwork) => {
     setEditingNetwork(network);
     setFormData({
       name: network.name,
@@ -77,9 +74,10 @@ const CardPaymentNetworks = () => {
       description: network.description || '',
     });
     setShowModal(true);
-  };
+  }, []);
 
-  const handleDelete = async (id: number) => {
+  // ✅ MEMOIZED: Handle delete
+  const handleDelete = useCallback(async (id: number) => {
     if (!confirm('Are you sure you want to delete this payment network?')) {
       return;
     }
@@ -87,28 +85,34 @@ const CardPaymentNetworks = () => {
     try {
       await api.delete(`/card-payment-networks/${id}`);
       notify.success('Payment network deleted successfully');
-      fetchNetworks();
+      
+      // ✅ REACT QUERY: Cache invalidation for automatic UI updates
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.paymentNetworks });
     } catch (error: any) {
       console.error('Error deleting payment network:', error);
       notify.error(error.response?.data?.error || 'Failed to delete payment network');
     }
-  };
+  }, [queryClient]);
 
-  const initializeDefaults = async () => {
+  // ✅ MEMOIZED: Initialize defaults
+  const initializeDefaults = useCallback(async () => {
     try {
       setLoading(true);
       await api.post('/card-payment-networks/initialize');
       notify.success('Default payment networks initialized');
-      fetchNetworks();
+      
+      // ✅ REACT QUERY: Cache invalidation for automatic UI updates
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.paymentNetworks });
     } catch (error: any) {
       console.error('Error initializing networks:', error);
       notify.error(error.response?.data?.error || 'Failed to initialize networks');
     } finally {
       setLoading(false);
     }
-  };
+  }, [queryClient]);
 
-  const openModal = () => {
+  // ✅ MEMOIZED: Open modal
+  const openModal = useCallback(() => {
     setEditingNetwork(null);
     setFormData({
       name: '',
@@ -118,22 +122,55 @@ const CardPaymentNetworks = () => {
       description: '',
     });
     setShowModal(true);
-  };
+  }, []);
 
-  const closeModal = () => {
+  // ✅ MEMOIZED: Close modal
+  const closeModal = useCallback(() => {
     setShowModal(false);
     setEditingNetwork(null);
-  };
+  }, []);
 
-  const filteredNetworks = networks.filter((network) =>
-    Object.values(network).some((value) =>
-      value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
-    )
-  );
+  // ✅ MEMOIZED: Filtered networks
+  const filteredNetworks = useMemo(() => {
+    return networks.filter((network) =>
+      Object.values(network).some((value) =>
+        value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    );
+  }, [networks, searchTerm]);
 
-  const getTypeColor = (type: string) => {
+  // ✅ MEMOIZED: Get type color
+  const getTypeColor = useCallback((type: string) => {
     return type === 'CREDIT' ? 'bg-purple-100 text-purple-800' : 'bg-green-100 text-green-800';
-  };
+  }, []);
+
+  // ✅ OPTIMIZED: Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <span className="ml-3 text-gray-600">Loading payment networks...</span>
+      </div>
+    );
+  }
+
+  // ✅ ERROR STATE
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="text-red-500 text-4xl mb-4">⚠️</div>
+          <p className="text-gray-600 mb-4">Error loading payment networks</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>

@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaCreditCard, FaMoneyBillWave, FaTimes, FaInfoCircle, FaCheckCircle } from 'react-icons/fa';
 import axios from '../api/axios';
 import { formatNumber } from '../utils/formatNumber';
+import { useSharedMasterData } from '../hooks/queries/useSharedData';
 
 interface CustomerCreditAwarePaymentModalProps {
   isOpen: boolean;
@@ -54,46 +55,13 @@ const CustomerCreditAwarePaymentModal: React.FC<CustomerCreditAwarePaymentModalP
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // Remove duplicate payment method selection - use Cash Register's values
-  const [cashRegisters, setCashRegisters] = useState<any[]>([]);
-  const [bankAccounts, setBankAccounts] = useState<any[]>([]);
+  // ✅ REACT QUERY: Use shared master data hook instead of local state
+  const sharedData = useSharedMasterData();
+  const cashRegisters = sharedData.cashRegisters || [];
+  const bankAccounts = sharedData.bankAccounts || [];
 
-  // Fetch payment preview when modal opens
-  useEffect(() => {
-    if (isOpen && customerId && invoiceIds.length > 0) {
-      fetchPaymentPreview();
-    }
-  }, [isOpen, customerId, invoiceIds, requestedAmount]);
-
-  // Fetch cash registers and bank accounts for display purposes only
-  useEffect(() => {
-    if (isOpen) {
-      fetchCashRegisters();
-      fetchBankAccounts();
-    }
-  }, [isOpen]);
-
-  const fetchCashRegisters = async () => {
-    try {
-      const response = await axios.get('/cash-register-masters');
-      const activeRegisters = response.data.filter((r: any) => r.status === 'ACTIVE');
-      setCashRegisters(activeRegisters);
-    } catch (error) {
-      console.error('Error fetching cash registers:', error);
-    }
-  };
-
-  const fetchBankAccounts = async () => {
-    try {
-      const response = await axios.get('/bank-accounts');
-      const activeAccounts = response.data.filter((a: any) => a.status === 'ACTIVE');
-      setBankAccounts(activeAccounts);
-    } catch (error) {
-      console.error('Error fetching bank accounts:', error);
-    }
-  };
-
-  const fetchPaymentPreview = async () => {
+  // ✅ MEMOIZED: Fetch payment preview
+  const fetchPaymentPreview = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     
@@ -112,9 +80,17 @@ const CustomerCreditAwarePaymentModal: React.FC<CustomerCreditAwarePaymentModalP
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [customerId, invoiceIds, requestedAmount, useExistingCredit]);
 
-  const processPayment = async () => {
+  // Fetch payment preview when modal opens
+  useEffect(() => {
+    if (isOpen && customerId && invoiceIds.length > 0) {
+      fetchPaymentPreview();
+    }
+  }, [isOpen, customerId, invoiceIds, requestedAmount, fetchPaymentPreview]);
+
+  // ✅ MEMOIZED: Process payment
+  const processPayment = useCallback(async () => {
     setIsProcessing(true);
     setError(null);
     
@@ -208,7 +184,7 @@ const CustomerCreditAwarePaymentModal: React.FC<CustomerCreditAwarePaymentModalP
     } finally {
       setIsProcessing(false);
     }
-  };
+  }, [preview, paymentMethod, cashRegisterId, bankAccountId, customerId, customerName, invoiceIds, requestedAmount, registrationDate, description, onSuccess, onClose]);
 
   if (!isOpen) return null;
 

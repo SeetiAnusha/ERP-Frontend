@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { FaCreditCard, FaSearch, FaArrowUp, FaArrowDown, FaEye, FaCalendarAlt } from 'react-icons/fa';
 import axios from '../api/axios';
 import { formatNumber } from '../utils/formatNumber';
+import { useCreditCardTransactions, useCards } from '../hooks/queries/useSharedData';
 
 interface CreditCardTransaction {
   id: number;
@@ -38,61 +39,25 @@ interface CreditCard {
 }
 
 const CreditCardRegister = () => {
-  const [transactions, setTransactions] = useState<CreditCardTransaction[]>([]);
-  const [creditCards, setCreditCards] = useState<CreditCard[]>([]);
+  // ✅ React Query Hooks
+  const { data: transactions = [], isLoading: isLoadingTransactions, isError, refetch: refetchTransactions } = useCreditCardTransactions();
+  const { data: allCards = [] } = useCards();
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCard, setFilterCard] = useState<string>('All');
   const [filterType, setFilterType] = useState<string>('All');
   const [selectedTransaction, setSelectedTransaction] = useState<CreditCardTransaction | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    fetchTransactions();
-    fetchCreditCards();
-  }, []);
+  // ✅ Memoized: Filter credit cards only
+  const creditCards = useMemo(() => {
+    return allCards.filter((card: any) => 
+      card.cardType === 'CREDIT' && card.status === 'ACTIVE'
+    );
+  }, [allCards]);
 
-  const fetchTransactions = async () => {
-    try {
-      setIsLoading(true);
-      const response = await axios.get('/credit-card-register');
-      console.log('Credit Card Register Response:', response.data);
-      
-      // Handle different response structures
-      let transactionsData = [];
-      if (Array.isArray(response.data)) {
-        transactionsData = response.data;
-      } else if (response.data.data && Array.isArray(response.data.data.entries)) {
-        transactionsData = response.data.data.entries;
-      } else if (response.data.entries && Array.isArray(response.data.entries)) {
-        transactionsData = response.data.entries;
-      } else {
-        console.warn('Unexpected credit card register API response structure:', response.data);
-        transactionsData = [];
-      }
-      
-      setTransactions(transactionsData);
-    } catch (error) {
-      console.error('Error fetching credit card transactions:', error);
-      setTransactions([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchCreditCards = async () => {
-    try {
-      const response = await axios.get('/cards');
-      const creditCards = response.data.filter((card: any) => 
-        card.cardType === 'CREDIT' && card.status === 'ACTIVE'
-      );
-      setCreditCards(creditCards);
-    } catch (error) {
-      console.error('Error fetching credit cards:', error);
-    }
-  };
-
-  const getTransactionTypeIcon = (type: string) => {
+  // ✅ Memoized: Transaction type utilities
+  const getTransactionTypeIcon = useCallback((type: string) => {
     switch (type) {
       case 'CHARGE':
         return <FaArrowUp className="text-red-500" />;
@@ -103,9 +68,9 @@ const CreditCardRegister = () => {
       default:
         return <FaCreditCard className="text-gray-500" />;
     }
-  };
+  }, []);
 
-  const getTransactionTypeColor = (type: string) => {
+  const getTransactionTypeColor = useCallback((type: string) => {
     switch (type) {
       case 'CHARGE':
         return 'text-red-600 bg-red-50';
@@ -116,35 +81,57 @@ const CreditCardRegister = () => {
       default:
         return 'text-gray-600 bg-gray-50';
     }
-  };
+  }, []);
 
-  const filteredTransactions = transactions.filter((transaction) => {
-    const matchesSearch = Object.values(transaction).some((value) =>
-      value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    
-    const matchesCard = filterCard === 'All' || transaction.cardId.toString() === filterCard;
-    const matchesType = filterType === 'All' || transaction.transactionType === filterType;
-    
-    return matchesSearch && matchesCard && matchesType;
-  });
+  // ✅ Memoized: Filtered transactions
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter((transaction) => {
+      const matchesSearch = Object.values(transaction).some((value) =>
+        value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      
+      const matchesCard = filterCard === 'All' || transaction.cardId.toString() === filterCard;
+      const matchesType = filterType === 'All' || transaction.transactionType === filterType;
+      
+      return matchesSearch && matchesCard && matchesType;
+    });
+  }, [transactions, searchTerm, filterCard, filterType]);
 
-  const handleViewDetails = (transaction: CreditCardTransaction) => {
+  // ✅ Memoized: View details handler
+  const handleViewDetails = useCallback((transaction: CreditCardTransaction) => {
     setSelectedTransaction(transaction);
     setShowDetailsModal(true);
-  };
+  }, []);
 
-  const getTotalUsedCredit = () => {
+  // ✅ Memoized: Credit calculations
+  const getTotalUsedCredit = useMemo(() => {
     return creditCards.reduce((total, card) => total + Number(card.usedCredit || 0), 0);
-  };
+  }, [creditCards]);
 
-  const getTotalCreditLimit = () => {
+  const getTotalCreditLimit = useMemo(() => {
     return creditCards.reduce((total, card) => total + Number(card.creditLimit || 0), 0);
-  };
+  }, [creditCards]);
 
-  const getAvailableCredit = () => {
-    return getTotalCreditLimit() - getTotalUsedCredit();
-  };
+  const getAvailableCredit = useMemo(() => {
+    return getTotalCreditLimit - getTotalUsedCredit;
+  }, [getTotalCreditLimit, getTotalUsedCredit]);
+
+  // ✅ Error state
+  if (isError) {
+    return (
+      <div className="space-y-6">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+          <p className="text-red-600 font-medium">Error loading credit card transactions</p>
+          <button
+            onClick={() => refetchTransactions()}
+            className="mt-4 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -169,7 +156,7 @@ const CreditCardRegister = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-blue-100">Total Credit Limit</p>
-              <p className="text-2xl font-bold">{formatNumber(getTotalCreditLimit())}</p>
+              <p className="text-2xl font-bold">{formatNumber(getTotalCreditLimit)}</p>
             </div>
             <FaCreditCard className="text-3xl text-blue-200" />
           </div>
@@ -184,7 +171,7 @@ const CreditCardRegister = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-red-100">Used Credit</p>
-              <p className="text-2xl font-bold">{formatNumber(getTotalUsedCredit())}</p>
+              <p className="text-2xl font-bold">{formatNumber(getTotalUsedCredit)}</p>
             </div>
             <FaArrowUp className="text-3xl text-red-200" />
           </div>
@@ -199,7 +186,7 @@ const CreditCardRegister = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-green-100">Available Credit</p>
-              <p className="text-2xl font-bold">{formatNumber(getAvailableCredit())}</p>
+              <p className="text-2xl font-bold">{formatNumber(getAvailableCredit)}</p>
             </div>
             <FaArrowDown className="text-3xl text-green-200" />
           </div>
@@ -274,7 +261,7 @@ const CreditCardRegister = () => {
         animate={{ opacity: 1 }}
         className="bg-white rounded-xl shadow-lg overflow-hidden"
       >
-        {isLoading ? (
+        {isLoadingTransactions ? (
           <div className="p-8 text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
             <p className="mt-4 text-gray-600">Loading credit card transactions...</p>

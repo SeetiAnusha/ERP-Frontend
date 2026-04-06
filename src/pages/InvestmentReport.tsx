@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { FaFileExcel } from 'react-icons/fa';
-import axios from '../api/axios';
+import { useInvestmentReport } from '../hooks/queries/useSharedData';
 
 interface InvestmentItem {
   id: number;
@@ -24,47 +24,45 @@ interface InvestmentItem {
 }
 
 const InvestmentReport = () => {
-  const [investments, setInvestments] = useState<InvestmentItem[]>([]);
-  const [totals, setTotals] = useState({
+  const [selectedType, setSelectedType] = useState('all');
+  
+  // ✅ React Query Hook
+  const { data, isLoading, isError, refetch } = useInvestmentReport(selectedType);
+  
+  // ✅ Memoized: Extract data
+  const investments = useMemo(() => data?.investments || [], [data]);
+  const totals = useMemo(() => data?.totals || {
     totalAcquisitionCost: 0,
     totalCurrentValue: 0,
     totalGainLoss: 0,
     portfolioROI: 0,
     investmentCount: 0,
-  });
-  const [selectedType, setSelectedType] = useState('all');
-  const [types, setTypes] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
+  }, [data]);
+  const types = useMemo(() => {
+    return [...new Set(investments.map((i: InvestmentItem) => i.type))] as string[];
+  }, [investments]);
 
-  useEffect(() => {
-    fetchReport();
-  }, [selectedType]);
-
-  const fetchReport = async () => {
-    setLoading(true);
-    try {
-      const params: any = {};
-      if (selectedType !== 'all') {
-        params.type = selectedType;
-      }
-      
-      const response = await axios.get('/reports/investment-tracking', { params });
-      setInvestments(response.data.investments);
-      setTotals(response.data.totals);
-      
-      // Extract unique types
-      const uniqueTypes = [...new Set(response.data.investments.map((i: InvestmentItem) => i.type))] as string[];
-      setTypes(uniqueTypes);
-    } catch (error) {
-      console.error('Error fetching investment report:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const exportToExcel = () => {
+  // ✅ Memoized: Export to Excel
+  const exportToExcel = useCallback(() => {
     alert('Excel export functionality would be implemented here');
-  };
+  }, []);
+
+  // ✅ Error state
+  if (isError) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+          <p className="text-red-600 font-medium">Error loading investment report</p>
+          <button
+            onClick={() => refetch()}
+            className="mt-4 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <motion.div
@@ -182,7 +180,7 @@ const InvestmentReport = () => {
               </tr>
             </thead>
             <tbody>
-              {loading ? (
+              {isLoading ? (
                 <tr>
                   <td colSpan={14} className="text-center py-8 text-gray-500">
                     Loading...

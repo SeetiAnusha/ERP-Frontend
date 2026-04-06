@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaCreditCard, FaUniversity, FaTimes, FaInfoCircle, FaCheckCircle } from 'react-icons/fa';
 import axios from '../api/axios';
@@ -53,14 +53,8 @@ const CreditAwarePaymentModal: React.FC<CreditAwarePaymentModalProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch payment preview when modal opens
-  useEffect(() => {
-    if (isOpen && supplierId && invoiceIds.length > 0) {
-      fetchPaymentPreview();
-    }
-  }, [isOpen, supplierId, invoiceIds, requestedAmount]);
-
-  const fetchPaymentPreview = async () => {
+  // ✅ OPTIMIZATION: Memoized fetch payment preview
+  const fetchPaymentPreview = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     
@@ -79,9 +73,17 @@ const CreditAwarePaymentModal: React.FC<CreditAwarePaymentModalProps> = ({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [supplierId, invoiceIds, requestedAmount, bankAccountId]);
 
-  const processPayment = async () => {
+  // Fetch payment preview when modal opens
+  useEffect(() => {
+    if (isOpen && supplierId && invoiceIds.length > 0) {
+      fetchPaymentPreview();
+    }
+  }, [isOpen, fetchPaymentPreview]);
+
+  // ✅ OPTIMIZATION: Memoized process payment handler
+  const processPayment = useCallback(async () => {
     setIsProcessing(true);
     setError(null);
     
@@ -131,7 +133,155 @@ const CreditAwarePaymentModal: React.FC<CreditAwarePaymentModalProps> = ({
     } finally {
       setIsProcessing(false);
     }
-  };
+  }, [supplierId, supplierName, invoiceIds, requestedAmount, paymentMethod, bankAccountId, registrationDate, description, onSuccess, onClose]);
+
+  // ✅ OPTIMIZATION: Memoized supplier info section
+  const supplierInfoSection = useMemo(() => (
+    <div className="bg-blue-50 rounded-lg p-4 mb-6">
+      <h3 className="font-medium text-blue-900 mb-2">Payment Details</h3>
+      <div className="grid grid-cols-2 gap-4 text-sm">
+        <div>
+          <span className="text-blue-700">Supplier:</span>
+          <span className="ml-2 font-medium">{supplierName}</span>
+        </div>
+        <div>
+          <span className="text-blue-700">Requested Amount:</span>
+          <span className="ml-2 font-medium">₹{formatNumber(requestedAmount)}</span>
+        </div>
+        <div>
+          <span className="text-blue-700">Payment Method:</span>
+          <span className="ml-2 font-medium">{paymentMethod}</span>
+        </div>
+        <div>
+          <span className="text-blue-700">Invoices:</span>
+          <span className="ml-2 font-medium">{invoiceIds.length} selected</span>
+        </div>
+      </div>
+    </div>
+  ), [supplierName, requestedAmount, paymentMethod, invoiceIds.length]);
+
+  // ✅ OPTIMIZATION: Memoized credit balance section
+  const creditBalanceSection = useMemo(() => {
+    if (!preview || preview.overpaymentBlocked) return null;
+    
+    return (
+      <div className="bg-green-50 rounded-lg p-4">
+        <h3 className="font-medium text-green-900 mb-3 flex items-center">
+          <FaCreditCard className="mr-2" />
+          Smart Credit Balance Analysis
+        </h3>
+        
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-green-700">Available Credit:</span>
+              <span className="font-medium">₹{formatNumber(preview.availableCredit)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-green-700">Credit Will Be Used:</span>
+              <span className="font-medium text-green-800">₹{formatNumber(preview.creditWillBeUsed)}</span>
+            </div>
+          </div>
+          
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-green-700">Invoice Balance:</span>
+              <span className="font-medium">₹{formatNumber(preview.totalInvoiceBalance)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-green-700">Bank Payment Needed:</span>
+              <span className="font-medium text-blue-800">₹{formatNumber(preview.bankPaymentNeeded)}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }, [preview]);
+
+  // ✅ OPTIMIZATION: Memoized payment breakdown section
+  const paymentBreakdownSection = useMemo(() => {
+    if (!preview || preview.overpaymentBlocked) return null;
+    
+    return (
+      <div className="bg-gray-50 rounded-lg p-4">
+        <h3 className="font-medium text-gray-900 mb-3 flex items-center">
+          <FaUniversity className="mr-2" />
+          Smart Payment Breakdown
+        </h3>
+        
+        <div className="space-y-3">
+          {preview.creditWillBeUsed > 0 && (
+            <div className="flex items-center justify-between p-3 bg-green-100 rounded">
+              <div className="flex items-center">
+                <FaCheckCircle className="text-green-600 mr-2" />
+                <span className="text-green-800">From Credit Balance (Priority 1)</span>
+              </div>
+              <span className="font-medium text-green-800">₹{formatNumber(preview.creditWillBeUsed)}</span>
+            </div>
+          )}
+          
+          {preview.bankPaymentNeeded > 0 && (
+            <div className="flex items-center justify-between p-3 bg-blue-100 rounded">
+              <div className="flex items-center">
+                <FaUniversity className="text-blue-600 mr-2" />
+                <span className="text-blue-800">From Bank Account (Priority 2)</span>
+              </div>
+              <span className="font-medium text-blue-800">₹{formatNumber(preview.bankPaymentNeeded)}</span>
+            </div>
+          )}
+          
+          {preview.willCreateNewCredit && (
+            <div className="flex items-center justify-between p-3 bg-yellow-100 rounded">
+              <div className="flex items-center">
+                <FaInfoCircle className="text-yellow-600 mr-2" />
+                <span className="text-yellow-800">New Credit Balance (Overpayment)</span>
+              </div>
+              <span className="font-medium text-yellow-800">₹{formatNumber(preview.newCreditAmount)}</span>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }, [preview]);
+
+  // ✅ OPTIMIZATION: Memoized payment button disabled state
+  const isPaymentDisabled = useMemo(() => {
+    return (
+      isLoading || 
+      isProcessing || 
+      !preview || 
+      preview.overpaymentBlocked ||
+      (preview.bankBalanceValidation && !preview.bankBalanceValidation.hasSufficientBalance)
+    );
+  }, [isLoading, isProcessing, preview]);
+
+  // ✅ OPTIMIZATION: Memoized payment button content
+  const paymentButtonContent = useMemo(() => {
+    if (isProcessing) {
+      return (
+        <>
+          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+          <span>Processing...</span>
+        </>
+      );
+    }
+    
+    if (preview?.overpaymentBlocked) {
+      return (
+        <>
+          <FaInfoCircle />
+          <span>Overpayment Blocked</span>
+        </>
+      );
+    }
+    
+    return (
+      <>
+        <FaCheckCircle />
+        <span>Process Smart Payment</span>
+      </>
+    );
+  }, [isProcessing, preview]);
 
   if (!isOpen) return null;
 
@@ -163,27 +313,7 @@ const CreditAwarePaymentModal: React.FC<CreditAwarePaymentModalProps> = ({
           {/* Content */}
           <div className="p-6">
             {/* Supplier Info */}
-            <div className="bg-blue-50 rounded-lg p-4 mb-6">
-              <h3 className="font-medium text-blue-900 mb-2">Payment Details</h3>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="text-blue-700">Supplier:</span>
-                  <span className="ml-2 font-medium">{supplierName}</span>
-                </div>
-                <div>
-                  <span className="text-blue-700">Requested Amount:</span>
-                  <span className="ml-2 font-medium">₹{formatNumber(requestedAmount)}</span>
-                </div>
-                <div>
-                  <span className="text-blue-700">Payment Method:</span>
-                  <span className="ml-2 font-medium">{paymentMethod}</span>
-                </div>
-                <div>
-                  <span className="text-blue-700">Invoices:</span>
-                  <span className="ml-2 font-medium">{invoiceIds.length} selected</span>
-                </div>
-              </div>
-            </div>
+            {supplierInfoSection}
 
             {/* Loading State */}
             {isLoading && (
@@ -240,80 +370,10 @@ const CreditAwarePaymentModal: React.FC<CreditAwarePaymentModalProps> = ({
                 )}
 
                 {/* Credit Balance Usage */}
-                {!preview.overpaymentBlocked && (
-                  <div className="bg-green-50 rounded-lg p-4">
-                    <h3 className="font-medium text-green-900 mb-3 flex items-center">
-                      <FaCreditCard className="mr-2" />
-                      Smart Credit Balance Analysis
-                    </h3>
-                    
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div className="space-y-2">
-                        <div className="flex justify-between">
-                          <span className="text-green-700">Available Credit:</span>
-                          <span className="font-medium">₹{formatNumber(preview.availableCredit)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-green-700">Credit Will Be Used:</span>
-                          <span className="font-medium text-green-800">₹{formatNumber(preview.creditWillBeUsed)}</span>
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <div className="flex justify-between">
-                          <span className="text-green-700">Invoice Balance:</span>
-                          <span className="font-medium">₹{formatNumber(preview.totalInvoiceBalance)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-green-700">Bank Payment Needed:</span>
-                          <span className="font-medium text-blue-800">₹{formatNumber(preview.bankPaymentNeeded)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                {creditBalanceSection}
 
                 {/* Payment Breakdown */}
-                {!preview.overpaymentBlocked && (
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <h3 className="font-medium text-gray-900 mb-3 flex items-center">
-                      <FaUniversity className="mr-2" />
-                      Smart Payment Breakdown
-                    </h3>
-                    
-                    <div className="space-y-3">
-                      {preview.creditWillBeUsed > 0 && (
-                        <div className="flex items-center justify-between p-3 bg-green-100 rounded">
-                          <div className="flex items-center">
-                            <FaCheckCircle className="text-green-600 mr-2" />
-                            <span className="text-green-800">From Credit Balance (Priority 1)</span>
-                          </div>
-                          <span className="font-medium text-green-800">₹{formatNumber(preview.creditWillBeUsed)}</span>
-                        </div>
-                      )}
-                      
-                      {preview.bankPaymentNeeded > 0 && (
-                        <div className="flex items-center justify-between p-3 bg-blue-100 rounded">
-                          <div className="flex items-center">
-                            <FaUniversity className="text-blue-600 mr-2" />
-                            <span className="text-blue-800">From Bank Account (Priority 2)</span>
-                          </div>
-                          <span className="font-medium text-blue-800">₹{formatNumber(preview.bankPaymentNeeded)}</span>
-                        </div>
-                      )}
-                      
-                      {preview.willCreateNewCredit && (
-                        <div className="flex items-center justify-between p-3 bg-yellow-100 rounded">
-                          <div className="flex items-center">
-                            <FaInfoCircle className="text-yellow-600 mr-2" />
-                            <span className="text-yellow-800">New Credit Balance (Overpayment)</span>
-                          </div>
-                          <span className="font-medium text-yellow-800">₹{formatNumber(preview.newCreditAmount)}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
+                {paymentBreakdownSection}
 
                 {/* Bank Balance Validation */}
                 {preview.bankBalanceValidation && preview.bankPaymentNeeded > 0 && (
@@ -407,31 +467,10 @@ const CreditAwarePaymentModal: React.FC<CreditAwarePaymentModalProps> = ({
             
             <button
               onClick={processPayment}
-              disabled={
-                isLoading || 
-                isProcessing || 
-                !preview || 
-                preview.overpaymentBlocked ||
-                (preview.bankBalanceValidation && !preview.bankBalanceValidation.hasSufficientBalance)
-              }
+              disabled={isPaymentDisabled}
               className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
             >
-              {isProcessing ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  <span>Processing...</span>
-                </>
-              ) : preview?.overpaymentBlocked ? (
-                <>
-                  <FaInfoCircle />
-                  <span>Overpayment Blocked</span>
-                </>
-              ) : (
-                <>
-                  <FaCheckCircle />
-                  <span>Process Smart Payment</span>
-                </>
-              )}
+              {paymentButtonContent}
             </button>
           </div>
         </motion.div>

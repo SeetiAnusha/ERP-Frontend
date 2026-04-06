@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Users, TrendingUp, DollarSign, Calendar, MapPin, Phone, Mail, RefreshCw, CheckCircle, Edit } from 'lucide-react';
 import api from '../api/axios';
 import { formatNumber } from '../utils/formatNumber';
 import { toast } from 'sonner';
+import { useInvestors, useInvestorsSummary } from '../hooks/queries/useSharedData';
 
 interface Financer {
   id: number;
@@ -57,49 +58,26 @@ interface FinancerSummary {
 }
 
 const Investors = () => {
-  const [financers, setFinancers] = useState<Financer[]>([]);
-  const [summary, setSummary] = useState<FinancerSummary | null>(null);
-  const [loading, setLoading] = useState(true);
+  // ✅ React Query Hooks
+  const { data: financers = [], isLoading, isError, refetch: refetchFinancers } = useInvestors();
+  const { data: summary, refetch: refetchSummary } = useInvestorsSummary();
+  
   const [selectedFinancer, setSelectedFinancer] = useState<Financer | null>(null);
   const [editingPayment, setEditingPayment] = useState<number | null>(null);
   const [paymentAmount, setPaymentAmount] = useState<string>('');
 
-  useEffect(() => {
-    fetchFinancers();
-    fetchSummary();
-  }, []);
+  // ✅ Memoized: Handle refresh
+  const handleRefresh = useCallback(() => {
+    refetchFinancers();
+    refetchSummary();
+  }, [refetchFinancers, refetchSummary]);
 
-  const fetchFinancers = async () => {
-    try {
-      setLoading(true);
-      const response = await api.get('/investors');
-      setFinancers(response.data);
-    } catch (error) {
-      console.error('Error fetching financers:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchSummary = async () => {
-    try {
-      const response = await api.get('/investors/summary/statistics');
-      setSummary(response.data);
-    } catch (error) {
-      console.error('Error fetching financer summary:', error);
-    }
-  };
-
-  const handleRefresh = () => {
-    fetchFinancers();
-    fetchSummary();
-  };
-
-  const handleMarkAsPaid = async (investmentId: number) => {
+  // ✅ Memoized: Handle mark as paid
+  const handleMarkAsPaid = useCallback(async (investmentId: number) => {
     try {
       await api.put(`/investors/investments/${investmentId}/mark-paid`);
       toast.success('Investment marked as paid successfully');
-      fetchFinancers();
+      refetchFinancers();
       if (selectedFinancer) {
         // Refresh the selected investor details
         const updatedInvestors = await api.get('/investors');
@@ -112,9 +90,10 @@ const Investors = () => {
       console.error('Error marking investment as paid:', error);
       toast.error('Failed to mark investment as paid');
     }
-  };
+  }, [selectedFinancer, refetchFinancers]);
 
-  const handleUpdatePayment = async (investmentId: number) => {
+  // ✅ Memoized: Handle update payment
+  const handleUpdatePayment = useCallback(async (investmentId: number) => {
     try {
       const amount = parseFloat(paymentAmount);
       if (isNaN(amount) || amount < 0) {
@@ -130,7 +109,7 @@ const Investors = () => {
       toast.success('Payment updated successfully');
       setEditingPayment(null);
       setPaymentAmount('');
-      fetchFinancers();
+      refetchFinancers();
       
       if (selectedFinancer) {
         // Refresh the selected investor details
@@ -144,21 +123,39 @@ const Investors = () => {
       console.error('Error updating payment:', error);
       toast.error('Failed to update payment');
     }
-  };
+  }, [paymentAmount, selectedFinancer, refetchFinancers]);
 
-  const handleFixInvestmentStatus = async () => {
+  // ✅ Memoized: Handle fix investment status
+  const handleFixInvestmentStatus = useCallback(async () => {
     try {
       const response = await api.post('/investors/fix-status');
       toast.success(`Fixed ${response.data.fixedCount} investment entries`);
-      fetchFinancers();
-      fetchSummary();
+      refetchFinancers();
+      refetchSummary();
     } catch (error) {
       console.error('Error fixing investment status:', error);
       toast.error('Failed to fix investment status');
     }
-  };
+  }, [refetchFinancers, refetchSummary]);
 
-  if (loading) {
+  // ✅ Error state
+  if (isError) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+          <p className="text-red-600 font-medium">Error loading investors</p>
+          <button
+            onClick={() => refetchFinancers()}
+            className="mt-4 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
@@ -185,10 +182,10 @@ const Investors = () => {
           <div className="flex gap-2">
             <button
               onClick={handleRefresh}
-              disabled={loading}
+              disabled={isLoading}
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50"
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
               Refresh
             </button>
             <button
@@ -318,7 +315,7 @@ const Investors = () => {
                 <div className="border-t pt-3">
                   <h4 className="text-sm font-medium text-gray-700 mb-2">Investment Breakdown:</h4>
                   <div className="space-y-1">
-                    {investor.storeBreakdown.slice(0, 3).map((store, index) => (
+                    {investor.storeBreakdown.slice(0, 3).map((store: Financer['storeBreakdown'][0], index: number) => (
                       <div key={index} className="flex justify-between items-center text-sm">
                         <span className="text-gray-600 flex items-center gap-1">
                           <MapPin className="w-3 h-3" />

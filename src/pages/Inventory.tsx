@@ -1,10 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { FaFileExcel, FaCalendar, FaSearch, FaChartLine } from 'react-icons/fa';
-import axios from '../api/axios';
 import { Product, Purchase, Sale } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { formatNumber } from '../utils/formatNumber';
+import { useProducts } from '../hooks/queries/useProducts';
+import { useSales } from '../hooks/queries/useSales';
+import { useQuery } from '@tanstack/react-query';
+import { QUERY_KEYS } from '../lib/queryKeys';
+import { CACHE_STRATEGIES } from '../lib/queryClient';
+import api from '../api/axios';
 
 interface InventoryMovement {
   registrationNo: string;
@@ -48,9 +53,23 @@ interface InventorySheet {
 
 const Inventory = () => {
   const { t } = useLanguage();
-  const [products, setProducts] = useState<Product[]>([]);
-  const [purchases, setPurchases] = useState<Purchase[]>([]);
-  const [sales, setSales] = useState<Sale[]>([]);
+  
+  // ✅ React Query Hooks
+  const { data: products = [], isLoading: isLoadingProducts, isError: isErrorProducts } = useProducts();
+  
+  // ✅ Custom hook for purchases with full details (including items)
+  const { data: purchases = [], isLoading: isLoadingPurchases, isError: isErrorPurchases } = useQuery({
+    queryKey: QUERY_KEYS.purchases,
+    queryFn: async (): Promise<Purchase[]> => {
+      const response = await api.get('/purchases');
+      return Array.isArray(response.data) ? response.data : [];
+    },
+    ...CACHE_STRATEGIES.MASTER_DATA,
+    throwOnError: false,
+  });
+  
+  const { data: sales = [], isLoading: isLoadingSales, isError: isErrorSales } = useSales();
+  
   const [inventorySheets, setInventorySheets] = useState<InventorySheet[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<string>('all');
   const [dateRange, setDateRange] = useState({
@@ -59,32 +78,12 @@ const Inventory = () => {
   });
   const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  // ✅ Combined loading and error states
+  const isLoading = isLoadingProducts || isLoadingPurchases || isLoadingSales;
+  const isError = isErrorProducts || isErrorPurchases || isErrorSales;
 
-  useEffect(() => {
-    if (products.length > 0 && purchases.length > 0 && sales.length > 0) {
-      calculateInventorySheets();
-    }
-  }, [products, purchases, sales, dateRange, selectedProduct]);
-
-  const fetchData = async () => {
-    try {
-      const [productsRes, purchasesRes, salesRes] = await Promise.all([
-        axios.get('/products'),
-        axios.get('/purchases'),
-        axios.get('/sales'),
-      ]);
-      setProducts(productsRes.data);
-      setPurchases(purchasesRes.data);
-      setSales(salesRes.data);
-    } catch (error) {
-      console.error('Error fetching data:', error);
-    }
-  };
-
-  const calculateInventorySheets = () => {
+  // ✅ Memoized: Calculate inventory sheets
+  const calculateInventorySheets = useCallback(() => {
     const sheets: InventorySheet[] = [];
     const productsToProcess = selectedProduct === 'all' 
       ? products 
@@ -282,15 +281,50 @@ const Inventory = () => {
     });
 
     setInventorySheets(sheets);
-  };
+  }, [products, purchases, sales, dateRange, selectedProduct]);
 
-  const exportToExcel = () => {
+  // ✅ Recalculate inventory sheets when data or filters change
+  useEffect(() => {
+    if (products.length > 0 && purchases.length > 0 && sales.length > 0) {
+      calculateInventorySheets();
+    }
+  }, [products, purchases, sales, dateRange, selectedProduct, calculateInventorySheets]);
+
+  // ✅ Memoized: Export to Excel
+  const exportToExcel = useCallback(() => {
     alert('Excel export functionality would be implemented here');
-  };
+  }, []);
 
-  const filteredSheets = inventorySheets.filter(sheet =>
-    sheet.product.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // ✅ Memoized: Filtered sheets
+  const filteredSheets = useMemo(() => {
+    return inventorySheets.filter(sheet =>
+      sheet.product.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [inventorySheets, searchTerm]);
+
+  // ✅ Error state
+  if (isError) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+          <p className="text-red-600 font-medium">Error loading inventory data</p>
+          <p className="text-sm text-gray-600 mt-2">Please refresh the page to try again</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ✅ Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading inventory data...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <motion.div

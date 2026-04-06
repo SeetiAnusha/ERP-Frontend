@@ -1,9 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Search, Edit2, Trash2, X, Building2 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
 import { useLanguage } from '../contexts/LanguageContext';
 import { formatNumber } from '../utils/formatNumber';
+import { useBankAccounts } from '../hooks/queries/useSharedData';
+import { QUERY_KEYS } from '../lib/queryKeys';
 
 interface BankAccount {
   id: number;
@@ -17,11 +20,15 @@ interface BankAccount {
 
 const BankAccounts = () => {
   const { t } = useLanguage();
-  const [accounts, setAccounts] = useState<BankAccount[]>([]);
+  const queryClient = useQueryClient();
+  
+  // ✅ REACT QUERY: Use shared data hook instead of local state
+  const { data: accounts = [], isLoading, isError } = useBankAccounts();
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingAccount, setEditingAccount] = useState<BankAccount | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false); // Add loading state
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     bankName: '',
     accountNumber: '',
@@ -30,20 +37,8 @@ const BankAccounts = () => {
     status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE',
   });
 
-  useEffect(() => {
-    fetchAccounts();
-  }, []);
-
-  const fetchAccounts = async () => {
-    try {
-      const response = await api.get('/bank-accounts');
-      setAccounts(response.data);
-    } catch (error) {
-      console.error('Error fetching bank accounts:', error);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  // ✅ MEMOIZED: Handle form submission
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Prevent double submission
@@ -56,27 +51,34 @@ const BankAccounts = () => {
       } else {
         await api.post('/bank-accounts', formData);
       }
-      fetchAccounts();
+      
+      // ✅ REACT QUERY: Cache invalidation for automatic UI updates
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankAccounts });
+      
       closeModal();
     } catch (error) {
       console.error('Error saving bank account:', error);
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [isSubmitting, editingAccount, formData, queryClient]);
 
-  const handleDelete = async (id: number) => {
+  // ✅ MEMOIZED: Handle delete
+  const handleDelete = useCallback(async (id: number) => {
     if (window.confirm('Are you sure you want to delete this bank account?')) {
       try {
         await api.delete(`/bank-accounts/${id}`);
-        fetchAccounts();
+        
+        // ✅ REACT QUERY: Cache invalidation for automatic UI updates
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankAccounts });
       } catch (error) {
         console.error('Error deleting bank account:', error);
       }
     }
-  };
+  }, [queryClient]);
 
-  const openModal = (account?: BankAccount) => {
+  // ✅ MEMOIZED: Open modal
+  const openModal = useCallback((account?: BankAccount) => {
     if (account) {
       setEditingAccount(account);
       setFormData({
@@ -97,19 +99,51 @@ const BankAccounts = () => {
       });
     }
     setShowModal(true);
-  };
+  }, []);
 
-  const closeModal = () => {
+  // ✅ MEMOIZED: Close modal
+  const closeModal = useCallback(() => {
     setShowModal(false);
     setEditingAccount(null);
-    setIsSubmitting(false); // Reset loading state
-  };
+    setIsSubmitting(false);
+  }, []);
 
-  const filteredAccounts = accounts.filter((account) =>
-    Object.values(account).some((value) =>
-      value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
-    )
-  );
+  // ✅ MEMOIZED: Filtered accounts
+  const filteredAccounts = useMemo(() => {
+    return accounts.filter((account) =>
+      Object.values(account).some((value) =>
+        value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    );
+  }, [accounts, searchTerm]);
+
+  // ✅ OPTIMIZED: Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <span className="ml-3 text-gray-600">Loading bank accounts...</span>
+      </div>
+    );
+  }
+
+  // ✅ ERROR STATE
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="text-red-500 text-4xl mb-4">⚠️</div>
+          <p className="text-gray-600 mb-4">Error loading bank accounts</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>

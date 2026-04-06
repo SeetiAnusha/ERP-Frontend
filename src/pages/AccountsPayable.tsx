@@ -1,62 +1,35 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Search, DollarSign, CheckCircle, Clock, XCircle, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
 import { AccountsPayable } from '../types/accountsTypes';
-import { notify, handleApiError } from '../utils/notifications';
+import { notify } from '../utils/notifications';
 import { useLanguage } from '../contexts/LanguageContext';
 import { formatNumber } from '../utils/formatNumber';
+import { QUERY_KEYS } from '../lib/queryKeys';
 import EnhancedPaymentModal from '../components/EnhancedPaymentModal';
+
+// ✅ FIXED: Use React Query hooks only - no feature flags
+import { useAccountsPayable } from '../hooks/queries/useFinancial';
+import { useSearch } from '../hooks/useSearch';
+import { useModal } from '../hooks/useModal';
 
 const AccountsPayablePage = () => {
   const { t } = useLanguage();
   const navigate = useNavigate();
-  const [accountsPayable, setAccountsPayable] = useState<AccountsPayable[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const queryClient = useQueryClient();
+  
+  // ✅ FIXED: Use React Query hooks only - no feature flags or legacy state
+  const { data: accountsPayable = [], isLoading } = useAccountsPayable();
+  const { searchTerm, setSearchTerm } = useSearch('accounts-payable');
+  const paymentModal = useModal<AccountsPayable>();
+  
+  // ✅ FIXED: Simple state management - no legacy/feature flag complexity
   const [filterStatus, setFilterStatus] = useState<string>('All');
-  const [isLoading, setIsLoading] = useState(true);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [selectedAP, setSelectedAP] = useState<AccountsPayable | null>(null);
   const [editingDeadline, setEditingDeadline] = useState<number | null>(null);
   const [newDeadline, setNewDeadline] = useState('');
-
-  useEffect(() => {
-    fetchAccountsPayable();
-  }, []);
-
-  const fetchAccountsPayable = async () => {
-    setIsLoading(true);
-    try {
-      const response = await api.get('/accounts-payable');
-      console.log('🔍 Accounts Payable API Response:', response.data);
-      
-      // Handle both old array format and new paginated format
-      let apData = [];
-      if (Array.isArray(response.data)) {
-        // Old format - direct array
-        apData = response.data;
-      } else if (response.data && Array.isArray(response.data.entries)) {
-        // New paginated format - extract entries
-        apData = response.data.entries;
-      } else if (response.data && response.data.length !== undefined) {
-        // Fallback - try to use as array
-        apData = response.data;
-      } else {
-        // Last resort - empty array
-        console.warn('Unexpected API response format:', response.data);
-        apData = [];
-      }
-      
-      setAccountsPayable(apData);
-    } catch (error) {
-      handleApiError(error, t('loadingAccountsPayable'));
-      // Set empty array on error to prevent filter issues
-      setAccountsPayable([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   // ✅ DSA: Helper function for determining payable entity (Single Responsibility Principle)
   const getPayableEntity = (ap: AccountsPayable) => {
@@ -121,7 +94,7 @@ const AccountsPayablePage = () => {
     return statusConfig[ap.deletion_status] || null;
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = useCallback((status: string) => {
     const styles: Record<string, string> = {
       'Paid': 'bg-green-100 text-green-800',
       'Partial': 'bg-yellow-100 text-yellow-800',
@@ -142,14 +115,13 @@ const AccountsPayablePage = () => {
         {status}
       </span>
     );
-  };
+  }, []);
 
-  const handleRecordPayment = (ap: AccountsPayable) => {
-    setSelectedAP(ap);
-    setShowPaymentModal(true);
-  };
+  const handleRecordPayment = useCallback((ap: AccountsPayable) => {
+    paymentModal.open(ap);
+  }, [paymentModal]);
 
-  const handlePayCreditPurchase = (ap: AccountsPayable) => {
+  const handlePayCreditPurchase = useCallback((ap: AccountsPayable) => {
     // Navigate to Bank Register with pre-filled data for credit purchase payment
     const paymentData = {
       transactionType: 'OUTFLOW',
@@ -168,18 +140,19 @@ const AccountsPayablePage = () => {
         fromAccountsPayable: true 
       } 
     });
-  };
+  }, [navigate, t]);
 
-  const handlePaymentSuccess = () => {
-    fetchAccountsPayable();
-  };
+  const handlePaymentSuccess = useCallback(() => {
+    // ✅ FIXED: React Query automatically refetches - no manual calls needed
+    paymentModal.close();
+  }, [paymentModal]);
 
-  const handleEditDeadline = (ap: AccountsPayable) => {
+  const handleEditDeadline = useCallback((ap: AccountsPayable) => {
     setEditingDeadline(ap.id);
     setNewDeadline(ap.dueDate ? new Date(ap.dueDate).toISOString().split('T')[0] : '');
-  };
+  }, []);
 
-  const handleSaveDeadline = async (apId: number) => {
+  const handleSaveDeadline = useCallback(async (apId: number) => {
     if (!newDeadline) {
       notify.warning(t('invalidDate'), t('pleaseSelectValidDeadline'));
       return;
@@ -189,36 +162,50 @@ const AccountsPayablePage = () => {
       await api.put(`/accounts-payable/${apId}`, {
         dueDate: newDeadline,
       });
+      
+      // ✅ FIXED: Proper cache invalidation like Sales/Purchases
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.accountsPayable });
+      
       notify.success(t('deadlineUpdated'), t('paymentDeadlineHasBeenUpdated'));
       setEditingDeadline(null);
       setNewDeadline('');
-      fetchAccountsPayable();
-    } catch (error) {
-      handleApiError(error, t('updatingDeadline'));
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error || 
+                         error.response?.data?.message || 
+                         error.message || 
+                         'Error updating deadline';
+      notify.error('Update Failed', errorMessage);
     }
-  };
+  }, [newDeadline, queryClient, t]);
 
-  const handleCancelEditDeadline = () => {
+  const handleCancelEditDeadline = useCallback(() => {
     setEditingDeadline(null);
     setNewDeadline('');
-  };
+  }, []);
 
-  const filteredAP = Array.isArray(accountsPayable) ? accountsPayable.filter((ap) => {
-    const matchesSearch = Object.values(ap).some((value) =>
-      value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    const matchesStatus = filterStatus === 'All' || ap.status === filterStatus;
-    return matchesSearch && matchesStatus;
-  }) : [];
+  const filteredAP = useMemo(() => {
+    return Array.isArray(accountsPayable) ? accountsPayable.filter((ap) => {
+      const matchesSearch = Object.values(ap).some((value) =>
+        value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      const matchesStatus = filterStatus === 'All' || ap.status === filterStatus;
+      return matchesSearch && matchesStatus;
+    }) : [];
+  }, [accountsPayable, searchTerm, filterStatus]);
 
-  const totalAmount = filteredAP.reduce((sum, ap) => sum + Number(ap.amount), 0);
-  const totalPaid = filteredAP.reduce((sum, ap) => sum + Number(ap.paidAmount), 0);
-  const totalBalance = filteredAP.reduce((sum, ap) => sum + Number(ap.balanceAmount), 0);
+  const totals = useMemo(() => {
+    const totalAmount = filteredAP.reduce((sum, ap) => sum + Number(ap.amount), 0);
+    const totalPaid = filteredAP.reduce((sum, ap) => sum + Number(ap.paidAmount), 0);
+    const totalBalance = filteredAP.reduce((sum, ap) => sum + Number(ap.balanceAmount), 0);
+    return { totalAmount, totalPaid, totalBalance };
+  }, [filteredAP]);
 
+  // ✅ FIXED: Simplified loading state
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <span className="ml-3 text-gray-600">Loading accounts payable...</span>
       </div>
     );
   }
@@ -240,7 +227,7 @@ const AccountsPayablePage = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-blue-600 font-medium">{t('totalAmount')}</p>
-              <p className="text-2xl font-bold text-blue-900">{totalAmount.toFixed(2)}</p>
+              <p className="text-2xl font-bold text-blue-900">{totals.totalAmount.toFixed(2)}</p>
             </div>
             <DollarSign className="text-blue-600" size={32} />
           </div>
@@ -255,7 +242,7 @@ const AccountsPayablePage = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-green-600 font-medium">{t('paid')}</p>
-              <p className="text-2xl font-bold text-green-900">{totalPaid.toFixed(2)}</p>
+              <p className="text-2xl font-bold text-green-900">{totals.totalPaid.toFixed(2)}</p>
             </div>
             <CheckCircle className="text-green-600" size={32} />
           </div>
@@ -270,7 +257,7 @@ const AccountsPayablePage = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-red-600 font-medium">{t('balanceYouOwe')}</p>
-              <p className="text-2xl font-bold text-red-900">{totalBalance.toFixed(2)}</p>
+              <p className="text-2xl font-bold text-red-900">{totals.totalBalance.toFixed(2)}</p>
             </div>
             <Clock className="text-red-600" size={32} />
           </div>
@@ -493,29 +480,26 @@ const AccountsPayablePage = () => {
       </motion.div>
 
       {/* Enhanced Payment Modal with Phase 1 Overpayment Detection */}
-      {selectedAP && (
+      {paymentModal.data && (
         <EnhancedPaymentModal
-          isOpen={showPaymentModal}
-          onClose={() => {
-            setShowPaymentModal(false);
-            setSelectedAP(null);
-          }}
+          isOpen={paymentModal.isOpen}
+          onClose={paymentModal.close}
           onSuccess={handlePaymentSuccess}
           transaction={{
-            id: selectedAP.id,
+            id: paymentModal.data.id,
             type: 'AP',
-            registrationNumber: selectedAP.registrationNumber || '',
-            relatedDocumentNumber: selectedAP.relatedDocumentNumber || '',
-            entityName: selectedAP.supplierName || selectedAP.cardIssuer || '',
-            entityId: selectedAP.supplierId,
+            registrationNumber: paymentModal.data.registrationNumber || '',
+            relatedDocumentNumber: paymentModal.data.relatedDocumentNumber || '',
+            entityName: paymentModal.data.supplierName || paymentModal.data.cardIssuer || '',
+            entityId: paymentModal.data.supplierId,
             entityType: 'SUPPLIER',
-            amount: Number(selectedAP.amount),
-            paidAmount: Number(selectedAP.paidAmount),
-            balanceAmount: Number(selectedAP.balanceAmount),
-            isCardTransaction: selectedAP.type === 'CREDIT_CARD_PURCHASE',
-            cardId: selectedAP.cardId
+            amount: Number(paymentModal.data.amount),
+            paidAmount: Number(paymentModal.data.paidAmount),
+            balanceAmount: Number(paymentModal.data.balanceAmount),
+            isCardTransaction: paymentModal.data.type === 'CREDIT_CARD_PURCHASE',
+            cardId: paymentModal.data.cardId
           }}
-          title={selectedAP.type === 'CREDIT_CARD_PURCHASE' ? 'Pay Credit Card Bill' : t('recordPayment')}
+          title={paymentModal.data.type === 'CREDIT_CARD_PURCHASE' ? 'Pay Credit Card Bill' : t('recordPayment')}
         />
       )}
     </div>

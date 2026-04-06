@@ -1,7 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Search, Edit2, Trash2, FolderTree, X, Check, AlertCircle } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
+import { useExpenseCategories } from '../hooks/queries/useSharedData';
+import { QUERY_KEYS } from '../lib/queryKeys';
 // import { useLanguage } from '../contexts/LanguageContext';
 
 interface ExpenseCategory {
@@ -25,11 +28,13 @@ interface ExpenseType {
 
 const ExpenseCategories = () => {
   // const { t } = useLanguage();
-  const [categories, setCategories] = useState<ExpenseCategory[]>([]);
+  // ✅ React Query Hooks
+  const { data: categories = [], isLoading, isError, refetch } = useExpenseCategories();
+  const queryClient = useQueryClient();
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState<ExpenseCategory | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Form state
@@ -52,26 +57,8 @@ const ExpenseCategories = () => {
     isActive: true
   });
 
-  useEffect(() => {
-    fetchCategories();
-  }, []);
-
-  const fetchCategories = async () => {
-    try {
-      setIsLoading(true);
-      const response = await api.get('/expenses/categories');
-      // Handle the backend response structure: { success: true, data: [...] }
-      const categories = response.data.success ? response.data.data : (response.data.data || response.data);
-      setCategories(categories || []);
-    } catch (error) {
-      console.error('Error fetching expense categories:', error);
-      setCategories([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchExpenseTypes = async (categoryId: number) => {
+  // ✅ Memoized: Fetch expense types
+  const fetchExpenseTypes = useCallback(async (categoryId: number) => {
     try {
       const response = await api.get(`/expenses/categories/${categoryId}/types`);
       // Handle the backend response structure: { success: true, data: [...] }
@@ -81,9 +68,10 @@ const ExpenseCategories = () => {
       console.error('Error fetching expense types:', error);
       setExpenseTypes([]);
     }
-  };
+  }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // ✅ Memoized: Handle submit
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (isSubmitting) return;
@@ -114,7 +102,9 @@ const ExpenseCategories = () => {
         await api.post('/expenses/categories', submitData);
       }
       
-      fetchCategories();
+      // ✅ Invalidate cache
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenseCategories });
+      refetch();
       closeModal();
     } catch (error: any) {
       console.error('Error saving category:', error);
@@ -123,9 +113,10 @@ const ExpenseCategories = () => {
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [isSubmitting, editingCategory, formData, queryClient, refetch]);
 
-  const handleAddExpenseType = async (e: React.FormEvent) => {
+  // ✅ Memoized: Handle add expense type
+  const handleAddExpenseType = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!newTypeData.name.trim() || !selectedCategory) {
@@ -157,36 +148,43 @@ const ExpenseCategories = () => {
       const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Error adding expense type';
       alert(errorMessage);
     }
-  };
+  }, [newTypeData, selectedCategory, fetchExpenseTypes]);
 
-  const handleDeleteCategory = async (id: number) => {
+  // ✅ Memoized: Handle delete category
+  const handleDeleteCategory = useCallback(async (id: number) => {
     if (!confirm('Are you sure you want to delete this category? This action cannot be undone.')) {
       return;
     }
 
     try {
       await api.delete(`/expenses/categories/${id}`);
-      fetchCategories();
+      // ✅ Invalidate cache
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenseCategories });
+      refetch();
     } catch (error: any) {
       console.error('Error deleting category:', error);
       alert(error.response?.data?.error || 'Error deleting category');
     }
-  };
+  }, [queryClient, refetch]);
 
-  const handleToggleStatus = async (category: ExpenseCategory) => {
+  // ✅ Memoized: Handle toggle status
+  const handleToggleStatus = useCallback(async (category: ExpenseCategory) => {
     try {
       await api.put(`/expenses/categories/${category.id}`, {
         ...category,
         isActive: !category.isActive
       });
-      fetchCategories();
+      // ✅ Invalidate cache
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenseCategories });
+      refetch();
     } catch (error: any) {
       console.error('Error updating category status:', error);
       alert(error.response?.data?.error || 'Error updating category status');
     }
-  };
+  }, [queryClient, refetch]);
 
-  const openModal = (category?: ExpenseCategory) => {
+  // ✅ Memoized: Open modal
+  const openModal = useCallback((category?: ExpenseCategory) => {
     if (category) {
       setEditingCategory(category);
       setFormData({
@@ -205,32 +203,55 @@ const ExpenseCategories = () => {
       });
     }
     setShowModal(true);
-  };
+  }, []);
 
-  const closeModal = () => {
+  // ✅ Memoized: Close modal
+  const closeModal = useCallback(() => {
     setShowModal(false);
     setEditingCategory(null);
     setFormData({ name: '', code: '', description: '', isActive: true });
-  };
+  }, []);
 
-  const openTypesModal = (category: ExpenseCategory) => {
+  // ✅ Memoized: Open types modal
+  const openTypesModal = useCallback((category: ExpenseCategory) => {
     setSelectedCategory(category);
     setShowTypesModal(true);
     fetchExpenseTypes(category.id);
-  };
+  }, [fetchExpenseTypes]);
 
-  const closeTypesModal = () => {
+  // ✅ Memoized: Close types modal
+  const closeTypesModal = useCallback(() => {
     setShowTypesModal(false);
     setSelectedCategory(null);
     setExpenseTypes([]);
     setShowAddTypeForm(false);
     setNewTypeData({ name: '', code: '', description: '', isActive: true });
-  };
+  }, []);
 
-  const filteredCategories = categories.filter((category) =>
-    category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    category.description.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // ✅ Memoized: Filtered categories
+  const filteredCategories = useMemo(() => {
+    return categories.filter((category) =>
+      category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      category.description.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [categories, searchTerm]);
+
+  // ✅ Error state
+  if (isError) {
+    return (
+      <div className="space-y-6">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+          <p className="text-red-600 font-medium">Error loading expense categories</p>
+          <button
+            onClick={() => refetch()}
+            className="mt-4 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

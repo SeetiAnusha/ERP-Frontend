@@ -1,11 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus, Receipt, DollarSign, Calendar, FileText, ChevronDown } from 'lucide-react';
-import api from '../api/axios';
+import { X, Receipt, DollarSign, Calendar, FileText } from 'lucide-react';
 import { Supplier } from '../types';
-import { formatNumber } from '../utils/formatNumber';
 import ExpenseCategoryDropdown from './ExpenseCategoryDropdown';
 import ExpenseTypeDropdown from './ExpenseTypeDropdown';
+
+// ✅ OPTIMIZATION: Use React Query hooks
+import { useBankAccounts, useCards } from '../hooks/queries/useSharedData';
+
+// ✅ Import shared components for Phase 1 refactoring
+import { SupplierSelector, BankAccountSelector, CardSelector } from './shared';
 
 interface SimpleExpenseFormProps {
   isOpen: boolean;
@@ -31,8 +35,7 @@ const SimpleExpenseForm = ({
     expenseTypeId: 0,
     description: '',
     paymentType: 'CREDIT',
-    purchaseType: 'Services or other', // Add purchase type for expenses
-    // Payment method specific fields
+    purchaseType: 'Services or other',
     bankAccountId: '',
     cardId: '',
     chequeNumber: '',
@@ -43,72 +46,52 @@ const SimpleExpenseForm = ({
     voucherDate: '',
   });
 
-  const [showAssociatedCosts, setShowAssociatedCosts] = useState(false);
   const [associatedCosts, setAssociatedCosts] = useState<any[]>([]);
-  const [bankAccounts, setBankAccounts] = useState<any[]>([]);
-  const [cards, setCards] = useState<any[]>([]);
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchBankAccounts();
-      fetchCards();
-    }
-  }, [isOpen]);
+  // ✅ OPTIMIZATION: Use React Query instead of manual API calls
+  const { data: allBankAccounts = [] } = useBankAccounts();
+  const { data: allCards = [] } = useCards();
 
-  const fetchBankAccounts = async () => {
-    try {
-      const response = await api.get('/bank-accounts');
-      setBankAccounts(response.data.filter((acc: any) => acc.status === 'ACTIVE'));
-    } catch (error) {
-      console.error('Error fetching bank accounts:', error);
-    }
-  };
+  // ✅ OPTIMIZATION: Memoized filtered data
+  const bankAccounts = useMemo(() => 
+    allBankAccounts.filter((acc: any) => acc.status === 'ACTIVE'),
+    [allBankAccounts]
+  );
 
-  const fetchCards = async () => {
-    try {
-      const response = await api.get('/cards');
-      setCards(response.data.filter((card: any) => card.status === 'ACTIVE'));
-    } catch (error) {
-      console.error('Error fetching cards:', error);
-    }
-  };
+  const cards = useMemo(() => 
+    allCards.filter((card: any) => card.status === 'ACTIVE'),
+    [allCards]
+  );
 
-  const handleSupplierChange = (supplierId: string) => {
-    const supplier = suppliers.find(s => s.id === parseInt(supplierId));
-    setFormData({
-      ...formData,
-      supplierId,
-      supplierName: supplier?.name || ''
-    });
-  };
+  // ✅ OPTIMIZATION: Memoized total calculation
+  const calculateTotal = useCallback(() => {
+    const mainAmount = parseFloat(formData.amount || '0');
+    const associatedTotal = associatedCosts.reduce((sum, cost) => sum + parseFloat(cost.amount || '0'), 0);
+    return mainAmount + associatedTotal;
+  }, [formData.amount, associatedCosts]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (isSubmitting) return;
-
-    // Validation
+  // ✅ OPTIMIZATION: Memoized validation
+  const validateForm = useCallback(() => {
     if (!formData.supplierId) {
       alert('Please select a supplier');
-      return;
+      return false;
     }
     
     if (!formData.amount || parseFloat(formData.amount) <= 0) {
       alert('Please enter a valid amount');
-      return;
+      return false;
     }
     
     if (!formData.expenseCategoryId || formData.expenseCategoryId === 0) {
       alert('Please select an expense category');
-      return;
+      return false;
     }
     
     if (!formData.expenseTypeId || formData.expenseTypeId === 0) {
       alert('Please select an expense type');
-      return;
+      return false;
     }
 
-    // Payment method validation
     const paymentType = formData.paymentType.toUpperCase();
     const bankPaymentMethods = ['CHEQUE', 'CHECK', 'BANK_TRANSFER', 'DEPOSIT', 'BANK_DEPOSIT'];
     const cardPaymentMethods = ['CREDIT_CARD', 'DEBIT_CARD'];
@@ -116,69 +99,65 @@ const SimpleExpenseForm = ({
     if (bankPaymentMethods.includes(paymentType)) {
       if (!formData.bankAccountId) {
         alert('Please select a bank account for this payment method');
-        return;
+        return false;
       }
       
-      // Validate bank account has sufficient balance for immediate payment methods
       const selectedBankAccount = bankAccounts.find(acc => acc.id === parseInt(formData.bankAccountId));
       if (selectedBankAccount) {
         const availableBalance = Number(selectedBankAccount.balance || 0);
-        const totalAmount = parseFloat(formData.amount);
-        const associatedTotal = associatedCosts.reduce((sum, cost) => sum + parseFloat(cost.amount || '0'), 0);
-        const grandTotal = totalAmount + associatedTotal;
+        const grandTotal = calculateTotal();
         
         if (availableBalance < grandTotal) {
           alert(`Insufficient balance in ${selectedBankAccount.bankName} (${selectedBankAccount.accountNumber}). Available: ₹${availableBalance.toFixed(2)}, Required: ₹${grandTotal.toFixed(2)}`);
-          return;
+          return false;
         }
       }
       
-      // Specific validation for cheque/check methods
       if ((paymentType === 'CHEQUE' || paymentType === 'CHECK') && (!formData.chequeNumber || !formData.chequeDate)) {
         alert('Please fill in cheque number and date');
-        return;
+        return false;
       }
       
-      // Specific validation for bank transfer
       if (paymentType === 'BANK_TRANSFER' && (!formData.transferNumber || !formData.transferDate)) {
         alert('Please fill in transfer number and date');
-        return;
+        return false;
       }
     }
     
     if (cardPaymentMethods.includes(paymentType)) {
       if (!formData.cardId || !formData.paymentReference || !formData.voucherDate) {
         alert('Please fill in all card payment details');
-        return;
+        return false;
       }
       
-      // Validate credit card has sufficient limit
       if (paymentType === 'CREDIT_CARD') {
         const selectedCard = cards.find(card => card.id === parseInt(formData.cardId));
         if (selectedCard && selectedCard.cardType === 'CREDIT') {
           const creditLimit = Number(selectedCard.creditLimit || 0);
           const usedCredit = Number(selectedCard.usedCredit || 0);
           const availableCredit = creditLimit - usedCredit;
-          const totalAmount = parseFloat(formData.amount);
-          const associatedTotal = associatedCosts.reduce((sum, cost) => sum + parseFloat(cost.amount || '0'), 0);
-          const grandTotal = totalAmount + associatedTotal;
+          const grandTotal = calculateTotal();
           
           if (availableCredit < grandTotal) {
             alert(`Insufficient credit limit on ${selectedCard.cardName || 'Credit Card'}. Available: ₹${availableCredit.toFixed(2)}, Required: ₹${grandTotal.toFixed(2)}`);
-            return;
+            return false;
           }
         }
       }
     }
 
-    try {
-      const totalAmount = parseFloat(formData.amount);
-      const associatedTotal = associatedCosts.reduce((sum, cost) => sum + parseFloat(cost.amount || '0'), 0);
-      const grandTotal = totalAmount + associatedTotal;
+    return true;
+  }, [formData, bankAccounts, cards, calculateTotal]);
 
-      // Calculate payment amounts based on payment type
-      // Immediate payment methods: BANK_TRANSFER, CHEQUE, CHECK, DEPOSIT, DEBIT_CARD, CASH
-      // Credit payment methods: CREDIT, CREDIT_CARD
+  // ✅ OPTIMIZATION: Memoized submit handler
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (isSubmitting) return;
+    if (!validateForm()) return;
+
+    try {
+      const grandTotal = calculateTotal();
       const immediatePaymentTypes = ['BANK_TRANSFER', 'CHEQUE', 'CHECK', 'DEPOSIT', 'BANK_DEPOSIT', 'DEBIT_CARD', 'CASH'];
       const isImmediatePayment = immediatePaymentTypes.includes(formData.paymentType.toUpperCase());
       
@@ -190,12 +169,10 @@ const SimpleExpenseForm = ({
         expenseTypeId: parseInt(formData.expenseTypeId.toString()),
         description: formData.description,
         amount: grandTotal,
-        expenseType: formData.purchaseType, // Use selected expense type
+        expenseType: formData.purchaseType,
         paymentType: formData.paymentType,
         paidAmount: isImmediatePayment ? grandTotal : 0,
         balanceAmount: isImmediatePayment ? 0 : grandTotal,
-        
-        // Payment method specific fields
         bankAccountId: formData.bankAccountId ? parseInt(formData.bankAccountId) : null,
         cardId: formData.cardId ? parseInt(formData.cardId) : null,
         chequeNumber: formData.chequeNumber || null,
@@ -204,8 +181,6 @@ const SimpleExpenseForm = ({
         transferDate: formData.transferDate || null,
         paymentReference: formData.paymentReference || null,
         voucherDate: formData.voucherDate || null,
-        
-        // Associated costs
         associatedCosts: associatedCosts.map(cost => ({
           supplierRnc: cost.supplierRnc || '',
           supplierName: cost.supplierName || '',
@@ -213,7 +188,7 @@ const SimpleExpenseForm = ({
           ncf: cost.ncf || 'N/A',
           date: cost.date || formData.date,
           amount: parseFloat(cost.amount || '0'),
-          expenseType: formData.purchaseType, // Use selected expense type
+          expenseType: formData.purchaseType,
           paymentType: cost.paymentType || 'CREDIT',
           cardId: cost.cardId ? parseInt(cost.cardId) : null,
           bankAccountId: cost.bankAccountId ? parseInt(cost.bankAccountId) : null
@@ -226,9 +201,10 @@ const SimpleExpenseForm = ({
       console.error('Error creating expense:', error);
       alert(error.response?.data?.error || 'Error creating expense');
     }
-  };
+  }, [formData, suppliers, associatedCosts, isSubmitting, validateForm, calculateTotal, onSubmit]);
 
-  const resetForm = () => {
+  // ✅ OPTIMIZATION: Memoized reset handler
+  const resetForm = useCallback(() => {
     setFormData({
       date: new Date().toISOString().split('T')[0],
       supplierId: '',
@@ -238,7 +214,7 @@ const SimpleExpenseForm = ({
       expenseTypeId: 0,
       description: '',
       paymentType: 'CREDIT',
-      purchaseType: 'Services or other', // Reset to default
+      purchaseType: 'Services or other',
       bankAccountId: '',
       cardId: '',
       chequeNumber: '',
@@ -248,36 +224,8 @@ const SimpleExpenseForm = ({
       paymentReference: '',
       voucherDate: '',
     });
-    setShowAssociatedCosts(false);
     setAssociatedCosts([]);
-  };
-
-  const addAssociatedCost = () => {
-    setAssociatedCosts([...associatedCosts, {
-      concept: '',
-      amount: '',
-      supplierName: '',
-      supplierRnc: '',
-      paymentType: 'CREDIT',
-      date: formData.date
-    }]);
-  };
-
-  const removeAssociatedCost = (index: number) => {
-    setAssociatedCosts(associatedCosts.filter((_, i) => i !== index));
-  };
-
-  const updateAssociatedCost = (index: number, field: string, value: string) => {
-    const updated = [...associatedCosts];
-    updated[index] = { ...updated[index], [field]: value };
-    setAssociatedCosts(updated);
-  };
-
-  const calculateTotal = () => {
-    const mainAmount = parseFloat(formData.amount || '0');
-    const associatedTotal = associatedCosts.reduce((sum, cost) => sum + parseFloat(cost.amount || '0'), 0);
-    return mainAmount + associatedTotal;
-  };
+  }, []);
 
   if (!isOpen) return null;
 
@@ -308,25 +256,21 @@ const SimpleExpenseForm = ({
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Main Expense Fields - Simple & Clean */}
+            {/* Main Expense Fields */}
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Supplier *
-                </label>
-                <select
-                  required
+                <SupplierSelector
                   value={formData.supplierId}
-                  onChange={(e) => handleSupplierChange(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-                >
-                  <option value="">Select supplier...</option>
-                  {suppliers.map((supplier) => (
-                    <option key={supplier.id} value={supplier.id}>
-                      {supplier.name}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(value, supplier) => {
+                    setFormData(prev => ({
+                      ...prev,
+                      supplierId: value,
+                      supplierName: supplier?.name || ''
+                    }));
+                  }}
+                  required
+                  label="Supplier"
+                />
               </div>
 
               <div>
@@ -341,7 +285,7 @@ const SimpleExpenseForm = ({
                     min="0.01"
                     required
                     value={formData.amount}
-                    onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                    onChange={(e) => setFormData(prev => ({ ...prev, amount: e.target.value }))}
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                     placeholder="0.00"
                   />
@@ -358,7 +302,7 @@ const SimpleExpenseForm = ({
                     type="date"
                     required
                     value={formData.date}
-                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                    onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                   />
                 </div>
@@ -370,11 +314,11 @@ const SimpleExpenseForm = ({
                 </label>
                 <ExpenseCategoryDropdown
                   value={formData.expenseCategoryId}
-                  onChange={(categoryId) => setFormData({ 
-                    ...formData, 
+                  onChange={(categoryId) => setFormData(prev => ({ 
+                    ...prev, 
                     expenseCategoryId: categoryId, 
                     expenseTypeId: 0 
-                  })}
+                  }))}
                   required
                 />
               </div>
@@ -386,7 +330,7 @@ const SimpleExpenseForm = ({
                 <ExpenseTypeDropdown
                   categoryId={formData.expenseCategoryId || undefined}
                   value={formData.expenseTypeId}
-                  onChange={(typeId) => setFormData({ ...formData, expenseTypeId: typeId })}
+                  onChange={(typeId) => setFormData(prev => ({ ...prev, expenseTypeId: typeId }))}
                   required
                 />
               </div>
@@ -399,7 +343,7 @@ const SimpleExpenseForm = ({
                   <FileText className="absolute left-3 top-3 text-gray-400" size={16} />
                   <textarea
                     value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                     rows={2}
                     placeholder="Brief description of the expense..."
@@ -414,7 +358,7 @@ const SimpleExpenseForm = ({
                 <select
                   required
                   value={formData.paymentType}
-                  onChange={(e) => setFormData({ ...formData, paymentType: e.target.value, cardId: '', bankAccountId: '' })}
+                  onChange={(e) => setFormData(prev => ({ ...prev, paymentType: e.target.value, cardId: '', bankAccountId: '' }))}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                 >
                   <option value="CREDIT">Credit (Pay Later)</option>
@@ -441,7 +385,7 @@ const SimpleExpenseForm = ({
                 <select
                   required
                   value={formData.purchaseType || 'Services or other'}
-                  onChange={(e) => setFormData({ ...formData, purchaseType: e.target.value })}
+                  onChange={(e) => setFormData(prev => ({ ...prev, purchaseType: e.target.value }))}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                 >
                   <option value="Services or other">Services or Other</option>
@@ -454,8 +398,7 @@ const SimpleExpenseForm = ({
               </div>
             </div>
 
-            {/* Payment Method Specific Fields */}
-            {/* Bank Payment Methods: CHEQUE, CHECK, BANK_TRANSFER, DEPOSIT */}
+            {/* Bank Payment Methods */}
             {['CHEQUE', 'CHECK', 'BANK_TRANSFER', 'DEPOSIT', 'BANK_DEPOSIT'].includes(formData.paymentType) && (
               <div className="p-4 bg-blue-50 rounded-lg">
                 <h4 className="text-sm font-medium text-gray-700 mb-3">
@@ -463,101 +406,73 @@ const SimpleExpenseForm = ({
                    formData.paymentType === 'BANK_TRANSFER' ? 'Bank Transfer Details' :
                    'Bank Deposit Details'}
                 </h4>
-                <div className="grid grid-cols-3 gap-4">
+                
+                <div className="space-y-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Bank Account *</label>
-                    <select
-                      required
+                    <BankAccountSelector
                       value={formData.bankAccountId}
-                      onChange={(e) => setFormData({ ...formData, bankAccountId: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select account...</option>
-                      {bankAccounts.map((account: any) => (
-                        <option key={account.id} value={account.id}>
-                          {account.bankName} - {account.accountNumber} (Balance: ₹{Number(account.balance).toFixed(2)})
-                        </option>
-                      ))}
-                    </select>
-                    <p className="text-xs text-gray-500 mt-1">
-                      💡 Money will be deducted from this account and recorded in both Expense Management and Bank Register
-                    </p>
+                      onChange={(value) => setFormData(prev => ({ ...prev, bankAccountId: value }))}
+                      required
+                      showBalance
+                      label="Bank Account"
+                    />
                   </div>
-                  
-                  {/* Check/Cheque specific fields */}
+
                   {(formData.paymentType === 'CHEQUE' || formData.paymentType === 'CHECK') && (
                     <>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Check Number *</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Check Number *
+                        </label>
                         <input
                           type="text"
                           required
                           value={formData.chequeNumber}
-                          onChange={(e) => setFormData({ ...formData, chequeNumber: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          onChange={(e) => setFormData(prev => ({ ...prev, chequeNumber: e.target.value }))}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                           placeholder="Enter check number"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Check Date *</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Check Date *
+                        </label>
                         <input
                           type="date"
                           required
                           value={formData.chequeDate}
-                          onChange={(e) => setFormData({ ...formData, chequeDate: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          onChange={(e) => setFormData(prev => ({ ...prev, chequeDate: e.target.value }))}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                         />
                       </div>
                     </>
                   )}
-                  
-                  {/* Bank Transfer specific fields */}
+
                   {formData.paymentType === 'BANK_TRANSFER' && (
                     <>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Transfer Number *</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Transfer Number *
+                        </label>
                         <input
                           type="text"
                           required
                           value={formData.transferNumber}
-                          onChange={(e) => setFormData({ ...formData, transferNumber: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          onChange={(e) => setFormData(prev => ({ ...prev, transferNumber: e.target.value }))}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                           placeholder="Enter transfer reference"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Transfer Date *</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Transfer Date *
+                        </label>
                         <input
                           type="date"
                           required
                           value={formData.transferDate}
-                          onChange={(e) => setFormData({ ...formData, transferDate: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                        />
-                      </div>
-                    </>
-                  )}
-                  
-                  {/* Deposit specific fields - simpler, just needs reference */}
-                  {(formData.paymentType === 'DEPOSIT' || formData.paymentType === 'BANK_DEPOSIT') && (
-                    <>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Deposit Reference</label>
-                        <input
-                          type="text"
-                          value={formData.transferNumber || ''}
-                          onChange={(e) => setFormData({ ...formData, transferNumber: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                          placeholder="Optional deposit reference"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Deposit Date</label>
-                        <input
-                          type="date"
-                          value={formData.transferDate || formData.date}
-                          onChange={(e) => setFormData({ ...formData, transferDate: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          onChange={(e) => setFormData(prev => ({ ...prev, transferDate: e.target.value }))}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                         />
                       </div>
                     </>
@@ -566,165 +481,81 @@ const SimpleExpenseForm = ({
               </div>
             )}
 
-            {(formData.paymentType === 'CREDIT_CARD' || formData.paymentType === 'DEBIT_CARD') && (
-              <div className="grid grid-cols-3 gap-4 p-4 bg-purple-50 rounded-lg">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {formData.paymentType === 'CREDIT_CARD' ? 'Credit Card' : 'Debit Card'} *
-                  </label>
-                  <select
-                    required
-                    value={formData.cardId}
-                    onChange={(e) => setFormData({ ...formData, cardId: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                  >
-                    <option value="">Select card...</option>
-                    {cards
-                      .filter((card: any) => card.cardType === (formData.paymentType === 'CREDIT_CARD' ? 'CREDIT' : 'DEBIT'))
-                      .map((card: any) => {
-                        const displayText = card.cardName || `${card.cardBrand} ****${card.cardNumberLast4}`;
-                        const balanceInfo = card.cardType === 'CREDIT' 
-                          ? `Available: ₹${(Number(card.creditLimit || 0) - Number(card.usedCredit || 0)).toFixed(2)}`
-                          : '';
-                        return (
-                          <option key={card.id} value={card.id}>
-                            {displayText} {balanceInfo && `(${balanceInfo})`}
-                          </option>
-                        );
-                      })}
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">
-                    💡 {formData.paymentType === 'CREDIT_CARD' 
-                      ? 'Will be recorded in both Expense Management and Accounts Payable' 
-                      : 'Will be recorded in both Expense Management and Bank Register'}
-                  </p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Payment Reference *</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.paymentReference}
-                    onChange={(e) => setFormData({ ...formData, paymentReference: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Voucher Date *</label>
-                  <input
-                    type="date"
-                    required
-                    value={formData.voucherDate}
-                    onChange={(e) => setFormData({ ...formData, voucherDate: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                  />
+            {/* Card Payment Methods */}
+            {['CREDIT_CARD', 'DEBIT_CARD'].includes(formData.paymentType) && (
+              <div className="p-4 bg-purple-50 rounded-lg">
+                <h4 className="text-sm font-medium text-gray-700 mb-3">
+                  {formData.paymentType === 'CREDIT_CARD' ? 'Credit Card Payment Details' : 'Debit Card Payment Details'}
+                </h4>
+                
+                <div className="space-y-3">
+                  <div>
+                    <CardSelector
+                      value={formData.cardId}
+                      onChange={(value) => setFormData(prev => ({ ...prev, cardId: value }))}
+                      cardType={formData.paymentType === 'CREDIT_CARD' ? 'CREDIT' : 'DEBIT'}
+                      required
+                      showAvailableLimit={formData.paymentType === 'CREDIT_CARD'}
+                      label="Card"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Payment Reference *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.paymentReference}
+                      onChange={(e) => setFormData(prev => ({ ...prev, paymentReference: e.target.value }))}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                      placeholder="Transaction ID or reference"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Voucher Date *
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={formData.voucherDate}
+                      onChange={(e) => setFormData(prev => ({ ...prev, voucherDate: e.target.value }))}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* Optional Associated Costs - Hidden by Default */}
-            <div className="border-t pt-4">
-              <button
-                type="button"
-                onClick={() => setShowAssociatedCosts(!showAssociatedCosts)}
-                className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
-              >
-                <Plus size={16} />
-                Add Associated Costs (Optional)
-                <ChevronDown 
-                  size={16} 
-                  className={`transform transition-transform ${showAssociatedCosts ? 'rotate-180' : ''}`} 
-                />
-              </button>
-
-              <AnimatePresence>
-                {showAssociatedCosts && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="mt-4 p-4 bg-gray-50 rounded-lg"
-                  >
-                    <div className="flex justify-between items-center mb-3">
-                      <h4 className="font-medium text-gray-700">Associated Costs</h4>
-                      <button
-                        type="button"
-                        onClick={addAssociatedCost}
-                        className="text-sm bg-gray-600 text-white px-3 py-1 rounded hover:bg-gray-700"
-                      >
-                        + Add Cost
-                      </button>
-                    </div>
-
-                    {associatedCosts.map((cost, index) => (
-                      <div key={index} className="grid grid-cols-4 gap-3 mb-3 p-3 bg-white rounded border">
-                        <input
-                          type="text"
-                          placeholder="Description"
-                          value={cost.concept}
-                          onChange={(e) => updateAssociatedCost(index, 'concept', e.target.value)}
-                          className="px-3 py-2 border border-gray-300 rounded text-sm"
-                        />
-                        <input
-                          type="number"
-                          step="0.01"
-                          placeholder="Amount"
-                          value={cost.amount}
-                          onChange={(e) => updateAssociatedCost(index, 'amount', e.target.value)}
-                          className="px-3 py-2 border border-gray-300 rounded text-sm"
-                        />
-                        <input
-                          type="text"
-                          placeholder="Supplier"
-                          value={cost.supplierName}
-                          onChange={(e) => updateAssociatedCost(index, 'supplierName', e.target.value)}
-                          className="px-3 py-2 border border-gray-300 rounded text-sm"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeAssociatedCost(index)}
-                          className="text-red-600 hover:text-red-800"
-                        >
-                          <X size={16} />
-                        </button>
-                      </div>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            {/* Total Summary */}
-            <div className="bg-green-50 rounded-lg p-4">
-              <div className="flex justify-between items-center">
-                <span className="font-medium text-gray-700">Total Amount:</span>
-                <span className="text-2xl font-bold text-green-600">
-                  {formatNumber(calculateTotal())}
-                </span>
-              </div>
-              {associatedCosts.length > 0 && (
-                <div className="text-sm text-gray-600 mt-1">
-                  Main: {formatNumber(parseFloat(formData.amount || '0'))} + 
-                  Associated: {formatNumber(associatedCosts.reduce((sum, cost) => sum + parseFloat(cost.amount || '0'), 0))}
+            {/* Total Display */}
+            {associatedCosts.length > 0 && (
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <div className="flex justify-between items-center text-lg font-semibold">
+                  <span>Grand Total:</span>
+                  <span className="text-green-600">₹{calculateTotal().toFixed(2)}</span>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
-            {/* Submit Buttons */}
+            {/* Action Buttons */}
             <div className="flex gap-3 pt-4">
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="flex-1 px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                disabled={isSubmitting}
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                className="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isSubmitting ? 'Creating...' : `Create Expense - ${formatNumber(calculateTotal())}`}
+                {isSubmitting ? 'Creating...' : 'Create Expense'}
               </button>
             </div>
           </form>

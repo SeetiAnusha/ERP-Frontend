@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { CreditCard, X, DollarSign, Building2 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
 import { formatNumber } from '../utils/formatNumber';
 import { notify } from '../utils/notifications';
+import { QUERY_KEYS } from '../lib/queryKeys';
 
 interface Card {
   id: number;
@@ -39,6 +41,7 @@ const CardPaymentModal = ({
   cashRegisterId,
   onPaymentSuccess
 }: CardPaymentModalProps) => {
+  const queryClient = useQueryClient();
   const [cards, setCards] = useState<Card[]>([]);
   const [selectedCardId, setSelectedCardId] = useState<string>('');
   const [paymentAmount, setPaymentAmount] = useState<string>(saleAmount.toString());
@@ -97,6 +100,13 @@ const CardPaymentModal = ({
         registrationDate: new Date().toISOString().split('T')[0],
         description
       });
+
+      // ✅ CRITICAL: Invalidate all related caches after payment
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.sales });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashRegisters });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cards });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.clients });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.accountsReceivable });
 
       notify.success('Card payment processed successfully!');
       onPaymentSuccess();

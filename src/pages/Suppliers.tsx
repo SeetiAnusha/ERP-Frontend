@@ -1,16 +1,23 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Search, Edit, Trash2, X } from 'lucide-react';
-import api from '../api/axios';
 import { Supplier } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useQueryClient } from '@tanstack/react-query';
+import { useSuppliers } from '../hooks/queries/useSharedData';
+import { useMutation } from '@tanstack/react-query';
+import api from '../api/axios';
+import { QUERY_KEYS } from '../lib/queryKeys';
 
 const Suppliers = () => {
   const { t } = useLanguage();
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const queryClient = useQueryClient();
+  
+  // ✅ React Query hook for data fetching
+  const { data: suppliers = [], isLoading } = useSuppliers();
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [formData, setFormData] = useState({
     code: '',
@@ -20,53 +27,69 @@ const Suppliers = () => {
     address: '',
   });
 
-  useEffect(() => {
-    fetchSuppliers();
-  }, []);
+  // ✅ Create mutation
+  const createMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      const response = await api.post('/suppliers', data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.suppliers });
+      closeModal();
+    },
+    onError: (error) => {
+      console.error('Error creating supplier:', error);
+    },
+  });
 
-  const fetchSuppliers = async () => {
-    try {
-      const response = await api.get('/suppliers');
-      setSuppliers(response.data);
-    } catch (error) {
-      console.error('Error fetching suppliers:', error);
-    }
-  };
+  // ✅ Update mutation
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: typeof formData }) => {
+      const response = await api.put(`/suppliers/${id}`, data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.suppliers });
+      closeModal();
+    },
+    onError: (error) => {
+      console.error('Error updating supplier:', error);
+    },
+  });
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // ✅ Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await api.delete(`/suppliers/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.suppliers });
+    },
+    onError: (error) => {
+      console.error('Error deleting supplier:', error);
+    },
+  });
+
+  // ✅ Memoized submit handler
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (isSubmitting) return; // Prevent double submission
-    
-    setIsSubmitting(true);
-    
-    try {
-      if (editingSupplier) {
-        await api.put(`/suppliers/${editingSupplier.id}`, formData);
-      } else {
-        await api.post('/suppliers', formData);
-      }
-      fetchSuppliers();
-      closeModal();
-    } catch (error) {
-      console.error('Error saving supplier:', error);
-    } finally {
-      setIsSubmitting(false);
+    if (editingSupplier) {
+      updateMutation.mutate({ id: editingSupplier.id, data: formData });
+    } else {
+      createMutation.mutate(formData);
     }
-  };
+  }, [editingSupplier, formData, createMutation, updateMutation]);
 
-  const handleDelete = async (id: number) => {
+  // ✅ Memoized delete handler
+  const handleDelete = useCallback(async (id: number) => {
     if (window.confirm(t('confirmDelete'))) {
-      try {
-        await api.delete(`/suppliers/${id}`);
-        fetchSuppliers();
-      } catch (error) {
-        console.error('Error deleting supplier:', error);
-      }
+      deleteMutation.mutate(id);
     }
-  };
+  }, [t, deleteMutation]);
 
-  const openModal = (supplier?: Supplier) => {
+  // ✅ Memoized modal handlers
+  const openModal = useCallback((supplier?: Supplier) => {
     if (supplier) {
       setEditingSupplier(supplier);
       setFormData(supplier);
@@ -75,19 +98,34 @@ const Suppliers = () => {
       setFormData({ code: '', name: '', rnc: '', phone: '', address: '' });
     }
     setShowModal(true);
-  };
+  }, []);
 
-  const closeModal = () => {
+  const closeModal = useCallback(() => {
     setShowModal(false);
     setEditingSupplier(null);
     setFormData({ code: '', name: '', rnc: '', phone: '', address: '' });
-  };
+  }, []);
 
-  const filteredSuppliers = suppliers.filter((supplier) =>
-    Object.values(supplier).some((value) =>
-      value.toString().toLowerCase().includes(searchTerm.toLowerCase())
-    )
-  );
+  // ✅ Memoized filtered suppliers
+  const filteredSuppliers = useMemo(() => {
+    return suppliers.filter((supplier) =>
+      Object.values(supplier).some((value: unknown) =>
+        String(value).toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    );
+  }, [suppliers, searchTerm]);
+
+  // ✅ Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <span className="ml-3 text-gray-600">Loading suppliers...</span>
+      </div>
+    );
+  }
+
+  const isSubmitting = createMutation.isPending || updateMutation.isPending;
 
   return (
     <div>

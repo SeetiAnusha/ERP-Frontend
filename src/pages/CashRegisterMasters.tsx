@@ -1,9 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Search, Edit2, Trash2, X, DollarSign } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
 import { useLanguage } from '../contexts/LanguageContext';
 import { formatNumber } from '../utils/formatNumber';
+import { useCashRegisters } from '../hooks/queries/useSharedData';
+import { QUERY_KEYS } from '../lib/queryKeys';
 
 interface CashRegisterMaster {
   id: number;
@@ -16,31 +19,23 @@ interface CashRegisterMaster {
 
 const CashRegisterMasters = () => {
   const { t } = useLanguage();
-  const [registers, setRegisters] = useState<CashRegisterMaster[]>([]);
+  const queryClient = useQueryClient();
+  
+  // ✅ REACT QUERY: Use shared data hook instead of local state
+  const { data: registers = [], isLoading, isError } = useCashRegisters();
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingRegister, setEditingRegister] = useState<CashRegisterMaster | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false); // Add loading state
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     location: '',
     status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE',
   });
 
-  useEffect(() => {
-    fetchRegisters();
-  }, []);
-
-  const fetchRegisters = async () => {
-    try {
-      const response = await api.get('/cash-register-masters');
-      setRegisters(response.data);
-    } catch (error) {
-      console.error('Error fetching cash registers:', error);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  // ✅ MEMOIZED: Handle form submission
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Prevent double submission
@@ -53,27 +48,34 @@ const CashRegisterMasters = () => {
       } else {
         await api.post('/cash-register-masters', formData);
       }
-      fetchRegisters();
+      
+      // ✅ REACT QUERY: Cache invalidation for automatic UI updates
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashRegisters });
+      
       closeModal();
     } catch (error) {
       console.error('Error saving cash register:', error);
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [isSubmitting, editingRegister, formData, queryClient]);
 
-  const handleDelete = async (id: number) => {
+  // ✅ MEMOIZED: Handle delete
+  const handleDelete = useCallback(async (id: number) => {
     if (window.confirm('Are you sure you want to delete this cash register?')) {
       try {
         await api.delete(`/cash-register-masters/${id}`);
-        fetchRegisters();
+        
+        // ✅ REACT QUERY: Cache invalidation for automatic UI updates
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashRegisters });
       } catch (error) {
         console.error('Error deleting cash register:', error);
       }
     }
-  };
+  }, [queryClient]);
 
-  const openModal = (register?: CashRegisterMaster) => {
+  // ✅ MEMOIZED: Open modal
+  const openModal = useCallback((register?: CashRegisterMaster) => {
     if (register) {
       setEditingRegister(register);
       setFormData({
@@ -90,19 +92,51 @@ const CashRegisterMasters = () => {
       });
     }
     setShowModal(true);
-  };
+  }, []);
 
-  const closeModal = () => {
+  // ✅ MEMOIZED: Close modal
+  const closeModal = useCallback(() => {
     setShowModal(false);
     setEditingRegister(null);
-    setIsSubmitting(false); // Reset loading state
-  };
+    setIsSubmitting(false);
+  }, []);
 
-  const filteredRegisters = registers.filter((register) =>
-    Object.values(register).some((value) =>
-      value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
-    )
-  );
+  // ✅ MEMOIZED: Filtered registers
+  const filteredRegisters = useMemo(() => {
+    return registers.filter((register) =>
+      Object.values(register).some((value) =>
+        value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    );
+  }, [registers, searchTerm]);
+
+  // ✅ OPTIMIZED: Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
+        <span className="ml-3 text-gray-600">Loading cash registers...</span>
+      </div>
+    );
+  }
+
+  // ✅ ERROR STATE
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="text-red-500 text-4xl mb-4">⚠️</div>
+          <p className="text-gray-600 mb-4">Error loading cash registers</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>

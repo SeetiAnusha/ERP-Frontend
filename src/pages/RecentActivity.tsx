@@ -1,117 +1,60 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Calendar, DollarSign, Users, Building2, RefreshCw, Filter } from 'lucide-react';
-import api from '../api/axios';
 import { formatNumber } from '../utils/formatNumber';
-
-interface Activity {
-  id: number;
-  date: string;
-  type: 'CONTRIBUTION' | 'LOAN';
-  amount: number;
-  registrationNumber: string;
-  financerId: number | null;
-  financerName: string;
-  financerCode: string;
-  financerType: string;
-  financerContact: string | null;
-  financerPhone: string | null;
-  storeId: number | null;
-  storeName: string;
-  storeLocation: string;
-  storeCode: string;
-  storeBalanceAfter: number;
-  apId: number | null;
-  apRegistrationNumber: string | null;
-  apAmount: number;
-  apBalanceAmount: number;
-  apStatus: string;
-  apNotes: string | null;
-}
-
-interface ActivityStatistics {
-  totalActivities: number;
-  contributionCount: number;
-  loanCount: number;
-  totalAmount: number;
-  contributionAmount: number;
-  loanAmount: number;
-  recentActivities: {
-    count: number;
-    amount: number;
-  };
-  monthlyActivities: {
-    count: number;
-    amount: number;
-  };
-}
+import { useRecentActivity, useRecentActivityStatistics, useRecentActivityByDateRange } from '../hooks/queries/useSharedData';
 
 const RecentActivity = () => {
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [statistics, setStatistics] = useState<ActivityStatistics | null>(null);
-  const [loading, setLoading] = useState(true);
   const [filterType, setFilterType] = useState<'ALL' | 'CONTRIBUTION' | 'LOAN'>('ALL');
   const [dateRange, setDateRange] = useState({
     startDate: '',
     endDate: ''
   });
+  const [useDateRange, setUseDateRange] = useState(false);
 
-  useEffect(() => {
-    fetchActivities();
-    fetchStatistics();
+  // ✅ React Query hooks for data fetching
+  const { data: activities = [], isLoading: activitiesLoading, refetch: refetchActivities } = useRecentActivity(100);
+  const { data: statistics = null, isLoading: statisticsLoading, refetch: refetchStatistics } = useRecentActivityStatistics();
+  const { data: dateRangeActivities = [], isLoading: dateRangeLoading, refetch: refetchDateRange } = useRecentActivityByDateRange(
+    dateRange.startDate,
+    dateRange.endDate,
+    useDateRange
+  );
+
+  // ✅ Determine which data to use
+  const currentActivities = useDateRange ? dateRangeActivities : activities;
+  const loading = useDateRange ? dateRangeLoading : activitiesLoading || statisticsLoading;
+
+  // ✅ Memoized refresh handler
+  const handleRefresh = useCallback(() => {
+    if (useDateRange) {
+      refetchDateRange();
+    } else {
+      refetchActivities();
+    }
+    refetchStatistics();
+  }, [useDateRange, refetchActivities, refetchDateRange, refetchStatistics]);
+
+  // ✅ Memoized date range application
+  const handleApplyDateRange = useCallback(() => {
+    if (dateRange.startDate && dateRange.endDate) {
+      setUseDateRange(true);
+    }
+  }, [dateRange.startDate, dateRange.endDate]);
+
+  // ✅ Memoized date range clear
+  const handleClearDateRange = useCallback(() => {
+    setDateRange({ startDate: '', endDate: '' });
+    setUseDateRange(false);
   }, []);
 
-  const fetchActivities = async () => {
-    try {
-      setLoading(true);
-      const response = await api.get('/recent-activity?limit=100');
-      setActivities(response.data);
-    } catch (error) {
-      console.error('Error fetching activities:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchStatistics = async () => {
-    try {
-      const response = await api.get('/recent-activity/statistics');
-      setStatistics(response.data);
-    } catch (error) {
-      console.error('Error fetching statistics:', error);
-    }
-  };
-
-  const fetchActivitiesByDateRange = async () => {
-    if (!dateRange.startDate || !dateRange.endDate) {
-      fetchActivities();
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const response = await api.get(`/recent-activity/date-range?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`);
-      setActivities(response.data);
-    } catch (error) {
-      console.error('Error fetching activities by date range:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleRefresh = () => {
-    if (dateRange.startDate && dateRange.endDate) {
-      fetchActivitiesByDateRange();
-    } else {
-      fetchActivities();
-    }
-    fetchStatistics();
-  };
-
-  const filteredActivities = activities.filter(activity => {
-    if (filterType === 'ALL') return true;
-    return activity.type === filterType;
-  });
+  // ✅ Memoized filtered activities
+  const filteredActivities = useMemo(() => {
+    return currentActivities.filter(activity => {
+      if (filterType === 'ALL') return true;
+      return activity.type === filterType;
+    });
+  }, [currentActivities, filterType]);
 
   if (loading) {
     return (
@@ -228,16 +171,13 @@ const RecentActivity = () => {
               className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
             />
             <button
-              onClick={fetchActivitiesByDateRange}
+              onClick={handleApplyDateRange}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
               Apply
             </button>
             <button
-              onClick={() => {
-                setDateRange({ startDate: '', endDate: '' });
-                fetchActivities();
-              }}
+              onClick={handleClearDateRange}
               className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
             >
               Clear

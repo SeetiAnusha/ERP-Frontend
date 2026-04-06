@@ -6,12 +6,39 @@ import { Payment, Purchase, Sale, Client, Supplier } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { formatNumber } from '../utils/formatNumber';
 
+// ✅ REACT QUERY IMPORTS
+import { usePayments } from '../hooks/queries/useFinancial';
+import { useSharedMasterData } from '../hooks/queries/useSharedData';
+import { useFeatureFlag } from '../lib/featureFlags';
+
 
 const Payments = () => {
-    const { t } = useLanguage();
-  const [payments, setPayments] = useState<Payment[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const { t } = useLanguage();
+  
+  // ✅ REACT QUERY FEATURE FLAG
+  const useReactQuery = useFeatureFlag('react-query-payments');
+  
+  // ✅ REACT QUERY HOOKS (NEW)
+  const reactQueryPayments = usePayments();
+  const sharedData = useSharedMasterData();
+  
+  // ✅ LEGACY STATE (OLD)
+  const [legacyPayments, setLegacyPayments] = useState<Payment[]>([]);
+  const [legacyClients, setLegacyClients] = useState<Client[]>([]);
+  const [legacySuppliers, setLegacySuppliers] = useState<Supplier[]>([]);
+  
+  // ✅ CONDITIONAL DATA BASED ON FEATURE FLAG
+  const payments = useReactQuery ? (reactQueryPayments.data || []) : legacyPayments;
+  const clients = useReactQuery ? sharedData.clients : legacyClients;
+  const suppliers = useReactQuery ? sharedData.suppliers : legacySuppliers;
+  const isLoading = useReactQuery ? 
+    reactQueryPayments.isLoading || sharedData.isLoading : 
+    false;
+  const hasError = useReactQuery ? 
+    reactQueryPayments.isError || sharedData.hasError : 
+    false;
+  
+  // ✅ SHARED STATE (USED BY BOTH IMPLEMENTATIONS)
   const [showModal, setShowModal] = useState(false);
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -38,10 +65,13 @@ const Payments = () => {
   const [invoicePayments, setInvoicePayments] = useState<{ [key: number]: number }>({});
 
   useEffect(() => {
-    fetchPayments();
-    fetchClients();
-    fetchSuppliers();
-  }, []);
+    if (!useReactQuery) {
+      fetchPayments();
+      fetchClients();
+      fetchSuppliers();
+    }
+    // React Query automatically fetches when useReactQuery is true
+  }, [useReactQuery]);
 
   const fetchPayments = async () => {
     try {
@@ -60,17 +90,17 @@ const Payments = () => {
         paymentsData = [];
       }
       
-      setPayments(paymentsData);
+      setLegacyPayments(paymentsData);
     } catch (error) {
       console.error('Error fetching payments:', error);
-      setPayments([]); // Set empty array on error
+      setLegacyPayments([]); // Set empty array on error
     }
   };
 
   const fetchClients = async () => {
     try {
       const response = await axios.get('/clients');
-      setClients(response.data);
+      setLegacyClients(response.data);
     } catch (error) {
       console.error('Error fetching clients:', error);
     }
@@ -79,7 +109,7 @@ const Payments = () => {
   const fetchSuppliers = async () => {
     try {
       const response = await axios.get('/suppliers');
-      setSuppliers(response.data);
+      setLegacySuppliers(response.data);
     } catch (error) {
       console.error('Error fetching suppliers:', error);
     }
@@ -172,7 +202,15 @@ const Payments = () => {
         alert(t('paymentSavedNoInvoices'));
       }
       
-      fetchPayments();
+      // ✅ CONDITIONAL REFRESH BASED ON FEATURE FLAG
+      if (useReactQuery) {
+        // React Query will auto-refresh via mutations
+        reactQueryPayments.refetch();
+      } else {
+        // Legacy manual refresh
+        fetchPayments();
+      }
+      
       resetForm();
     } catch (error: any) {
       console.error('Error saving payment:', error);
@@ -185,7 +223,15 @@ const Payments = () => {
     if (window.confirm('Are you sure you want to delete this payment?')) {
       try {
         await axios.delete(`/payments/${id}`);
-        fetchPayments();
+        
+        // ✅ CONDITIONAL REFRESH BASED ON FEATURE FLAG
+        if (useReactQuery) {
+          // React Query will auto-refresh via mutations
+          reactQueryPayments.refetch();
+        } else {
+          // Legacy manual refresh
+          fetchPayments();
+        }
       } catch (error) {
         console.error('Error deleting payment:', error);
         alert('Error deleting payment');
@@ -280,6 +326,36 @@ const Payments = () => {
   const totalPaymentsIn = Array.isArray(payments) ? payments
     .filter(p => p.type === 'Payment In')
     .reduce((sum, p) => sum + parseFloat(p.paymentAmount.toString()), 0) : 0;
+
+  // ✅ LOADING STATE
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading payments data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ✅ ERROR STATE
+  if (hasError) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="text-red-500 text-4xl mb-4">⚠️</div>
+          <p className="text-gray-600 mb-4">Error loading payments data</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <motion.div

@@ -1,10 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { FaChartLine, FaCalendar, FaFileAlt } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
-import axios from '../api/axios';
 import { useLanguage } from '../contexts/LanguageContext';
 import { formatNumber } from '../utils/formatNumber';
+import { useSales } from '../hooks/queries/useSales';
+import { usePurchases } from '../hooks/queries/usePurchases';
+import { useProducts } from '../hooks/queries/useProducts';
+import { useQuery } from '@tanstack/react-query';
+import { QUERY_KEYS } from '../lib/queryKeys';
+import { CACHE_STRATEGIES } from '../lib/queryClient';
+import api from '../api/axios';
 
 const Reports = () => {
   const { t } = useLanguage();
@@ -14,152 +20,124 @@ const Reports = () => {
     endDate: new Date().toISOString().split('T')[0],
   });
 
-  const [salesData, setSalesData] = useState({
-    totalSales: 0,
-    totalRevenue: 0,
-    paidSales: 0,
-    unpaidSales: 0,
-    salesCount: 0,
-  });
-
-  const [purchasesData, setPurchasesData] = useState({
-    totalPurchases: 0,
-    totalCost: 0,
-    paidPurchases: 0,
-    unpaidPurchases: 0,
-    purchasesCount: 0,
-  });
-
-  const [paymentsData, setPaymentsData] = useState({
-    paymentsIn: 0,
-    paymentsOut: 0,
-    netCashFlow: 0,
-  });
-
-  const [productsData, setProductsData] = useState({
-    totalProducts: 0,
-    lowStockProducts: 0,
-    totalInventoryValue: 0,
-  });
-
-  useEffect(() => {
-    fetchReportsData();
-  }, [dateRange]);
-
-  const fetchReportsData = async () => {
-    try {
-      // Fetch Sales
-      const salesResponse = await axios.get('/sales');
-      
-      // Handle different response structures
-      let salesData = [];
-      if (Array.isArray(salesResponse.data)) {
-        salesData = salesResponse.data;
-      } else if (salesResponse.data.data && Array.isArray(salesResponse.data.data)) {
-        salesData = salesResponse.data.data;
-      } else if (salesResponse.data.sales && Array.isArray(salesResponse.data.sales)) {
-        salesData = salesResponse.data.sales;
-      } else {
-        console.warn('Unexpected sales API response structure:', salesResponse.data);
-        salesData = [];
+  // ✅ React Query hooks for data fetching
+  const { data: allSales = [], isLoading: salesLoading } = useSales();
+  const { data: allPurchases = [], isLoading: purchasesLoading } = usePurchases();
+  const { data: products = [], isLoading: productsLoading } = useProducts();
+  
+  // ✅ Payments hook (reuse existing pattern)
+  const { data: allPayments = [], isLoading: paymentsLoading } = useQuery({
+    queryKey: QUERY_KEYS.payments,
+    queryFn: async () => {
+      const response = await api.get('/payments');
+      if (Array.isArray(response.data)) {
+        return response.data;
+      } else if (response.data.data && Array.isArray(response.data.data)) {
+        return response.data.data;
       }
-      
-      const sales = Array.isArray(salesData) ? salesData.filter((sale: any) => {
-        const saleDate = new Date(sale.date);
-        return saleDate >= new Date(dateRange.startDate) && saleDate <= new Date(dateRange.endDate);
-      }) : [];
+      return [];
+    },
+    ...CACHE_STRATEGIES.MASTER_DATA,
+    throwOnError: false,
+  });
 
-      setSalesData({
-        totalSales: sales.length,
-        totalRevenue: Array.isArray(sales) ? sales.reduce((sum: number, sale: any) => sum + parseFloat(sale.total || 0), 0) : 0,
-        paidSales: Array.isArray(sales) ? sales.filter((s: any) => s.paymentStatus === 'Paid').length : 0,
-        unpaidSales: Array.isArray(sales) ? sales.filter((s: any) => s.paymentStatus === 'Unpaid').length : 0,
-        salesCount: sales.length,
-      });
+  const isLoading = salesLoading || purchasesLoading || productsLoading || paymentsLoading;
 
-      // Fetch Purchases
-      const purchasesResponse = await axios.get('/purchases');
-      
-      // Handle different response structures
-      let purchasesData = [];
-      if (Array.isArray(purchasesResponse.data)) {
-        purchasesData = purchasesResponse.data;
-      } else if (purchasesResponse.data.data && Array.isArray(purchasesResponse.data.data)) {
-        purchasesData = purchasesResponse.data.data;
-      } else if (purchasesResponse.data.purchases && Array.isArray(purchasesResponse.data.purchases)) {
-        purchasesData = purchasesResponse.data.purchases;
-      } else {
-        console.warn('Unexpected purchases API response structure:', purchasesResponse.data);
-        purchasesData = [];
-      }
-      
-      const purchases = Array.isArray(purchasesData) ? purchasesData.filter((purchase: any) => {
-        const purchaseDate = new Date(purchase.date);
-        return purchaseDate >= new Date(dateRange.startDate) && purchaseDate <= new Date(dateRange.endDate);
-      }) : [];
+  // ✅ Memoized filtered data by date range
+  const filteredData = useMemo(() => {
+    const startDate = new Date(dateRange.startDate);
+    const endDate = new Date(dateRange.endDate);
 
-      setPurchasesData({
-        totalPurchases: purchases.length,
-        totalCost: Array.isArray(purchases) ? purchases.reduce((sum: number, purchase: any) => sum + parseFloat(purchase.total || 0), 0) : 0,
-        paidPurchases: Array.isArray(purchases) ? purchases.filter((p: any) => p.paymentStatus === 'Paid').length : 0,
-        unpaidPurchases: Array.isArray(purchases) ? purchases.filter((p: any) => p.paymentStatus === 'Unpaid').length : 0,
-        purchasesCount: purchases.length,
-      });
+    const sales = allSales.filter((sale: any) => {
+      const saleDate = new Date(sale.date);
+      return saleDate >= startDate && saleDate <= endDate;
+    });
 
-      // Fetch Payments
-      const paymentsResponse = await axios.get('/payments');
-      
-      // Handle different response structures
-      let paymentsData = [];
-      if (Array.isArray(paymentsResponse.data)) {
-        paymentsData = paymentsResponse.data;
-      } else if (paymentsResponse.data.data && Array.isArray(paymentsResponse.data.data)) {
-        paymentsData = paymentsResponse.data.data;
-      } else {
-        console.warn('Unexpected payments API response structure:', paymentsResponse.data);
-        paymentsData = [];
-      }
-      
-      const payments = Array.isArray(paymentsData) ? paymentsData.filter((payment: any) => {
-        const paymentDate = new Date(payment.registrationDate);
-        return paymentDate >= new Date(dateRange.startDate) && paymentDate <= new Date(dateRange.endDate);
-      }) : [];
+    const purchases = allPurchases.filter((purchase: any) => {
+      const purchaseDate = new Date(purchase.date);
+      return purchaseDate >= startDate && purchaseDate <= endDate;
+    });
 
-      const paymentsIn = Array.isArray(payments) ? payments
-        .filter((p: any) => p.type === 'Payment In')
-        .reduce((sum: number, p: any) => sum + parseFloat(p.paymentAmount || 0), 0) : 0;
+    const payments = allPayments.filter((payment: any) => {
+      const paymentDate = new Date(payment.registrationDate);
+      return paymentDate >= startDate && paymentDate <= endDate;
+    });
 
-      const paymentsOut = Array.isArray(payments) ? payments
-        .filter((p: any) => p.type === 'Payment Out')
-        .reduce((sum: number, p: any) => sum + parseFloat(p.paymentAmount || 0), 0) : 0;
+    return { sales, purchases, payments };
+  }, [allSales, allPurchases, allPayments, dateRange]);
 
-      setPaymentsData({
-        paymentsIn,
-        paymentsOut,
-        netCashFlow: paymentsIn - paymentsOut,
-      });
+  // ✅ Memoized sales data calculations
+  const salesData = useMemo(() => {
+    const { sales } = filteredData;
+    return {
+      totalSales: sales.length,
+      totalRevenue: sales.reduce((sum: number, sale: any) => sum + parseFloat(sale.total || 0), 0),
+      paidSales: sales.filter((s: any) => s.paymentStatus === 'Paid').length,
+      unpaidSales: sales.filter((s: any) => s.paymentStatus === 'Unpaid').length,
+      salesCount: sales.length,
+    };
+  }, [filteredData]);
 
-      // Fetch Products
-      const productsResponse = await axios.get('/products');
-      const products = productsResponse.data;
+  // ✅ Memoized purchases data calculations
+  const purchasesData = useMemo(() => {
+    const { purchases } = filteredData;
+    return {
+      totalPurchases: purchases.length,
+      totalCost: purchases.reduce((sum: number, purchase: any) => sum + parseFloat(purchase.total || 0), 0),
+      paidPurchases: purchases.filter((p: any) => p.paymentStatus === 'Paid').length,
+      unpaidPurchases: purchases.filter((p: any) => p.paymentStatus === 'Unpaid').length,
+      purchasesCount: purchases.length,
+    };
+  }, [filteredData]);
 
-      setProductsData({
-        totalProducts: products.length,
-        lowStockProducts: products.filter((p: any) => parseFloat(p.amount) <= parseFloat(p.minimumStock)).length,
-        totalInventoryValue: products.reduce((sum: number, p: any) => 
-          sum + (parseFloat(p.amount) * parseFloat(p.unitCost)), 0
-        ),
-      });
+  // ✅ Memoized payments data calculations
+  const paymentsData = useMemo(() => {
+    const { payments } = filteredData;
+    const paymentsIn = payments
+      .filter((p: any) => p.type === 'Payment In')
+      .reduce((sum: number, p: any) => sum + parseFloat(p.paymentAmount || 0), 0);
 
-    } catch (error) {
-      console.error('Error fetching reports data:', error);
-    }
-  };
+    const paymentsOut = payments
+      .filter((p: any) => p.type === 'Payment Out')
+      .reduce((sum: number, p: any) => sum + parseFloat(p.paymentAmount || 0), 0);
 
-  const profitMargin = salesData.totalRevenue - purchasesData.totalCost;
-  const profitMarginPercentage = salesData.totalRevenue > 0 
-    ? formatNumber(((profitMargin / salesData.totalRevenue) * 100), 2)
-    : '0.00';
+    return {
+      paymentsIn,
+      paymentsOut,
+      netCashFlow: paymentsIn - paymentsOut,
+    };
+  }, [filteredData]);
+
+  // ✅ Memoized products data calculations
+  const productsData = useMemo(() => {
+    return {
+      totalProducts: products.length,
+      lowStockProducts: products.filter((p: any) => parseFloat(p.amount) <= parseFloat(p.minimumStock)).length,
+      totalInventoryValue: products.reduce((sum: number, p: any) => 
+        sum + (parseFloat(p.amount) * parseFloat(p.unitCost)), 0
+      ),
+    };
+  }, [products]);
+
+  // ✅ Memoized profit calculations
+  const profitCalculations = useMemo(() => {
+    const profitMargin = salesData.totalRevenue - purchasesData.totalCost;
+    const profitMarginPercentage = salesData.totalRevenue > 0 
+      ? formatNumber(((profitMargin / salesData.totalRevenue) * 100), 2)
+      : '0.00';
+    
+    return { profitMargin, profitMarginPercentage };
+  }, [salesData.totalRevenue, purchasesData.totalCost]);
+
+  const { profitMargin, profitMarginPercentage } = profitCalculations;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
     <motion.div

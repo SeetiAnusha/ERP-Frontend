@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import axios from '../api/axios';
 
 // Types
@@ -45,6 +46,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
 
   // Check if authentication is enabled
   const isAuthEnabled = (): boolean => {
@@ -92,11 +94,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (response.data.success) {
         const { user: userData, accessToken } = response.data.data;
         
+        // ✅ CRITICAL: Clear ALL cache before setting new user to prevent showing previous user's data
+        queryClient.clear();
+        console.log('🗑️ [Login] Cleared all React Query cache before login');
+        
         setUser(userData);
         storeToken(accessToken);
         
         // Enable auth flag
         localStorage.setItem('AUTH_ENABLED', 'true');
+        
+        console.log('✅ [Login] Login successful for user:', userData.email);
       } else {
         throw new Error(response.data.message || 'Login failed');
       }
@@ -131,13 +139,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Logout function
   const logout = (): void => {
+    console.log('🚪 [Logout] Starting logout process...');
+    
+    // Clear user state
     setUser(null);
     removeToken();
+    
+    // ✅ CRITICAL: Clear ALL React Query cache to prevent showing previous user's data
+    queryClient.clear();
+    console.log('🗑️ [Logout] Cleared all React Query cache');
     
     // Call logout endpoint to clear refresh token cookie
     axios.post('/auth/logout').catch(() => {
       // Ignore errors on logout
     });
+    
+    console.log('✅ [Logout] Logout complete');
   };
 
   // Refresh token function

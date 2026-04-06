@@ -1,11 +1,31 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, Eye, CheckCircle, Clock, XCircle, X, Trash2, ShoppingCart, Package, FileText } from 'lucide-react';
+import { Plus, Eye, CheckCircle, Clock, XCircle, X, Trash2, ShoppingCart, Package, FileText } from 'lucide-react';
 import api from '../api/axios';
-import { Purchase, Supplier, Product, AssociatedInvoice } from '../types';
+import { Purchase, AssociatedInvoice } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { formatNumber } from '../utils/formatNumber';
 import { cleanFormData } from '../utils/cleanFormData';  // Import utility
+import { useSearch } from '../hooks/useSearch';
+import { useForm } from '../hooks/useForm';
+import { useModal } from '../hooks/useModal';
+import SearchBar from '../components/common/SearchBar';
+import ActionButton from '../components/common/ActionButton';
+import DataTable, { Column } from '../components/common/DataTable';
+import FormField from '../components/common/FormField';
+import Modal from '../components/common/Modal';
+
+// ✅ Import shared components for Phase 1 refactoring
+import { SupplierSelector, BankAccountSelector, CardSelector } from '../components/shared';
+
+// ✅ React Query Integration - Better data management
+import { 
+  usePurchases, 
+  useCreatePurchase
+} from '../hooks/queries/usePurchases';
+import { useProducts } from '../hooks/queries/useProducts';
+import { useBankAccounts, useSuppliers, useCards } from '../hooks/queries/useSharedData';
+import { notify } from '../utils/notifications';
 
 interface PurchaseItem {
   productId: number;
@@ -21,8 +41,19 @@ interface PurchaseItem {
   adjustedTotal: number;
 }
 
-// ✅ NEW: Enhanced Purchase interface with deletion tracking
-interface EnhancedPurchase extends Purchase {
+interface EnhancedPurchase {
+  id: number;
+  registrationNumber?: string;
+  supplierId: string | number;
+  supplierRnc?: string;
+  ncf?: string;
+  date: string;
+  purchaseType?: string;
+  paymentType?: string;
+  total?: number;
+  paidAmount?: number;
+  balanceAmount?: number;
+  status?: string;
   deletion_status?: string;
   deleted_at?: string;
   deleted_by?: number;
@@ -30,58 +61,47 @@ interface EnhancedPurchase extends Purchase {
   deletion_memo?: string;
   is_reversal?: boolean;
   original_transaction_id?: number;
+  supplier?: {
+    name: string;
+  };
+  productTotal?: number;
+  additionalExpenses?: number;
+  paymentStatus?: string;
 }
 
 const Purchases = () => {
   const { t } = useLanguage();
-  const [purchases, setPurchases] = useState<EnhancedPurchase[]>([]);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  
+  // ✅ Use the same search pattern as Products component
+  const { searchTerm, setSearchTerm } = useSearch('purchases');
+  
+  // ✅ Modal management using useModal hook like Products
+  const purchaseModal = useModal<Purchase>();
+  const productModal = useModal();
+  const invoiceModal = useModal();
+  
+  // ✅ React Query Integration - Better data management
+  const { data: purchases = [], isLoading: purchasesLoading } = usePurchases();
+  const { data: suppliers = [] } = useSuppliers();
+  const { data: products = [] } = useProducts();
+  const { data: bankAccounts = [] } = useBankAccounts();
+  const { data: cards = [] } = useCards();
+  const createPurchaseMutation = useCreatePurchase();
+  
   
   // ✅ NEW: Filter state for deletion status
   const [filterStatus, setFilterStatus] = useState<string>('All');
   
-  // Phase 2: New master data
-  const [bankAccounts, setBankAccounts] = useState<any[]>([]);
-  const [cards, setCards] = useState<any[]>([]);
-  
-  // Main modal
-  const [showModal, setShowModal] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formData, setFormData] = useState({
-    transactionType: 'GOODS', // New field for transaction type
-    date: new Date().toISOString().split('T')[0],
-    supplierId: '',
-    supplierRnc: '',
-    ncf: '',
-    purchaseType: 'Merchandise for sale or consumption',
-    paymentType: 'CREDIT', // Changed default from CASH to CREDIT
-    paidAmount: 0,
-    status: 'COMPLETED',
-    // Phase 2: New payment fields
-    bankAccountId: '',
-    cardId: '',
-    chequeNumber: '',
-    chequeDate: '',
-    transferNumber: '',
-    transferDate: '',
-    paymentReference: '',
-    voucherDate: '',
-  });
-  
-  // Products
+  // Products (keep these as they're for the product selection modal)
   const [purchaseItems, setPurchaseItems] = useState<PurchaseItem[]>([]);
-  const [showProductModal, setShowProductModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [unitCost, setUnitCost] = useState(0);
   const [unitOfMeasurement, setUnitOfMeasurement] = useState('');
   const [taxAmount, setTaxAmount] = useState(0);
   
-  // Associated Invoices
+  // Associated Invoices (keep these as they're for the invoice modal)
   const [associatedInvoices, setAssociatedInvoices] = useState<AssociatedInvoice[]>([]);
-  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [newAssociatedInvoice, setNewAssociatedInvoice] = useState({
     supplierRnc: '',
     supplierName: '',
@@ -97,21 +117,212 @@ const Purchases = () => {
     bankAccountId: ''
   });
 
-  // View Details Modals
+  // View Details Modals (keep these for the view modals)
   const [viewDetailsModal, setViewDetailsModal] = useState(false);
   const [viewProductsModal, setViewProductsModal] = useState(false);
   const [viewInvoicesModal, setViewInvoicesModal] = useState(false);
-  const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(null);
+  const [selectedPurchase, setSelectedPurchase] = useState<EnhancedPurchase | null>(null);
   const [purchaseDetails, setPurchaseDetails] = useState<any>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
 
-  useEffect(() => {
-    fetchPurchases();
-    fetchSuppliers();
-    fetchProducts();
-    fetchBankAccounts();
-    fetchCards();
-  }, []);
+  // ✅ Memoized calculations - Immediate performance boost (after state variables)
+  const memoizedCalculations = useMemo(() => {
+    // Memoize filtered cards based on payment type
+    const filteredDebitCards = cards.filter((card: any) => card.cardType === 'DEBIT');
+    const filteredCreditCards = cards.filter((card: any) => card.cardType === 'CREDIT');
+    const activeProducts = products.filter(p => p.status === 'ACTIVE');
+    
+    // Memoize purchase totals
+    const productTotal = purchaseItems.reduce((sum, item) => sum + (Number(item.total) || 0), 0);
+    const associatedTotal = associatedInvoices.reduce((sum, inv) => 
+      sum + (Number(inv.tax) || 0) + (Number(inv.taxAmount) || 0), 0
+    );
+    const grandTotal = productTotal + associatedTotal;
+    
+    // Memoize adjusted unit cost calculations
+    const productSubtotal = purchaseItems.reduce((sum, i) => sum + (Number(i.subtotal) || 0), 0);
+    const associatedCostsWithoutTax = associatedInvoices.reduce((sum, inv) => sum + (Number(inv.tax) || 0), 0);
+    
+    return {
+      filteredDebitCards,
+      filteredCreditCards,
+      activeProducts,
+      totals: { productTotal, associatedTotal, grandTotal },
+      adjustmentFactors: { productSubtotal, associatedCostsWithoutTax }
+    };
+  }, [cards, products, purchaseItems, associatedInvoices]);
+
+  // ✅ Use memoized totals instead of recalculating
+  const totals = memoizedCalculations.totals;
+
+  // ✅ Form validation function - FRONTEND: Only static field validation
+  const validatePurchase = useCallback((values: any) => {
+    const errors: any = {};
+    
+    // ✅ FRONTEND: Required field validations only
+    if (!values.supplierId?.trim()) {
+      errors.supplierId = 'Supplier is required';
+    }
+    
+    if (!values.date?.trim()) {
+      errors.date = 'Date is required';
+    }
+    
+    if (!values.purchaseType?.trim()) {
+      errors.purchaseType = 'Purchase type is required';
+    }
+    
+    if (!values.paymentType?.trim()) {
+      errors.paymentType = 'Payment type is required';
+    }
+    
+    // ✅ FRONTEND: Payment method requirements validation (NO balance checks)
+    if (values.paymentType === 'CHEQUE') {
+      if (!values.bankAccountId?.trim()) {
+        errors.bankAccountId = 'Bank account is required for cheque payments';
+      }
+      if (!values.chequeNumber?.trim()) {
+        errors.chequeNumber = 'Cheque number is required';
+      }
+      if (!values.chequeDate?.trim()) {
+        errors.chequeDate = 'Cheque date is required';
+      }
+    }
+    
+    if (values.paymentType === 'BANK_TRANSFER') {
+      if (!values.bankAccountId?.trim()) {
+        errors.bankAccountId = 'Bank account is required for transfers';
+      }
+      if (!values.transferNumber?.trim()) {
+        errors.transferNumber = 'Transfer number is required';
+      }
+      if (!values.transferDate?.trim()) {
+        errors.transferDate = 'Transfer date is required';
+      }
+    }
+    
+    if (values.paymentType === 'DEBIT_CARD' || values.paymentType === 'CREDIT_CARD') {
+      if (!values.cardId?.trim()) {
+        errors.cardId = 'Card selection is required';
+      }
+      if (!values.paymentReference?.trim()) {
+        errors.paymentReference = 'Payment reference is required';
+      }
+      if (!values.voucherDate?.trim()) {
+        errors.voucherDate = 'Voucher date is required';
+      }
+      
+      // ❌ REMOVED: All balance validation - Backend handles with real-time data
+      // Frontend should NOT validate balances using potentially stale cached data
+
+
+
+
+
+
+          
+
+
+
+
+
+      
+      // Backend will validate credit limits and account balances with accurate, real-time data
+    }
+    
+    return errors;
+  }, [purchaseItems, associatedInvoices]); // ✅ CORRECTED: Only static dependencies, removed cards and totals
+
+  // ✅ Form management using useForm hook like Products (after validation function)
+  const purchaseForm = useForm({
+    initialValues: {
+      transactionType: 'GOODS',
+      date: new Date().toISOString().split('T')[0],
+      supplierId: '',
+      supplierRnc: '',
+      ncf: '',
+      purchaseType: 'Merchandise for sale or consumption',
+      paymentType: 'CREDIT',
+      paidAmount: 0,
+      status: 'COMPLETED',
+      bankAccountId: '',
+      cardId: '',
+      chequeNumber: '',
+      chequeDate: '',
+      transferNumber: '',
+      transferDate: '',
+      paymentReference: '',
+      voucherDate: '',
+    },
+    validate: validatePurchase,
+    onSubmit: async (values) => {
+      if (purchaseItems.length === 0) {
+        alert('Please add at least one product for goods purchase');
+        return;
+      }
+      
+      // ✅ Use memoized totals instead of recalculating
+      const paidAmount = values.paymentType === 'CREDIT' ? 0 : totals.grandTotal;
+      
+      const cleanedData = cleanFormData(
+        {
+          ...values,
+          supplierRnc: values.supplierRnc || null,
+          ncf: values.ncf || null,
+          productTotal: totals.productTotal,
+          additionalExpenses: totals.associatedTotal,
+          total: totals.grandTotal,
+          paidAmount: paidAmount,
+          balanceAmount: totals.grandTotal - paidAmount,
+          items: purchaseItems,
+          associatedInvoices: associatedInvoices.map(inv => ({
+            ...inv,
+            concept: inv.concept || 'Associated cost',
+            ncf: inv.ncf || 'N/A',
+            cardId: inv.cardId && inv.cardId !== '' ? parseInt(inv.cardId) : null,
+            bankAccountId: inv.bankAccountId && inv.bankAccountId !== '' ? parseInt(inv.bankAccountId) : null,
+          })),
+          expenseDescription: null,
+          expenseCategoryId: null,
+          expenseTypeId: null,
+        },
+        ['supplierId', 'bankAccountId', 'cardId']
+      );
+      
+      // ✅ FIXED: Proper error handling like old code - DON'T close modal until backend responds
+      try {
+        console.log('🚀 FRONTEND - Submitting purchase data:', cleanedData);
+        
+        // ✅ CRITICAL: Wait for backend response before closing modal (like old code)
+        await createPurchaseMutation.mutateAsync(cleanedData as any);
+        
+        // ✅ Only close modal and reset form AFTER successful backend response
+        purchaseModal.close();
+        purchaseForm.reset();
+        setPurchaseItems([]);
+        setAssociatedInvoices([]);
+        
+        // ✅ Success notification
+        notify.success('Purchase Created', 'Purchase has been created successfully');
+        
+      } catch (error: any) {
+        console.error('Error creating purchase:', error);
+        console.error('Error response:', error.response?.data);
+        
+        // ✅ CRITICAL: Handle backend errors with popup messages (like old code)
+        const errorMessage = error.response?.data?.error || 
+                           error.response?.data?.message || 
+                           error.message || 
+                           'Error creating purchase';
+        
+        // ✅ Show backend error in popup (like old alert in old code)
+        notify.error('Purchase Creation Failed', errorMessage);
+        
+        // ✅ IMPORTANT: Keep modal open so user can fix the issue
+        // Modal stays open, user can see the error and make corrections
+      }
+    }
+  });
 
   const fetchPurchaseDetails = async (purchaseId: number) => {
     setLoadingDetails(true);
@@ -124,71 +335,6 @@ const Purchases = () => {
       setPurchaseDetails(selectedPurchase);
     } finally {
       setLoadingDetails(false);
-    }
-  };
-
-  const fetchPurchases = async () => {
-    try {
-      const response = await api.get('/purchases', {
-        params: {
-          transaction_type: 'GOODS' // Only fetch GOODS transactions for Purchases page
-        }
-      });
-      console.log("Purchases API response:", response.data);
-      
-      // Handle different response structures
-      let purchasesData = [];
-      if (Array.isArray(response.data)) {
-        purchasesData = response.data;
-      } else if (response.data.data && Array.isArray(response.data.data)) {
-        purchasesData = response.data.data;
-      } else if (response.data.purchases && Array.isArray(response.data.purchases)) {
-        purchasesData = response.data.purchases;
-      } else {
-        console.warn('Unexpected purchases API response structure:', response.data);
-        purchasesData = [];
-      }
-      
-      setPurchases(purchasesData);
-    } catch (error) {
-      console.error('Error fetching purchases:', error);
-      setPurchases([]); // Set empty array on error
-    }
-  };
-
-  const fetchSuppliers = async () => {
-    try {
-      const response = await api.get('/suppliers');
-      setSuppliers(response.data);
-    } catch (error) {
-      console.error('Error fetching suppliers:', error);
-    }
-  };
-
-  const fetchProducts = async () => {
-    try {
-      const response = await api.get('/products');
-      setProducts(response.data);
-    } catch (error) {
-      console.error('Error fetching products:', error);
-    }
-  };
-
-  const fetchBankAccounts = async () => {
-    try {
-      const response = await api.get('/bank-accounts');
-      setBankAccounts(response.data.filter((acc: any) => acc.status === 'ACTIVE'));
-    } catch (error) {
-      console.error('Error fetching bank accounts:', error);
-    }
-  };
-
-  const fetchCards = async () => {
-    try {
-      const response = await api.get('/cards');
-      setCards(response.data.filter((card: any) => card.status === 'ACTIVE'));
-    } catch (error) {
-      console.error('Error fetching cards:', error);
     }
   };
 
@@ -231,21 +377,11 @@ const Purchases = () => {
       cardId: '',
       bankAccountId: ''
     });
-    setShowInvoiceModal(false);
+    invoiceModal.close();
   };
 
   const removeAssociatedInvoice = (index: number) => {
     setAssociatedInvoices(associatedInvoices.filter((_, i) => i !== index));
-  };
-
-  const calculateTotals = () => {
-    const productTotal = purchaseItems.reduce((sum, item) => sum + (Number(item.total) || 0), 0);
-    // Include both base amount (tax field) and tax amount (taxAmount field) in associated costs
-    const associatedTotal = associatedInvoices.reduce((sum, inv) => 
-      sum + (Number(inv.tax) || 0) + (Number(inv.taxAmount) || 0), 0
-    );
-    const grandTotal = productTotal + associatedTotal;
-    return { productTotal, associatedTotal, grandTotal };
   };
 
   const addProductToPurchase = () => {
@@ -282,7 +418,7 @@ const Purchases = () => {
     setUnitCost(0);
     setUnitOfMeasurement('');
     setTaxAmount(0);
-    setShowProductModal(false);
+    productModal.close();
   };
 
   const removeItem = (index: number) => {
@@ -316,194 +452,81 @@ const Purchases = () => {
     setPurchaseItems(updatedItems);
   };
 
-  // Calculate adjusted unit cost with associated costs
-  const calculateAdjustedUnitCost = (item: PurchaseItem) => {
-    const productSubtotal = purchaseItems.reduce((sum, i) => sum + (Number(i.subtotal) || 0), 0);
-    const associatedCostsWithoutTax = associatedInvoices.reduce((sum, inv) => sum + (Number(inv.tax) || 0), 0); // Use tax field (base amount)
+  // ✅ Memoized adjusted unit cost calculation with performance optimization
+  const calculateAdjustedUnitCost = useCallback((item: PurchaseItem) => {
+    const { adjustmentFactors } = memoizedCalculations;
     
-    // If no associated costs, return original unit cost
-    if (associatedCostsWithoutTax === 0 || productSubtotal === 0) {
+    // If no associated costs, return original unit cost (early return optimization)
+    if (adjustmentFactors.associatedCostsWithoutTax === 0 || adjustmentFactors.productSubtotal === 0) {
       return item.unitCost;
     }
 
     // Calculate this item's share of associated costs (without tax)
-    const itemWeight = Number(item.subtotal) / productSubtotal;
-    const itemAssociatedCost = associatedCostsWithoutTax * itemWeight;
+    const itemWeight = Number(item.subtotal) / adjustmentFactors.productSubtotal;
+    const itemAssociatedCost = adjustmentFactors.associatedCostsWithoutTax * itemWeight;
     const adjustedSubtotal = Number(item.subtotal) + itemAssociatedCost;
     const adjustedUnitCost = item.quantity > 0 ? adjustedSubtotal / item.quantity : item.unitCost;
     
     return adjustedUnitCost;
-  };
+  }, [memoizedCalculations]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (isSubmitting) return; // Prevent double submission
-    
-    // Validate required fields
-    if (!formData.supplierId) {
-      alert('Please select a supplier');
-      return;
-    }
-    
-    if (!formData.date) {
-      alert('Please select a date');
-      return;
-    }
-    
-    if (!formData.purchaseType) {
-      alert('Please select a purchase type');
-      return;
-    }
-    
-    if (!formData.paymentType) {
-      alert('Please select a payment type');
-      return;
-    }
-    
-    // Phase 2: Validate payment-specific fields
-    const paymentType = formData.paymentType.toUpperCase();
-    
-    if (paymentType === 'CHEQUE') {
-      if (!formData.bankAccountId) {
-        alert('Please select a bank account for cheque payment');
-        return;
-      }
-      if (!formData.chequeNumber) {
-        alert('Please enter cheque number');
-        return;
-      }
-      if (!formData.chequeDate) {
-        alert('Please select cheque date');
-        return;
-      }
-    }
-    
-    if (paymentType === 'BANK_TRANSFER') {
-      if (!formData.bankAccountId) {
-        alert('Please select a bank account for bank transfer');
-        return;
-      }
-      if (!formData.transferNumber) {
-        alert('Please enter transfer number');
-        return;
-      }
-      if (!formData.transferDate) {
-        alert('Please select transfer date');
-        return;
-      }
-    }
-    
-    if (paymentType === 'CREDIT_CARD') {
-      if (!formData.cardId) {
-        alert('Please select a card');
-        return;
-      }
-      if (!formData.paymentReference) {
-        alert('Please enter payment reference/voucher number');
-        return;
-      }
-      if (!formData.voucherDate) {
-        alert('Please select voucher date');
-        return;
-      }
-    }
-    
-    if (purchaseItems.length === 0) {
-      alert('Please add at least one product for goods purchase');
-      return;
-    }
-    
-    // Validate associated invoices
-    for (const invoice of associatedInvoices) {
-      if ((invoice.paymentType === 'DEBIT_CARD' || invoice.paymentType === 'CREDIT_CARD') && !invoice.cardId) {
-        alert(`Invoice "${invoice.concept || 'Associated cost'}" with ${invoice.paymentType} payment type requires a card to be selected`);
-        return;
-      }
-    }
-    
-    setIsSubmitting(true);
-    
-    try {
-      const totals = calculateTotals();
-      const paidAmount = formData.paymentType === 'CREDIT' ? 0 : totals.grandTotal;
-      
-      // Use utility function to clean data
-      const cleanedData = cleanFormData(
-        {
-          ...formData,
-          supplierRnc: formData.supplierRnc || null,
-          ncf: formData.ncf || null,
-          productTotal: totals.productTotal,
-          additionalExpenses: totals.associatedTotal,
-          total: totals.grandTotal,
-          paidAmount: paidAmount,
-          balanceAmount: totals.grandTotal - paidAmount,
-          items: purchaseItems,
-          associatedInvoices: associatedInvoices.map(inv => ({
-            ...inv,
-            concept: inv.concept || 'Associated cost',
-            ncf: inv.ncf || 'N/A',
-            cardId: inv.cardId && inv.cardId !== '' ? parseInt(inv.cardId) : null, // Convert cardId to integer
-            bankAccountId: inv.bankAccountId && inv.bankAccountId !== '' ? parseInt(inv.bankAccountId) : null, // Convert bankAccountId to integer
-          })),
-          // Expense-specific fields - set to null for GOODS purchases
-          expenseDescription: null,
-          expenseCategoryId: null,
-          expenseTypeId: null,
-        },
-        ['supplierId', 'bankAccountId', 'cardId']  // Integer fields (removed expense fields since they should be null)
-      );
-      
-      console.log('🚀 FRONTEND - Submitting purchase data:', cleanedData);
-      console.log('🔍 Associated invoices being sent:', cleanedData.associatedInvoices);
-      
-      await api.post('/purchases', cleanedData);
-      fetchPurchases();
-      closeModal();
-    } catch (error: any) {
-      console.error('Error creating purchase:', error);
-      console.error('Error response:', error.response?.data);
-      alert(error.response?.data?.error || 'Error creating purchase');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  // ✅ Memoized status badge function
+  const getStatusBadge = useCallback((status: string) => {
+    const styles = {
+      COMPLETED: 'bg-green-100 text-green-800',
+      PENDING: 'bg-yellow-100 text-yellow-800',
+      CANCELLED: 'bg-red-100 text-red-800',
+    };
+    const icons = {
+      COMPLETED: CheckCircle,
+      PENDING: Clock,
+      CANCELLED: XCircle,
+    };
+    const Icon = icons[status as keyof typeof icons] || Clock;
+    return (
+      <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${styles[status as keyof typeof styles]}`}>
+        <Icon size={14} />
+        {status}
+      </span>
+    );
+  }, []);
 
-  const openModal = () => {
-    setFormData({
-      transactionType: 'GOODS',
-      date: new Date().toISOString().split('T')[0],
-      supplierId: '',
-      supplierRnc: '',
-      ncf: '',
-      purchaseType: 'Merchandise for sale or consumption',
-      paymentType: 'CREDIT', // Changed default from CASH
-      paidAmount: 0,
-      status: 'COMPLETED',
-      // Phase 2: Reset new fields
-      bankAccountId: '',
-      cardId: '',
-      chequeNumber: '',
-      chequeDate: '',
-      transferNumber: '',
-      transferDate: '',
-      paymentReference: '',
-      voucherDate: '',
-    });
+  // ✅ Memoized view handlers for stable references
+  const handleViewDetails = useCallback(async (purchase: EnhancedPurchase) => {
+    setSelectedPurchase(purchase);
+    setViewDetailsModal(true);
+    await fetchPurchaseDetails(purchase.id);
+  }, []);
+
+  const handleViewProducts = useCallback(async (purchase: EnhancedPurchase) => {
+    setSelectedPurchase(purchase);
+    setViewProductsModal(true);
+    await fetchPurchaseDetails(purchase.id);
+  }, []);
+
+  const handleViewInvoices = useCallback(async (purchase: EnhancedPurchase) => {
+    setSelectedPurchase(purchase);
+    setViewInvoicesModal(true);
+    await fetchPurchaseDetails(purchase.id);
+  }, []);
+
+  // ✅ Memoized event handlers with useCallback for stable references
+  const handleOpenModal = useCallback(() => {
+    purchaseForm.reset();
     setPurchaseItems([]);
     setAssociatedInvoices([]);
-    setShowModal(true);
-  };
+    purchaseModal.open();
+  }, [purchaseForm, purchaseModal]);
 
-  const closeModal = () => {
-    setShowModal(false);
+  const handleCloseModal = useCallback(() => {
+    purchaseModal.close();
+    purchaseForm.reset();
     setPurchaseItems([]);
     setAssociatedInvoices([]);
-  };
+  }, [purchaseModal, purchaseForm]);
 
-  // ✅ NEW: Status badge function for deletion indicators
-  const getPurchaseStatusBadge = (purchase: EnhancedPurchase) => {
+  // ✅ Memoized status badge function for stable references
+  const getPurchaseStatusBadge = useCallback((purchase: EnhancedPurchase) => {
     if (purchase.deletion_status === 'EXECUTED') {
       return (
         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-300">
@@ -531,57 +554,169 @@ const Purchases = () => {
         {paymentStatus}
       </span>
     );
-  };
+  }, []);
 
-  const getStatusBadge = (status: string) => {
-    const styles = {
-      COMPLETED: 'bg-green-100 text-green-800',
-      PENDING: 'bg-yellow-100 text-yellow-800',
-      CANCELLED: 'bg-red-100 text-red-800',
-    };
-    const icons = {
-      COMPLETED: CheckCircle,
-      PENDING: Clock,
-      CANCELLED: XCircle,
-    };
-    const Icon = icons[status as keyof typeof icons] || Clock;
-    return (
-      <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${styles[status as keyof typeof styles]}`}>
-        <Icon size={14} />
-        {status}
-      </span>
-    );
-  };
+  // ✅ Memoized DataTable columns for purchases
+  const columns: Column<EnhancedPurchase>[] = useMemo(() => [
+    {
+      key: 'registrationNumber',
+      label: t('registrationNumber'),
+      render: (value, purchase) => (
+        <div className="flex items-center gap-2">
+          {purchase.deletion_status === 'EXECUTED' && <span className="text-red-500">🗑️</span>}
+          {purchase.is_reversal && <span className="text-orange-500">↩️</span>}
+          <span className={purchase.deletion_status === 'EXECUTED' ? 'line-through text-gray-500 font-medium' : 'font-medium'}>
+            {value}
+          </span>
+        </div>
+      )
+    },
+    {
+      key: 'supplier.name',
+      label: t('supplier'),
+      render: (value) => value || 'N/A'
+    },
+    {
+      key: 'supplierRnc',
+      label: t('supplierRnc'),
+      render: (value) => value || 'N/A'
+    },
+    {
+      key: 'date',
+      label: t('date'),
+      render: (value) => new Date(value).toLocaleDateString()
+    },
+    {
+      key: 'purchaseType',
+      label: t('purchaseOf'),
+      render: (value) => value || 'N/A'
+    },
+    {
+      key: 'paymentType',
+      label: t('paymentType'),
+      render: (value) => value || 'N/A'
+    },
+    {
+      key: 'total',
+      label: t('total'),
+      align: 'right',
+      render: (value, purchase) => (
+        <span className={purchase.deletion_status === 'EXECUTED' ? 'line-through text-gray-500 font-semibold' : 'font-semibold'}>
+          {formatNumber(value)}
+        </span>
+      )
+    },
+    {
+      key: 'paidAmount',
+      label: t('paid'),
+      align: 'right',
+      className: 'text-green-600',
+      render: (value, purchase) => (
+        <span className={purchase.deletion_status === 'EXECUTED' ? 'line-through text-gray-500 font-semibold' : 'font-semibold'}>
+          {formatNumber(value || 0)}
+        </span>
+      )
+    },
+    {
+      key: 'balanceAmount',
+      label: t('balance'),
+      align: 'right',
+      className: 'text-orange-600',
+      render: (value, purchase) => (
+        <span className={purchase.deletion_status === 'EXECUTED' ? 'line-through text-gray-500 font-semibold' : 'font-semibold'}>
+          {formatNumber(value || 0)}
+        </span>
+      )
+    },
+    {
+      key: 'id',
+      label: t('status'),
+      align: 'center',
+      render: (_, purchase) => getPurchaseStatusBadge(purchase)
+    }
+  ], [t, getPurchaseStatusBadge]);
 
-  const filteredPurchases = Array.isArray(purchases) ? purchases.filter((purchase) => {
-    const matchesSearch = Object.values(purchase).some((value) =>
-      value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
-    );
+  // ✅ Memoized custom actions for DataTable
+  const customActions = useCallback((purchase: EnhancedPurchase) => (
+    <>
+      <ActionButton
+        onClick={() => handleViewDetails(purchase)}
+        icon={Eye}
+        variant="secondary"
+        size="sm"
+        className="p-2"
+      >
+        {t('purchaseDetails')}
+      </ActionButton>
+      <ActionButton
+        onClick={() => handleViewProducts(purchase)}
+        icon={Package}
+        variant="secondary"
+        size="sm"
+        className="p-2 text-green-600 hover:bg-green-50"
+      >
+        {t('productDetails')}
+      </ActionButton>
+      <ActionButton
+        onClick={() => handleViewInvoices(purchase)}
+        icon={FileText}
+        variant="secondary"
+        size="sm"
+        className="p-2 text-orange-600 hover:bg-orange-50"
+      >
+        {t('invoiceSuppliers')}
+      </ActionButton>
+    </>
+  ), [handleViewDetails, handleViewProducts, handleViewInvoices, t]);
+
+  // ✅ Memoized purchase filtering with performance optimizations
+  const filteredPurchases = useMemo(() => {
+    // Early return optimization - avoid filtering when no search
+    if (!searchTerm.trim() && filterStatus === 'All') {
+      return Array.isArray(purchases) ? purchases as EnhancedPurchase[] : [];
+    }
     
-    const matchesStatus = filterStatus === 'All' || 
-      (filterStatus === 'Active' && purchase.deletion_status !== 'EXECUTED' && !purchase.is_reversal) ||
-      (filterStatus === 'Deleted' && purchase.deletion_status === 'EXECUTED') ||
-      (filterStatus === 'Reversal' && purchase.is_reversal);
+    const lowerSearchTerm = searchTerm.toLowerCase();
     
-    return matchesSearch && matchesStatus;
-  }) : [];
-
-  const totals = calculateTotals();
+    return Array.isArray(purchases) ? (purchases as unknown as EnhancedPurchase[]).filter((purchase) => {
+      // ✅ PERFORMANCE: Check search match first (most common operation)
+      let matchesSearch = true;
+      if (searchTerm.trim()) {
+        // ✅ PERFORMANCE: Check most likely matches first (registration number, supplier name)
+        matchesSearch = 
+          (purchase.registrationNumber?.toLowerCase().includes(lowerSearchTerm) ?? false) ||
+          (purchase.supplier?.name?.toLowerCase().includes(lowerSearchTerm) ?? false) ||
+          (purchase.supplierRnc?.toLowerCase().includes(lowerSearchTerm) ?? false) ||
+          (purchase.purchaseType?.toLowerCase().includes(lowerSearchTerm) ?? false) ||
+          (purchase.paymentType?.toLowerCase().includes(lowerSearchTerm) ?? false) ||
+          (purchase.ncf?.toLowerCase().includes(lowerSearchTerm) ?? false) ||
+          // ✅ PERFORMANCE: Check numeric fields (convert to string only when needed)
+          (purchase.total?.toString().includes(lowerSearchTerm) ?? false) ||
+          (purchase.paidAmount?.toString().includes(lowerSearchTerm) ?? false) ||
+          (purchase.balanceAmount?.toString().includes(lowerSearchTerm) ?? false);
+      }
+      
+      // ✅ PERFORMANCE: Check status filter (simple comparison)
+      const matchesStatus = filterStatus === 'All' || 
+        (filterStatus === 'Active' && purchase.deletion_status !== 'EXECUTED' && !purchase.is_reversal) ||
+        (filterStatus === 'Deleted' && purchase.deletion_status === 'EXECUTED') ||
+        (filterStatus === 'Reversal' && purchase.is_reversal);
+      
+      return matchesSearch && matchesStatus;
+    }) : [];
+  }, [purchases, searchTerm, filterStatus]); // ✅ Dependency array ensures proper memoization
 
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
         <div className="flex gap-4 flex-1">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-            <input
-              type="text"
-              placeholder={t('search')}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
+          {/* ✅ Use the same SearchBar component as Products */}
+          <SearchBar
+            value={searchTerm}
+            onChange={setSearchTerm}
+            placeholder={t('search')}
+            className="flex-1 max-w-md"
+          />
           
           {/* ✅ NEW: Status Filter */}
           <select
@@ -596,196 +731,59 @@ const Purchases = () => {
           </select>
         </div>
         
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={openModal}
-          className="ml-4 bg-blue-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 shadow-lg"
+        <ActionButton
+          onClick={handleOpenModal}
+          icon={Plus}
+          className="ml-4"
         >
-          <Plus size={20} />
           {t('newPurchase')}
-        </motion.button>
+        </ActionButton>
       </div>
 
       {/* Purchases List */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="bg-white rounded-xl shadow-lg overflow-hidden"
-      >
-        <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-          <table className="w-full min-w-max">
-          <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-20">
-            <tr>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('registrationNumber').toUpperCase()}</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('supplier').toUpperCase()}</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('supplierRnc').toUpperCase()}</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('date').toUpperCase()}</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('purchaseOf').toUpperCase()}</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('paymentType').toUpperCase()}</th>
-              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('total').toUpperCase()}</th>
-              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('paid').toUpperCase()}</th>
-              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('balance').toUpperCase()}</th>
-              <th className="px-6 py-4 text-center text-sm font-bold text-gray-800">{t('status').toUpperCase()}</th>
-              <th className="px-6 py-4 text-center text-sm font-bold text-gray-800">{t('actions').toUpperCase()}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredPurchases.map((purchase, index) => (
-              <motion.tr
-                key={purchase.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-                className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${
-                  purchase.deletion_status === 'EXECUTED' ? 'bg-red-50 opacity-75' : 
-                  purchase.is_reversal ? 'bg-orange-50' : ''
-                }`}
-              >
-                <td className="px-6 py-4 text-sm font-medium">
-                  <div className="flex items-center gap-2">
-                    {purchase.deletion_status === 'EXECUTED' && <span className="text-red-500">🗑️</span>}
-                    {purchase.is_reversal && <span className="text-orange-500">↩️</span>}
-                    <span className={purchase.deletion_status === 'EXECUTED' ? 'line-through text-gray-500' : ''}>
-                      {purchase.registrationNumber}
-                    </span>
-                  </div>
-                </td>
-                <td className="px-6 py-4 text-sm">{purchase.supplier?.name || 'N/A'}</td>
-                <td className="px-6 py-4 text-sm">{purchase.supplierRnc || 'N/A'}</td>
-                <td className="px-6 py-4 text-sm">{new Date(purchase.date).toLocaleDateString()}</td>
-                <td className="px-6 py-4 text-sm">{purchase.purchaseType || 'N/A'}</td>
-                <td className="px-6 py-4 text-sm">{purchase.paymentType || 'N/A'}</td>
-                <td className="px-6 py-4 text-sm font-semibold text-right">
-                  <span className={purchase.deletion_status === 'EXECUTED' ? 'line-through text-gray-500' : ''}>
-                    {formatNumber(purchase.total)}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-sm font-semibold text-right text-green-600">
-                  <span className={purchase.deletion_status === 'EXECUTED' ? 'line-through text-gray-500' : ''}>
-                    {formatNumber(purchase.paidAmount || 0)}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-sm font-semibold text-right text-orange-600">
-                  <span className={purchase.deletion_status === 'EXECUTED' ? 'line-through text-gray-500' : ''}>
-                    {formatNumber(purchase.balanceAmount || 0)}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-center">
-                  {getPurchaseStatusBadge(purchase)}
-                </td>
-                <td className="px-6 py-4">
-                  <div className="flex gap-2 justify-center">
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={async () => {
-                        setSelectedPurchase(purchase);
-                        setViewDetailsModal(true);
-                        await fetchPurchaseDetails(purchase.id);
-                      }}
-                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
-                      title={t('purchaseDetails')}
-                    >
-                      <Eye size={18} />
-                    </motion.button>
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={async () => {
-                        setSelectedPurchase(purchase);
-                        setViewProductsModal(true);
-                        await fetchPurchaseDetails(purchase.id);
-                      }}
-                      className="p-2 text-green-600 hover:bg-green-50 rounded-lg"
-                      title={t('productDetails')}
-                    >
-                      <Package size={18} />
-                    </motion.button>
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={async () => {
-                        setSelectedPurchase(purchase);
-                        setViewInvoicesModal(true);
-                        await fetchPurchaseDetails(purchase.id);
-                      }}
-                      className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg"
-                      title={t('invoiceSuppliers')}
-                    >
-                      <FileText size={18} />
-                    </motion.button>
-                  </div>
-                </td>
-              </motion.tr>
-            ))}
-          </tbody>
-        </table>
-        </div>
-      </motion.div>
+      <DataTable
+        data={filteredPurchases}
+        columns={columns}
+        customActions={customActions}
+        loading={purchasesLoading}
+        emptyMessage="No purchases found"
+        className="mb-6"
+      />
 
       {/* Create Purchase Modal */}
-      <AnimatePresence>
-        {showModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-            onClick={closeModal}
-          >
-            <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto"
-            >
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold flex items-center gap-2">
-                  <ShoppingCart className="text-blue-600" />
-                  {t('createNewPurchase')} - Goods Only
-                </h2>
-                <button onClick={closeModal} className="text-gray-400 hover:text-gray-600">
-                  <X size={24} />
-                </button>
+      <Modal
+        isOpen={purchaseModal.isOpen}
+        onClose={handleCloseModal}
+        title={`${t('createNewPurchase')} - Goods Only`}
+        size="lg"
+        maxHeight="95vh"
+      >
+        <form onSubmit={purchaseForm.handleSubmit} className="flex flex-col h-full">
+          <div className="flex-1 overflow-y-scroll px-6 py-4 space-y-6 max-h-[65vh] scrollbar-always">
+            {/* Supplier Selection - Using Shared Component */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2">
+                <SupplierSelector
+                  value={purchaseForm.values.supplierId}
+                  onChange={(value, supplier) => {
+                    purchaseForm.setValue('supplierId', value);
+                    purchaseForm.setValue('supplierRnc', supplier?.rnc || '');
+                  }}
+                  required
+                  label={t('supplier')}
+                  error={purchaseForm.errors.supplierId}
+                />
               </div>
-              
-              <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Supplier Selection */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('supplier')} *</label>
-                    <select
-                      required
-                      value={formData.supplierId}
-                      onChange={(e) => {
-                        const supplier = suppliers.find(s => s.id === parseInt(e.target.value));
-                        setFormData({ 
-                          ...formData, 
-                          supplierId: e.target.value,
-                          supplierRnc: supplier?.rnc || ''
-                        });
-                      }}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">{t('selectSupplier')}</option>
-                      {suppliers.map((supplier) => (
-                        <option key={supplier.id} value={supplier.id}>
-                          {supplier.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  {formData.supplierRnc && (
+                  {purchaseForm.values.supplierRnc && (
                     <div className="col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">{t('supplierRnc')}</label>
-                      <input
-                        type="text"
-                        value={formData.supplierRnc}
-                        readOnly
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
-                      />
+                      <FormField label={t('supplierRnc')}>
+                        <input
+                          type="text"
+                          value={purchaseForm.values.supplierRnc}
+                          readOnly
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
+                        />
+                      </FormField>
                     </div>
                   )}
                   
@@ -811,161 +809,148 @@ const Purchases = () => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('date')} *</label>
-                    <input
-                      type="date"
-                      required
-                      value={formData.date}
-                      onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
+                    <FormField label={t('date')} required error={purchaseForm.errors.date}>
+                      <input
+                        type="date"
+                        required
+                        value={purchaseForm.values.date}
+                        onChange={(e) => purchaseForm.setValue('date', e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </FormField>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('ncf')}</label>
-                    <input
-                      type="text"
-                      value={formData.ncf}
-                      onChange={(e) => setFormData({ ...formData, ncf: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="NCF"
-                    />
+                    <FormField label={t('ncf')}>
+                      <input
+                        type="text"
+                        value={purchaseForm.values.ncf}
+                        onChange={(e) => purchaseForm.setValue('ncf', e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        placeholder="NCF"
+                      />
+                    </FormField>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('purchaseOf')} *</label>
-                    <select
-                      required
-                      value={formData.purchaseType}
-                      onChange={(e) => setFormData({ ...formData, purchaseType: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="Merchandise for sale or consumption">{t('merchandiseForSale')}</option>
-                      <option value="Goods for internal use (PPE)">{t('goodsForInternalUse')}</option>
-                      <option value="Investments or capital goods">{t('investmentsOrCapitalGoods')}</option>
-                    </select>
+                    <FormField label={t('purchaseOf')} required error={purchaseForm.errors.purchaseType}>
+                      <select
+                        required
+                        value={purchaseForm.values.purchaseType}
+                        onChange={(e) => purchaseForm.setValue('purchaseType', e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="Merchandise for sale or consumption">{t('merchandiseForSale')}</option>
+                        <option value="Goods for internal use (PPE)">{t('goodsForInternalUse')}</option>
+                        <option value="Investments or capital goods">{t('investmentsOrCapitalGoods')}</option>
+                      </select>
+                    </FormField>
                     <p className="text-xs text-gray-500 mt-1">
                       💡 For services, utilities, or operational expenses, use Expense Management
                     </p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('paymentType')} *</label>
-                    <select
-                      required
-                      value={formData.paymentType}
-                      onChange={(e) => setFormData({ ...formData, paymentType: e.target.value, cardId: '' })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="CHEQUE">{t('cheque')}</option>
-                      <option value="BANK_TRANSFER">{t('bankTransfer')}</option>
-                      <option value="DEBIT_CARD">Debit Card</option>
-                      <option value="CREDIT_CARD">{t('creditCard')}</option>
-                      <option value="CREDIT">{t('credit')}</option>
-                    </select>
+                    <FormField label={t('paymentType')} required error={purchaseForm.errors.paymentType}>
+                      <select
+                        required
+                        value={purchaseForm.values.paymentType}
+                        onChange={(e) => purchaseForm.setValue('paymentType', e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="CHEQUE">{t('cheque')}</option>
+                        <option value="BANK_TRANSFER">{t('bankTransfer')}</option>
+                        <option value="DEBIT_CARD">Debit Card</option>
+                        <option value="CREDIT_CARD">{t('creditCard')}</option>
+                        <option value="CREDIT">{t('credit')}</option>
+                      </select>
+                    </FormField>
                   </div>
                   
                   {/* Phase 2: Conditional Payment Fields */}
-                  {formData.paymentType === 'CHEQUE' && (
+                  {purchaseForm.values.paymentType === 'CHEQUE' && (
                     <>
                       <div className="col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Bank Account *</label>
-                        <select
+                        <BankAccountSelector
+                          value={purchaseForm.values.bankAccountId}
+                          onChange={(value) => purchaseForm.setValue('bankAccountId', value)}
                           required
-                          value={formData.bankAccountId}
-                          onChange={(e) => setFormData({ ...formData, bankAccountId: e.target.value })}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                        >
-                          <option value="">Select Bank Account</option>
-                          {bankAccounts.map((account: any) => (
-                            <option key={account.id} value={account.id}>
-                              {account.bankName} - {account.accountNumber} ({account.accountType}) - Balance: {formatNumber(account.balance)}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Cheque Number *</label>
-                        <input
-                          type="text"
-                          required
-                          value={formData.chequeNumber}
-                          onChange={(e) => setFormData({ ...formData, chequeNumber: e.target.value })}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                          placeholder="Enter cheque number"
+                          showBalance
+                          label="Bank Account"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Cheque Date *</label>
-                        <input
-                          type="date"
-                          required
-                          value={formData.chequeDate}
-                          onChange={(e) => setFormData({ ...formData, chequeDate: e.target.value })}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                        />
+                        <FormField label="Cheque Number" required>
+                          <input
+                            type="text"
+                            required
+                            value={purchaseForm.values.chequeNumber}
+                            onChange={(e) => purchaseForm.setValue('chequeNumber', e.target.value)}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                            placeholder="Enter cheque number"
+                          />
+                        </FormField>
+                      </div>
+                      <div>
+                        <FormField label="Cheque Date" required>
+                          <input
+                            type="date"
+                            required
+                            value={purchaseForm.values.chequeDate}
+                            onChange={(e) => purchaseForm.setValue('chequeDate', e.target.value)}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          />
+                        </FormField>
                       </div>
                     </>
                   )}
                   
-                  {formData.paymentType === 'BANK_TRANSFER' && (
+                  {purchaseForm.values.paymentType === 'BANK_TRANSFER' && (
                     <>
                       <div className="col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Bank Account *</label>
-                        <select
+                        <BankAccountSelector
+                          value={purchaseForm.values.bankAccountId}
+                          onChange={(value) => purchaseForm.setValue('bankAccountId', value)}
                           required
-                          value={formData.bankAccountId}
-                          onChange={(e) => setFormData({ ...formData, bankAccountId: e.target.value })}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                        >
-                          <option value="">Select Bank Account</option>
-                          {bankAccounts.map((account: any) => (
-                            <option key={account.id} value={account.id}>
-                              {account.bankName} - {account.accountNumber} ({account.accountType}) - Balance: {formatNumber(account.balance)}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Transfer Number *</label>
-                        <input
-                          type="text"
-                          required
-                          value={formData.transferNumber}
-                          onChange={(e) => setFormData({ ...formData, transferNumber: e.target.value })}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                          placeholder="Enter transfer reference number"
+                          showBalance
+                          label="Bank Account"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Transfer Date *</label>
-                        <input
-                          type="date"
-                          required
-                          value={formData.transferDate}
-                          onChange={(e) => setFormData({ ...formData, transferDate: e.target.value })}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                        />
+                        <FormField label="Transfer Number" required>
+                          <input
+                            type="text"
+                            required
+                            value={purchaseForm.values.transferNumber}
+                            onChange={(e) => purchaseForm.setValue('transferNumber', e.target.value)}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                            placeholder="Enter transfer reference number"
+                          />
+                        </FormField>
+                      </div>
+                      <div>
+                        <FormField label="Transfer Date" required>
+                          <input
+                            type="date"
+                            required
+                            value={purchaseForm.values.transferDate}
+                            onChange={(e) => purchaseForm.setValue('transferDate', e.target.value)}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          />
+                        </FormField>
                       </div>
                     </>
                   )}
                   
-                  {/* ✅ Debit Card Selection for DEBIT_CARD */}
-                  {formData.paymentType === 'DEBIT_CARD' && (
+                  {/* ✅ Debit Card Selection for DEBIT_CARD - Using Shared Component */}
+                  {purchaseForm.values.paymentType === 'DEBIT_CARD' && (
                     <>
                       <div className="col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Select Debit Card *</label>
-                        <select
+                        <CardSelector
+                          value={purchaseForm.values.cardId}
+                          onChange={(value) => purchaseForm.setValue('cardId', value)}
+                          cardType="DEBIT"
                           required
-                          value={formData.cardId}
-                          onChange={(e) => setFormData({ ...formData, cardId: e.target.value })}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                        >
-                          <option value="">Select debit card...</option>
-                        {cards.filter((card: any) => card.cardType === 'DEBIT').map((card: any) => (
-                            <option key={card.id} value={card.id}>
-                              {card.cardName ? card.cardName : `${card.cardBrand || 'Debit Card'} ****${card.cardNumberLast4}`}
-                              {card.BankAccount && ` - ${card.BankAccount.bankName} (Balance: $${Number(card.BankAccount.balance).toFixed(2)})`}
-                            </option>
-                          ))}
-                        </select>
+                          label="Select Debit Card"
+                          error={purchaseForm.errors.cardId}
+                        />
                         <p className="text-xs text-gray-500 mt-1">
                           💳 DEBIT: Money deducted from bank account immediately (Bank Register)
                         </p>
@@ -975,8 +960,8 @@ const Purchases = () => {
                         <input
                           type="text"
                           required
-                          value={formData.paymentReference}
-                          onChange={(e) => setFormData({ ...formData, paymentReference: e.target.value })}
+                          value={purchaseForm.values.paymentReference}
+                          onChange={(e) => purchaseForm.setValue('paymentReference', e.target.value)}
                           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                           placeholder="Enter voucher/authorization number"
                         />
@@ -986,8 +971,8 @@ const Purchases = () => {
                         <input
                           type="date"
                           required
-                          value={formData.voucherDate}
-                          onChange={(e) => setFormData({ ...formData, voucherDate: e.target.value })}
+                          value={purchaseForm.values.voucherDate}
+                          onChange={(e) => purchaseForm.setValue('voucherDate', e.target.value)}
                           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                         />
                       </div>
@@ -995,24 +980,36 @@ const Purchases = () => {
                   )}
                   
                   {/* ✅ Credit Card Selection for CREDIT_CARD */}
-                  {formData.paymentType === 'CREDIT_CARD' && (
+                  {purchaseForm.values.paymentType === 'CREDIT_CARD' && (
                     <>
                       <div className="col-span-2">
                         <label className="block text-sm font-medium text-gray-700 mb-1">Select Credit Card *</label>
                         <select
                           required
-                          value={formData.cardId}
-                          onChange={(e) => setFormData({ ...formData, cardId: e.target.value })}
+                          value={purchaseForm.values.cardId}
+                          onChange={(e) => purchaseForm.setValue('cardId', e.target.value)}
                           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                         >
                           <option value="">Select credit card...</option>
-                          {cards.filter((card: any) => card.cardType === 'CREDIT').map((card: any) => (
-                            <option key={card.id} value={card.id}>
-                              {card.cardName ? card.cardName : `${card.cardBrand || 'Credit Card'} ****${card.cardNumberLast4}`}
-                              {card.creditLimit && ` (Limit: $${Number(card.creditLimit).toFixed(2)}, Available: $${(Number(card.creditLimit) - Number(card.usedCredit || 0)).toFixed(2)})`}
-                            </option>
-                          ))}
+                          {memoizedCalculations.filteredCreditCards.map((card: any) => {
+                            const creditLimit = Number(card.creditLimit) || 0;
+                            const usedCredit = Number(card.usedCredit) || 0;
+                            const availableCredit = creditLimit - usedCredit;
+                            
+                            return (
+                              <option 
+                                key={card.id} 
+                                value={card.id}
+                              >
+                                {card.cardName ? card.cardName : `${card.cardBrand || 'Credit Card'} ****${card.cardNumberLast4}`}
+                                {` (Limit: $${creditLimit.toFixed(2)}, Available: $${availableCredit.toFixed(2)})`}
+                              </option>
+                            );
+                          })}
                         </select>
+                        {purchaseForm.errors.cardId && (
+                          <p className="text-red-500 text-xs mt-1">{purchaseForm.errors.cardId}</p>
+                        )}
                         <p className="text-xs text-gray-500 mt-1">
                           💳 CREDIT: Creates Accounts Payable - you pay card company later
                         </p>
@@ -1022,8 +1019,8 @@ const Purchases = () => {
                         <input
                           type="text"
                           required
-                          value={formData.paymentReference}
-                          onChange={(e) => setFormData({ ...formData, paymentReference: e.target.value })}
+                          value={purchaseForm.values.paymentReference}
+                          onChange={(e) => purchaseForm.setValue('paymentReference', e.target.value)}
                           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                           placeholder="Enter voucher/authorization number"
                         />
@@ -1033,8 +1030,8 @@ const Purchases = () => {
                         <input
                           type="date"
                           required
-                          value={formData.voucherDate}
-                          onChange={(e) => setFormData({ ...formData, voucherDate: e.target.value })}
+                          value={purchaseForm.values.voucherDate}
+                          onChange={(e) => purchaseForm.setValue('voucherDate', e.target.value)}
                           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                         />
                       </div>
@@ -1046,7 +1043,7 @@ const Purchases = () => {
                 <div className="flex gap-4">
                   <button
                     type="button"
-                    onClick={() => setShowProductModal(true)}
+                    onClick={() => productModal.open()}
                     className="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center gap-2"
                   >
                     <Package size={20} />
@@ -1054,7 +1051,7 @@ const Purchases = () => {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setShowInvoiceModal(true)}
+                    onClick={() => invoiceModal.open()}
                     className="flex-1 px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center justify-center gap-2"
                   >
                     <FileText size={20} />
@@ -1088,38 +1085,43 @@ const Purchases = () => {
                   </div>
                 </div>
 
-                {/* Submit Buttons */}
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={closeModal}
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                  >
-                    {t('cancel')}
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={purchaseItems.length === 0 || isSubmitting}
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
-                  >
-                    {isSubmitting ? t('creating') : `${t('createPurchase')} - ${formatNumber(totals.grandTotal)}`}
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+
+          {/* Modal Footer */}
+          <div className="flex gap-3 p-6 pt-4 border-t border-gray-200 bg-gray-50">
+            <button
+              type="button"
+              onClick={handleCloseModal}
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 bg-white"
+            >
+              {t('cancel')}
+            </button>
+            <button
+              type="submit"
+              disabled={
+                purchaseItems.length === 0 || 
+                createPurchaseMutation.isPending ||
+                Object.keys(purchaseForm.errors).length > 0
+              }
+              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+            >
+              {createPurchaseMutation.isPending ? t('creating') : 
+               Object.keys(purchaseForm.errors).length > 0 ? 'Fix Errors to Continue' :
+               `${t('createPurchase')} - ${formatNumber(totals.grandTotal)}`}
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Add Product Modal */}
       <AnimatePresence>
-        {showProductModal && (
+        {productModal.isOpen && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4"
-            onClick={() => setShowProductModal(false)}
+            onClick={() => productModal.close()}
           >
             <motion.div
               initial={{ scale: 0.9, y: 20 }}
@@ -1133,7 +1135,7 @@ const Purchases = () => {
                   <Package className="text-green-600" />
                   {t('addProducts')}
                 </h2>
-                <button onClick={() => setShowProductModal(false)} className="text-gray-400 hover:text-gray-600">
+                <button onClick={() => productModal.close()} className="text-gray-400 hover:text-gray-600">
                   <X size={24} />
                 </button>
               </div>
@@ -1142,56 +1144,59 @@ const Purchases = () => {
               <div className="mb-6 p-4 bg-green-50 rounded-lg">
                 <div className="grid grid-cols-5 gap-3 mb-3">
                   <div className="col-span-5">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('selectProduct')} *</label>
-                    <select
-                      value={selectedProduct}
-                      onChange={(e) => {
-                        setSelectedProduct(e.target.value);
-                        const product = products.find(p => p.id === parseInt(e.target.value));
-                        if (product) {
-                          setUnitCost(Number(product.unitCost));
-                          setUnitOfMeasurement(product.unit || '');
-                          setTaxAmount(Number(product.taxRate) || 0);
-                        }
-                      }}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-                    >
-                      <option value="">{t('selectProduct')}</option>
-                      {products.filter(p => p.status === 'ACTIVE').map((product) => (
-                        <option key={product.id} value={product.id}>
-                          {product.code} - {product.name} (Stock: {product.amount}, Unit Cost: {product.unitCost})
-                        </option>
-                      ))}
-                    </select>
+                    <FormField label={t('selectProduct')} required>
+                      <select
+                        value={selectedProduct}
+                        onChange={(e) => {
+                          setSelectedProduct(e.target.value);
+                          const product = products.find(p => p.id === parseInt(e.target.value));
+                          if (product) {
+                            setUnitCost(Number(product.unitCost));
+                            setUnitOfMeasurement(product.unit || '');
+                            setTaxAmount(Number(product.taxRate) || 0);
+                          }
+                        }}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                      >
+                        <option value="">{t('selectProduct')}</option>
+                        {memoizedCalculations.activeProducts.map((product) => (
+                          <option key={product.id} value={product.id}>
+                            {product.code} - {product.name} (Stock: {product.amount}, Unit Cost: {product.unitCost})
+                          </option>
+                        ))}
+                      </select>
+                    </FormField>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('unit')} *</label>
-                    <input
-                      type="text"
-                      value={unitOfMeasurement}
-                      onChange={(e) => setUnitOfMeasurement(e.target.value)}
-                      placeholder="KG, LB, UNIT"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-                    />
+                    <FormField label={t('unit')} required>
+                      <input
+                        type="text"
+                        value={unitOfMeasurement}
+                        onChange={(e) => setUnitOfMeasurement(e.target.value)}
+                        placeholder="KG, LB, UNIT"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                      />
+                    </FormField>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('quantity')} *</label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={quantity}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setQuantity(val === '' ? '' as any : parseInt(val) || 1);
-                      }}
-                      onBlur={(e) => {
-                        if (e.target.value === '' || parseInt(e.target.value) < 1) {
-                          setQuantity(1);
-                        }
-                      }}
-                      placeholder={t('qty')}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-                    />
+                    <FormField label={t('quantity')} required>
+                      <input
+                        type="number"
+                        min="1"
+                        value={quantity}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setQuantity(val === '' ? '' as any : parseInt(val) || 1);
+                        }}
+                        onBlur={(e) => {
+                          if (e.target.value === '' || parseInt(e.target.value) < 1) {
+                            setQuantity(1);
+                          }
+                        }}
+                        placeholder={t('qty')}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                      />
+                    </FormField>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">{t('unitCost')} *</label>
@@ -1339,7 +1344,7 @@ const Purchases = () => {
               <div className="flex justify-end gap-3 mt-6">
                 <button
                   type="button"
-                  onClick={() => setShowProductModal(false)}
+                  onClick={() => productModal.close()}
                   className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
                 >
                   {t('done')}
@@ -1352,13 +1357,13 @@ const Purchases = () => {
 
       {/* Add Invoice Modal */}
       <AnimatePresence>
-        {showInvoiceModal && (
+        {invoiceModal.isOpen && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4"
-            onClick={() => setShowInvoiceModal(false)}
+            onClick={() => invoiceModal.close()}
           >
             <motion.div
               initial={{ scale: 0.9, y: 20 }}
@@ -1372,7 +1377,7 @@ const Purchases = () => {
                   <FileText className="text-orange-600" />
                   {t('otherInvoicesAssociated')}
                 </h2>
-                <button onClick={() => setShowInvoiceModal(false)} className="text-gray-400 hover:text-gray-600">
+                <button onClick={() => invoiceModal.close()} className="text-gray-400 hover:text-gray-600">
                   <X size={24} />
                 </button>
               </div>
@@ -1383,9 +1388,9 @@ const Purchases = () => {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">{t('supplier')} *</label>
                     <select
-                      value={newAssociatedInvoice.supplierRnc ? suppliers.find(s => s.rnc === newAssociatedInvoice.supplierRnc)?.id || '' : ''}
+                      value={newAssociatedInvoice.supplierRnc ? suppliers.find((s: any) => s.rnc === newAssociatedInvoice.supplierRnc)?.id || '' : ''}
                       onChange={(e) => {
-                        const supplier = suppliers.find(s => s.id === parseInt(e.target.value));
+                        const supplier = suppliers.find((s: any) => s.id === parseInt(e.target.value));
                         if (supplier) {
                           setNewAssociatedInvoice({
                             ...newAssociatedInvoice, 
@@ -1397,7 +1402,7 @@ const Purchases = () => {
                       className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-orange-500"
                     >
                       <option value="">{t('selectSupplier')}</option>
-                      {suppliers.map((supplier) => (
+                      {suppliers.map((supplier: any) => (
                         <option key={supplier.id} value={supplier.id}>
                           {supplier.name}
                         </option>
@@ -1650,7 +1655,7 @@ const Purchases = () => {
               <div className="flex justify-end gap-3 mt-6">
                 <button
                   type="button"
-                  onClick={() => setShowInvoiceModal(false)}
+                  onClick={() => invoiceModal.close()}
                   className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
                 >
                   {t('done')}
@@ -1728,7 +1733,7 @@ const Purchases = () => {
                   </div>
                   <div>
                     <label className="text-sm text-gray-600">{t('status')}</label>
-                    <p>{getStatusBadge(selectedPurchase.paymentStatus)}</p>
+                    <p>{getStatusBadge(selectedPurchase.paymentStatus || 'Unpaid')}</p>
                   </div>
                 </div>
               </div>

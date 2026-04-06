@@ -5,7 +5,7 @@ import { X } from 'lucide-react';
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
-  title: string;
+  title: string | React.ReactNode;
   children: React.ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl';
   maxHeight?: string;
@@ -58,7 +58,7 @@ const Modal: React.FC<ModalProps> = ({
             style={{ maxHeight }}
           >
             <div className="flex justify-between items-center p-6 pb-4 border-b border-gray-200">
-              <h2 className="text-2xl font-bold">{title}</h2>
+              <div className="text-2xl font-bold">{title}</div>
               <button 
                 onClick={onClose} 
                 className="text-gray-400 hover:text-gray-600 transition-colors"

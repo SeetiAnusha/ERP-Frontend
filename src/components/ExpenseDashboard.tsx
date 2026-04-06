@@ -47,10 +47,11 @@ const ExpenseDashboard = ({
   const [dashboardData, setDashboardData] = useState<ExpenseDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedPeriod, setSelectedPeriod] = useState('month');
+  const [selectedPeriod, setSelectedPeriod] = useState('all');
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const periods = [
+    { value: 'all', label: 'All Records' },
     { value: 'week', label: 'This Week' },
     { value: 'month', label: 'This Month' },
     { value: 'quarter', label: 'This Quarter' },

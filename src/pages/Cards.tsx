@@ -1,8 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Search, Edit2, Trash2, X, CreditCard } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useCards, useBankAccounts } from '../hooks/queries/useSharedData';
+import { QUERY_KEYS } from '../lib/queryKeys';
 
 interface Card {
   id: number;
@@ -34,15 +37,22 @@ interface BankAccount {
 
 const Cards = () => {
   const { t } = useLanguage();
-  const [cards, setCards] = useState<Card[]>([]);
-  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+  const queryClient = useQueryClient();
+  
+  // ✅ REACT QUERY: Use shared data hooks instead of local state
+  const { data: cards = [], isLoading: cardsLoading, isError: cardsError } = useCards();
+  const { data: bankAccounts = [], isLoading: accountsLoading } = useBankAccounts();
+  
+  const isLoading = cardsLoading || accountsLoading;
+  const hasError = cardsError;
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingCard, setEditingCard] = useState<Card | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false); // Add loading state
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     bankName: '',
-    cardName: '', // NEW: User-friendly card name
+    cardName: '',
     cardNumberLast4: '',
     cardType: 'CREDIT' as 'CREDIT' | 'DEBIT',
     cardBrand: '',
@@ -51,30 +61,8 @@ const Cards = () => {
     status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE',
   });
 
-  useEffect(() => {
-    fetchCards();
-    fetchBankAccounts();
-  }, []);
-
-  const fetchBankAccounts = async () => {
-    try {
-      const response = await api.get('/bank-accounts');
-      setBankAccounts(response.data);
-    } catch (error) {
-      console.error('Error fetching bank accounts:', error);
-    }
-  };
-
-  const fetchCards = async () => {
-    try {
-      const response = await api.get('/cards');
-      setCards(response.data);
-    } catch (error) {
-      console.error('Error fetching cards:', error);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  // ✅ MEMOIZED: Handle form submission
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Prevent double submission
@@ -87,27 +75,34 @@ const Cards = () => {
       } else {
         await api.post('/cards', formData);
       }
-      fetchCards();
+      
+      // ✅ REACT QUERY: Cache invalidation for automatic UI updates
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cards });
+      
       closeModal();
     } catch (error) {
       console.error('Error saving card:', error);
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [isSubmitting, editingCard, formData, queryClient]);
 
-  const handleDelete = async (id: number) => {
+  // ✅ MEMOIZED: Handle delete
+  const handleDelete = useCallback(async (id: number) => {
     if (window.confirm('Are you sure you want to delete this card?')) {
       try {
         await api.delete(`/cards/${id}`);
-        fetchCards();
+        
+        // ✅ REACT QUERY: Cache invalidation for automatic UI updates
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cards });
       } catch (error) {
         console.error('Error deleting card:', error);
       }
     }
-  };
+  }, [queryClient]);
 
-  const openModal = (card?: Card) => {
+  // ✅ MEMOIZED: Open modal
+  const openModal = useCallback((card?: Card) => {
     if (card) {
       setEditingCard(card);
       setFormData({
@@ -134,19 +129,51 @@ const Cards = () => {
       });
     }
     setShowModal(true);
-  };
+  }, []);
 
-  const closeModal = () => {
+  // ✅ MEMOIZED: Close modal
+  const closeModal = useCallback(() => {
     setShowModal(false);
     setEditingCard(null);
-    setIsSubmitting(false); // Reset loading state when closing
-  };
+    setIsSubmitting(false);
+  }, []);
 
-  const filteredCards = cards.filter((card) =>
-    Object.values(card).some((value) =>
-      value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
-    )
-  );
+  // ✅ MEMOIZED: Filtered cards
+  const filteredCards = useMemo(() => {
+    return cards.filter((card) =>
+      Object.values(card).some((value) =>
+        value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    );
+  }, [cards, searchTerm]);
+
+  // ✅ OPTIMIZED: Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+        <span className="ml-3 text-gray-600">Loading cards...</span>
+      </div>
+    );
+  }
+
+  // ✅ ERROR STATE
+  if (hasError) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="text-red-500 text-4xl mb-4">⚠️</div>
+          <p className="text-gray-600 mb-4">Error loading cards</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>

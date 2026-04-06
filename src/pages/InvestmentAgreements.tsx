@@ -1,9 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { FileText, Plus, TrendingUp, DollarSign, RefreshCw, Users, AlertCircle } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
 import { formatNumber } from '../utils/formatNumber';
 import { toast } from 'sonner';
+import { useInvestmentAgreements, useInvestmentSummary, useFinancers } from '../hooks/queries/useSharedData';
+import { QUERY_KEYS } from '../lib/queryKeys';
 
 interface InvestmentAgreement {
   id: number;
@@ -43,10 +46,12 @@ interface Financer {
 }
 
 const InvestmentAgreements = () => {
-  const [agreements, setAgreements] = useState<InvestmentAgreement[]>([]);
-  const [summary, setSummary] = useState<AgreementSummary | null>(null);
-  const [financers, setFinancers] = useState<Financer[]>([]);
-  const [loading, setLoading] = useState(true);
+  // ✅ React Query Hooks
+  const { data: agreements = [], isLoading, isError, refetch: refetchAgreements } = useInvestmentAgreements();
+  const { data: summary, refetch: refetchSummary } = useInvestmentSummary();
+  const { data: financers = [] } = useFinancers();
+  const queryClient = useQueryClient();
+  
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [formData, setFormData] = useState({
     agreementDate: new Date().toISOString().split('T')[0],
@@ -59,12 +64,6 @@ const InvestmentAgreements = () => {
     notes: '',
   });
 
-  useEffect(() => {
-    fetchAgreements();
-    fetchSummary();
-    fetchFinancers();
-  }, []);
-
   // Clear investor selection when agreement type changes
   useEffect(() => {
     if (formData.investorId) {
@@ -73,47 +72,14 @@ const InvestmentAgreements = () => {
     }
   }, [formData.agreementType]);
 
-  const fetchAgreements = async () => {
-    try {
-      setLoading(true);
-      const response = await api.get('/investment-agreements');
-      setAgreements(response.data);
-    } catch (error) {
-      console.error('Error fetching agreements:', error);
-      toast.error('Failed to fetch investment agreements');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // ✅ Memoized: Handle refresh
+  const handleRefresh = useCallback(() => {
+    refetchAgreements();
+    refetchSummary();
+  }, [refetchAgreements, refetchSummary]);
 
-  const fetchSummary = async () => {
-    try {
-      const response = await api.get('/investment-agreements/summary');
-      setSummary(response.data);
-    } catch (error) {
-      console.error('Error fetching summary:', error);
-    }
-  };
-
-  const fetchFinancers = async () => {
-    try {
-      const response = await api.get('/financers');
-      // Get both INVESTOR and BANK type financers for the dropdown
-      const relevantFinancers = response.data.filter((f: Financer) => 
-        f.type === 'INVESTOR' || f.type === 'BANK'
-      );
-      setFinancers(relevantFinancers);
-    } catch (error) {
-      console.error('Error fetching financers:', error);
-    }
-  };
-
-  const handleRefresh = () => {
-    fetchAgreements();
-    fetchSummary();
-  };
-
-  const handleCreateAgreement = async (e: React.FormEvent) => {
+  // ✅ Memoized: Handle create agreement
+  const handleCreateAgreement = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
     try {
@@ -140,27 +106,48 @@ const InvestmentAgreements = () => {
         terms: '',
         notes: '',
       });
-      fetchAgreements();
-      fetchSummary();
+      // ✅ Invalidate cache
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.investmentAgreements });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.investmentSummary });
+      refetchAgreements();
+      refetchSummary();
     } catch (error: any) {
       console.error('Error creating agreement:', error);
       toast.error(error.response?.data?.error || 'Failed to create agreement');
     }
-  };
+  }, [formData, queryClient, refetchAgreements, refetchSummary]);
 
-  const handleCleanupAccountsPayable = async () => {
+  // ✅ Memoized: Handle cleanup
+  const handleCleanupAccountsPayable = useCallback(async () => {
     try {
       const response = await api.post('/cleanup-accounts-payable');
       toast.success(`Cleaned up ${response.data.removedCount} incorrect AccountsPayable entries`);
-      fetchAgreements();
-      fetchSummary();
+      refetchAgreements();
+      refetchSummary();
     } catch (error) {
       console.error('Error cleaning up AccountsPayable:', error);
       toast.error('Failed to cleanup AccountsPayable entries');
     }
-  };
+  }, [refetchAgreements, refetchSummary]);
 
-  if (loading) {
+  // ✅ Error state
+  if (isError) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+          <p className="text-red-600 font-medium">Error loading investment agreements</p>
+          <button
+            onClick={() => refetchAgreements()}
+            className="mt-4 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
@@ -187,10 +174,10 @@ const InvestmentAgreements = () => {
           <div className="flex gap-2">
             <button
               onClick={handleRefresh}
-              disabled={loading}
+              disabled={isLoading}
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50"
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
               Refresh
             </button>
             <button
