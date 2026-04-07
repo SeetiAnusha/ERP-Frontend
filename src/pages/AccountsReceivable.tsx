@@ -1,6 +1,6 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Search, DollarSign, CheckCircle, Clock, XCircle } from 'lucide-react';
+import { DollarSign, CheckCircle, Clock, XCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
@@ -11,11 +11,13 @@ import { formatNumber } from '../utils/formatNumber';
 import { QUERY_KEYS } from '../lib/queryKeys';
 
 // ✅ OPTIMIZATION: Use modern React patterns while preserving exact functionality
-import { useSearch } from '../hooks/useSearch';
 import { useModal } from '../hooks/useModal';
+import { useTableData } from '../hooks/useTableData';
+import { Pagination } from '../components/common/Pagination';
+import SearchBar from '../components/common/SearchBar';
 
 // ✅ OPTIMIZATION: Use React Query hooks for better performance
-import { useAccountsReceivable } from '../hooks/queries/useFinancial';
+// import { useAccountsReceivable } from '../hooks/queries/useFinancial';
 import { useBankAccounts } from '../hooks/queries/useSharedData';
 
 const AccountsReceivablePage = () => {
@@ -23,18 +25,24 @@ const AccountsReceivablePage = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   
-  // ✅ OPTIMIZATION: Use React Query instead of manual API calls
-  const { data: accountsReceivable = [], isLoading, refetch: refetchAR } = useAccountsReceivable();
+  // ✅ NEW: Use useTableData for pagination
+  const {
+    data: accountsReceivable,
+    pagination,
+    loading,
+    search,
+    updateSearch,
+    goToPage,
+    changeLimit,
+    refresh
+  } = useTableData<AccountsReceivable>({
+    endpoint: '/api/accounts-receivable',
+    initialLimit: 50,
+    initialSortBy: 'createdAt',
+    initialSortOrder: 'DESC'
+  });
+  
   const { data: bankAccounts = [] } = useBankAccounts();
-  
-  // ✅ FIX: Force refetch when component mounts to ensure fresh data
-  useEffect(() => {
-    // Force refetch AR data when component mounts
-    refetchAR();
-  }, [refetchAR]);
-  
-  // ✅ OPTIMIZATION: Use useSearch hook for better performance
-  const { searchTerm, setSearchTerm } = useSearch('accounts-receivable');
   
   // ✅ OPTIMIZATION: Use useModal hook for better state management
   const paymentModal = useModal<AccountsReceivable>();
@@ -142,6 +150,7 @@ const AccountsReceivablePage = () => {
       
       // ✅ OPTIMIZATION: Use React Query cache invalidation instead of manual refetch
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.accountsReceivable });
+      refresh(); // Refresh pagination data
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankAccounts });
     } catch (error: any) {
       console.error('Payment error:', error);
@@ -411,16 +420,11 @@ const AccountsReceivablePage = () => {
       </div>
     </div>
   ), [t, getARStatusBadge, getExpenseRecordedAmount, handleCreditSaleCollection, handleRecordPayment]);
-  // ✅ OPTIMIZATION: Memoized filtering for better performance
+  // ✅ NEW: Filter by status only (search handled by backend)
   const filteredAR = useMemo(() => {
-    return accountsReceivable.filter((ar) => {
-      const matchesSearch = Object.values(ar).some((value) =>
-        value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      const matchesStatus = filterStatus === 'All' || ar.status === filterStatus;
-      return matchesSearch && matchesStatus;
-    });
-  }, [accountsReceivable, searchTerm, filterStatus]);
+    if (filterStatus === 'All') return accountsReceivable;
+    return accountsReceivable.filter((ar) => ar.status === filterStatus);
+  }, [accountsReceivable, filterStatus]);
 
   // ✅ OPTIMIZATION: Memoized grouping for better performance
   const groupedAR = useMemo(() => {
@@ -438,7 +442,7 @@ const AccountsReceivablePage = () => {
     return { totalAmount, totalReceived, totalBalance };
   }, [filteredAR]);
 
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -519,16 +523,11 @@ const AccountsReceivablePage = () => {
 
       {/* Filters */}
       <div className="flex gap-4 mb-6 items-center">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-          <input
-            type="text"
-            placeholder={t('search') + '...'}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-        </div>
+        <SearchBar
+          value={search}
+          onChange={updateSearch}
+          placeholder={t('search') + '...'}
+        />
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
@@ -557,11 +556,13 @@ const AccountsReceivablePage = () => {
       >
         {groupByType && groupedAR ? (
           <div>
-            {/* Customer Receivables */}
-            {groupedAR.customers.length > 0 && renderARTable(groupedAR.customers, "👤 Customer Receivables")}
+            {groupedAR.customers.length > 0 && (
+              <>{renderARTable(groupedAR.customers, "👤 Customer Receivables")}</>
+            )}
             
-            {/* Card Company Receivables */}
-            {groupedAR.cards.length > 0 && renderARTable(groupedAR.cards, "💳 Card Company Receivables")}
+            {groupedAR.cards.length > 0 && (
+              <>{renderARTable(groupedAR.cards, "💳 Card Company Receivables")}</>
+            )}
             
             {filteredAR.length === 0 && (
               <div className="bg-white rounded-xl shadow-lg p-12 text-center">
@@ -570,9 +571,26 @@ const AccountsReceivablePage = () => {
             )}
           </div>
         ) : (
-          renderARTable(filteredAR)
+          <>{renderARTable(filteredAR)}</>
         )}
       </motion.div>
+
+      {/* ✅ NEW: Pagination Component */}
+      <div className="mt-6">
+        <Pagination
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          total={pagination.total}
+          limit={pagination.limit}
+          from={pagination.from}
+          to={pagination.to}
+          hasNext={pagination.hasNext}
+          hasPrev={pagination.hasPrev}
+          onPageChange={goToPage}
+          onLimitChange={changeLimit}
+        />
+      </div>
+
       {/* ✅ PRESERVED: Payment Modal exactly as original */}
       {paymentModal.isOpen && paymentModal.data && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">

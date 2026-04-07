@@ -1,22 +1,37 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, Edit, Trash2, X } from 'lucide-react';
+import { Plus, Edit, Trash2, X } from 'lucide-react';
 import { Supplier } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useQueryClient } from '@tanstack/react-query';
-import { useSuppliers } from '../hooks/queries/useSharedData';
 import { useMutation } from '@tanstack/react-query';
 import api from '../api/axios';
 import { QUERY_KEYS } from '../lib/queryKeys';
+import { useTableData } from '../hooks/useTableData';
+import { Pagination } from '../components/common/Pagination';
+import SearchBar from '../components/common/SearchBar';
 
 const Suppliers = () => {
   const { t } = useLanguage();
   const queryClient = useQueryClient();
   
-  // ✅ React Query hook for data fetching
-  const { data: suppliers = [], isLoading } = useSuppliers();
+  // ✅ NEW: Use useTableData for pagination
+  const {
+    data: suppliers,
+    pagination,
+    loading,
+    search,
+    updateSearch,
+    goToPage,
+    changeLimit,
+    refresh
+  } = useTableData<Supplier>({
+    endpoint: '/api/suppliers',
+    initialLimit: 50,
+    initialSortBy: 'createdAt',
+    initialSortOrder: 'DESC'
+  });
   
-  const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [formData, setFormData] = useState({
@@ -35,6 +50,7 @@ const Suppliers = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.suppliers });
+      refresh(); // Refresh pagination data
       closeModal();
     },
     onError: (error) => {
@@ -50,6 +66,7 @@ const Suppliers = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.suppliers });
+      refresh(); // Refresh pagination data
       closeModal();
     },
     onError: (error) => {
@@ -64,6 +81,7 @@ const Suppliers = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.suppliers });
+      refresh(); // Refresh pagination data
     },
     onError: (error) => {
       console.error('Error deleting supplier:', error);
@@ -106,17 +124,8 @@ const Suppliers = () => {
     setFormData({ code: '', name: '', rnc: '', phone: '', address: '' });
   }, []);
 
-  // ✅ Memoized filtered suppliers
-  const filteredSuppliers = useMemo(() => {
-    return suppliers.filter((supplier) =>
-      Object.values(supplier).some((value: unknown) =>
-        String(value).toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    );
-  }, [suppliers, searchTerm]);
-
   // ✅ Loading state
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -130,16 +139,11 @@ const Suppliers = () => {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-          <input
-            type="text"
-            placeholder={t('search')}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-        </div>
+        <SearchBar
+          value={search}
+          onChange={updateSearch}
+          placeholder={t('search')}
+        />
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
@@ -169,7 +173,7 @@ const Suppliers = () => {
           </thead>
           <tbody>
             <AnimatePresence>
-              {filteredSuppliers.map((supplier, index) => (
+              {suppliers.map((supplier, index) => (
                 <motion.tr
                   key={supplier.id}
                   initial={{ opacity: 0, y: 20 }}
@@ -209,6 +213,22 @@ const Suppliers = () => {
           </tbody>
         </table>
       </motion.div>
+
+      {/* ✅ NEW: Pagination Component */}
+      <div className="mt-6">
+        <Pagination
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          total={pagination.total}
+          limit={pagination.limit}
+          from={pagination.from}
+          to={pagination.to}
+          hasNext={pagination.hasNext}
+          hasPrev={pagination.hasPrev}
+          onPageChange={goToPage}
+          onLimitChange={changeLimit}
+        />
+      </div>
 
       <AnimatePresence>
         {showModal && (

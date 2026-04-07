@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Search, DollarSign, CheckCircle, Clock, XCircle, Plus } from 'lucide-react';
+import { DollarSign, CheckCircle, Clock, XCircle, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
@@ -12,18 +12,34 @@ import { QUERY_KEYS } from '../lib/queryKeys';
 import EnhancedPaymentModal from '../components/EnhancedPaymentModal';
 
 // ✅ FIXED: Use React Query hooks only - no feature flags
-import { useAccountsPayable } from '../hooks/queries/useFinancial';
-import { useSearch } from '../hooks/useSearch';
+// import { useAccountsPayable } from '../hooks/queries/useFinancial';
 import { useModal } from '../hooks/useModal';
+import { useTableData } from '../hooks/useTableData';
+import { Pagination } from '../components/common/Pagination';
+import SearchBar from '../components/common/SearchBar';
 
 const AccountsPayablePage = () => {
   const { t } = useLanguage();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   
-  // ✅ FIXED: Use React Query hooks only - no feature flags or legacy state
-  const { data: accountsPayable = [], isLoading } = useAccountsPayable();
-  const { searchTerm, setSearchTerm } = useSearch('accounts-payable');
+  // ✅ NEW: Use useTableData for pagination
+  const {
+    data: accountsPayable,
+    pagination,
+    loading,
+    search,
+    updateSearch,
+    goToPage,
+    changeLimit,
+    refresh
+  } = useTableData<AccountsPayable>({
+    endpoint: '/api/accounts-payable',
+    initialLimit: 50,
+    initialSortBy: 'createdAt',
+    initialSortOrder: 'DESC'
+  });
+  
   const paymentModal = useModal<AccountsPayable>();
   
   // ✅ FIXED: Simple state management - no legacy/feature flag complexity
@@ -165,6 +181,7 @@ const AccountsPayablePage = () => {
       
       // ✅ FIXED: Proper cache invalidation like Sales/Purchases
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.accountsPayable });
+      refresh(); // Refresh pagination data
       
       notify.success(t('deadlineUpdated'), t('paymentDeadlineHasBeenUpdated'));
       setEditingDeadline(null);
@@ -183,15 +200,11 @@ const AccountsPayablePage = () => {
     setNewDeadline('');
   }, []);
 
+  // ✅ NEW: Filter by status only (search handled by backend)
   const filteredAP = useMemo(() => {
-    return Array.isArray(accountsPayable) ? accountsPayable.filter((ap) => {
-      const matchesSearch = Object.values(ap).some((value) =>
-        value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      const matchesStatus = filterStatus === 'All' || ap.status === filterStatus;
-      return matchesSearch && matchesStatus;
-    }) : [];
-  }, [accountsPayable, searchTerm, filterStatus]);
+    if (filterStatus === 'All') return accountsPayable;
+    return Array.isArray(accountsPayable) ? accountsPayable.filter((ap) => ap.status === filterStatus) : [];
+  }, [accountsPayable, filterStatus]);
 
   const totals = useMemo(() => {
     const totalAmount = filteredAP.reduce((sum, ap) => sum + Number(ap.amount), 0);
@@ -201,7 +214,7 @@ const AccountsPayablePage = () => {
   }, [filteredAP]);
 
   // ✅ FIXED: Simplified loading state
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -286,16 +299,11 @@ const AccountsPayablePage = () => {
 
       {/* Filters */}
       <div className="flex gap-4 mb-6">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-          <input
-            type="text"
-            placeholder={t('search') + '...'}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-        </div>
+        <SearchBar
+          value={search}
+          onChange={updateSearch}
+          placeholder={t('search') + '...'}
+        />
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
@@ -478,6 +486,22 @@ const AccountsPayablePage = () => {
           </tbody>
         </table>
       </motion.div>
+
+      {/* ✅ NEW: Pagination Component */}
+      <div className="mt-6">
+        <Pagination
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          total={pagination.total}
+          limit={pagination.limit}
+          from={pagination.from}
+          to={pagination.to}
+          hasNext={pagination.hasNext}
+          hasPrev={pagination.hasPrev}
+          onPageChange={goToPage}
+          onLimitChange={changeLimit}
+        />
+      </div>
 
       {/* Enhanced Payment Modal with Phase 1 Overpayment Detection */}
       {paymentModal.data && (

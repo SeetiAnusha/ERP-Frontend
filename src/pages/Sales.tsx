@@ -7,17 +7,18 @@ import { notify } from '../utils/notifications';
 import { formatNumber } from '../utils/formatNumber';
 import CardPaymentModal from '../components/CardPaymentModal.tsx';
 
-// ✅ LESSON LEARNED: Import standardized components from start
-import { useSearch } from '../hooks/useSearch';
+// ✅ Import pagination components
 import { useForm } from '../hooks/useForm';
 import { useModal } from '../hooks/useModal';
+import { useTableData } from '../hooks/useTableData';
 import SearchBar from '../components/common/SearchBar';
 import ActionButton from '../components/common/ActionButton';
 import DataTable, { Column } from '../components/common/DataTable';
+import { Pagination } from '../components/common/Pagination';
 import Modal from '../components/common/Modal';
 
 // React Query hooks
-import { useSales, useCreateSale } from '../hooks/queries/useSales';
+import { useCreateSale } from '../hooks/queries/useSales';
 import { useProducts } from '../hooks/queries/useProducts';
 import { useClients, useBankAccounts, useCards, useCashRegisters, usePaymentNetworks } from '../hooks/queries/useSharedData';
 
@@ -54,36 +55,43 @@ interface EnhancedSale extends Omit<Sale, 'collectionStatus'> {
 const Sales = () => {
   const { t } = useLanguage();
   
-  // ✅ LESSON LEARNED: Complete hook migration - NO mixed patterns
-  const { searchTerm, setSearchTerm } = useSearch('sales');
+  // ✅ NEW: Pagination with useTableData
+  const {
+    data: sales,
+    pagination,
+    loading: salesLoading,
+    search,
+    updateSearch,
+    goToPage,
+    changeLimit,
+    refresh
+  } = useTableData<EnhancedSale>({
+    endpoint: 'api/sales',
+    initialLimit: 50
+  });
   
-  // ✅ Modal management using useModal hook like Products/Purchases
+  // ✅ Modal management using useModal hook
   const salesModal = useModal<Sale>();
   const viewDetailsModal = useModal();
   const viewProductsModal = useModal();
   const cardPaymentModal = useModal();
   
-  // ✅ DAY 2: Use React Query by default (remove feature flag complexity)
-  const { data: sales = [], isLoading: salesLoading } = useSales();
+  // ✅ Use React Query hooks for shared data
   const { data: products = [], isLoading: productsLoading } = useProducts();
-  
-  // ✅ FIXED: Use React Query hooks for shared data instead of manual API calls
   const { data: clients = [], isLoading: clientsLoading } = useClients();
   const { data: cards = [], isLoading: cardsLoading } = useCards();
   const { data: cashRegisters = [], isLoading: cashRegistersLoading } = useCashRegisters();
   const { data: bankAccounts = [], isLoading: bankAccountsLoading } = useBankAccounts();
   const { data: paymentNetworks = [], isLoading: paymentNetworksLoading } = usePaymentNetworks();
   
-  // ✅ FIXED: Use simple mutation without callbacks - handle in form submission like Purchases
+  // ✅ Use simple mutation
   const createSaleMutation = useCreateSale();
   
-  // Current data (simplified - always use React Query)
-  const currentSales: EnhancedSale[] = sales;
-  const currentProducts = products;
+  // Loading state
   const isLoading = salesLoading || productsLoading || clientsLoading || cardsLoading || 
                    cashRegistersLoading || bankAccountsLoading || paymentNetworksLoading;
   
-  // ✅ NEW: Filter state for deletion status
+  // ✅ Filter state for deletion status
   const [filterStatus, setFilterStatus] = useState<string>('All');
   
   // ✅ LESSON LEARNED: Remove ALL old state variables, use only hooks
@@ -181,8 +189,8 @@ const Sales = () => {
           ...item,
           id: 0, // Temporary ID for new items
           saleId: 0, // Will be set by backend
-          productCode: currentProducts.find(p => p.id === item.productId)?.code || '',
-          unitOfMeasurement: currentProducts.find(p => p.id === item.productId)?.unit || '',
+          productCode: products.find((p: any) => p.id === item.productId)?.code || '',
+          unitOfMeasurement: products.find((p: any) => p.id === item.productId)?.unit || '',
           costOfGoodsSold: item.productUnitCost * item.quantity,
           grossMargin: (item.unitPrice - item.productUnitCost) * item.quantity,
         })),
@@ -194,6 +202,9 @@ const Sales = () => {
         
         // ✅ CRITICAL: Wait for backend response before closing modal (like Purchases)
         await createSaleMutation.mutateAsync(saleData);
+        
+        // ✅ Refresh pagination data
+        refresh();
         
         // ✅ Only close modal and reset form AFTER successful backend response
         salesModal.close();
@@ -227,7 +238,7 @@ const Sales = () => {
     const filteredDebitCards = cards.filter((card: any) => card.cardType === 'DEBIT');
     const filteredCreditCards = cards.filter((card: any) => card.cardType === 'CREDIT');
     const activeCashRegisters = cashRegisters.filter(cr => cr.status === 'ACTIVE');
-    const activeProducts = currentProducts.filter(p => p.status === 'ACTIVE');
+    const activeProducts = products.filter((p: any) => p.status === 'ACTIVE');
     
     // Memoize sale totals
     const subtotal = saleItems.reduce((sum, item) => sum + item.subtotal, 0);
@@ -241,7 +252,7 @@ const Sales = () => {
       activeProducts,
       totals: { subtotal, tax, total }
     };
-  }, [cards, cashRegisters, currentProducts, saleItems]); // ✅ Correct dependencies
+  }, [cards, cashRegisters, products, saleItems]); // ✅ Correct dependencies
 
   // ✅ Use memoized totals instead of recalculating
   const totals = memoizedCalculations.totals;
@@ -258,22 +269,17 @@ const Sales = () => {
 
   // ✅ LESSON LEARNED: Remove old calculateTotals function - use memoized totals instead
 
-  // ✅ Memoized filtering for sales with performance optimization
+  // ✅ Client-side filtering for deletion status only (search handled by backend)
   const filteredSales = useMemo(() => {
-    return currentSales.filter((sale) => {
-      const matchesSearch = 
-        Object.values(sale).some((value) =>
-          value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
-        );
-      
+    return sales.filter((sale) => {
       const matchesStatus = filterStatus === 'All' || 
         (filterStatus === 'Active' && sale.deletion_status !== 'EXECUTED' && !sale.is_reversal) ||
         (filterStatus === 'Deleted' && sale.deletion_status === 'EXECUTED') ||
         (filterStatus === 'Reversal' && sale.is_reversal);
       
-      return matchesSearch && matchesStatus;
+      return matchesStatus;
     });
-  }, [currentSales, searchTerm, filterStatus]);
+  }, [sales, filterStatus]);
 
   // ✅ LESSON LEARNED: Remove old handleSubmit function - handled by useForm
 
@@ -318,7 +324,7 @@ const Sales = () => {
       return;
     }
     
-    const product = currentProducts.find(p => p.id === parseInt(selectedProduct));
+    const product = products.find((p: any) => p.id === parseInt(selectedProduct));
     if (!product) return;
     
     // Check stock
@@ -347,7 +353,7 @@ const Sales = () => {
     setQuantity(1);
     setSalesPrice(0);
     setTaxAmount(0);
-  }, [selectedProduct, quantity, salesPrice, taxAmount, currentProducts]);
+  }, [selectedProduct, quantity, salesPrice, taxAmount, products]);
 
   // ✅ Memoized item removal handler
   const handleRemoveItem = useCallback((index: number) => {
@@ -435,7 +441,7 @@ const Sales = () => {
     );
   }, []);
 
-  // ✅ LESSON LEARNED: Memoized DataTable columns configuration
+  // ✅ Memoized DataTable columns configuration
   const salesColumns = useMemo((): Column<EnhancedSale>[] => [
     {
       key: 'registrationNumber',
@@ -513,7 +519,7 @@ const Sales = () => {
     }
   ], [getSaleStatusBadge]);
 
-  // ✅ LESSON LEARNED: Memoized custom actions for DataTable
+  // ✅ Memoized custom actions for DataTable
   const customActions = useCallback((sale: EnhancedSale) => (
     <>
       <motion.button
@@ -549,22 +555,19 @@ const Sales = () => {
     </>
   ), [handleViewDetails, handleViewProducts, handleCardPayment]);
 
-  // ✅ LESSON LEARNED: Remove old openModal and closeModal functions - use memoized handlers
-
-
-
+  // ✅ Return statement starts here
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
         <div className="flex gap-4 flex-1">
-          {/* ✅ LESSON LEARNED: Replace custom search with SearchBar component */}
+          {/* ✅ SearchBar with server-side search */}
           <SearchBar
-            value={searchTerm}
-            onChange={setSearchTerm}
+            value={search}
+            onChange={updateSearch}
             placeholder={t('search')}
           />
           
-          {/* ✅ NEW: Status Filter */}
+          {/* ✅ Status Filter */}
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
@@ -577,7 +580,7 @@ const Sales = () => {
           </select>
         </div>
         
-        {/* ✅ LESSON LEARNED: Replace custom motion button with ActionButton */}
+        {/* ✅ Add Sale Button */}
         <ActionButton
           onClick={handleOpenModal}
           icon={Plus}
@@ -588,7 +591,7 @@ const Sales = () => {
         </ActionButton>
       </div>
 
-      {/* ✅ LESSON LEARNED: Replace custom table with DataTable component */}
+      {/* ✅ DataTable with original styling */}
       <DataTable
         data={filteredSales}
         columns={salesColumns}
@@ -596,6 +599,22 @@ const Sales = () => {
         loading={isLoading}
         emptyMessage="No sales found"
       />
+
+      {/* ✅ NEW: Pagination Component */}
+      <div className="mt-6">
+        <Pagination
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          total={pagination.total}
+          limit={pagination.limit}
+          from={pagination.from}
+          to={pagination.to}
+          hasNext={pagination.hasNext}
+          hasPrev={pagination.hasPrev}
+          onPageChange={goToPage}
+          onLimitChange={changeLimit}
+        />
+      </div>
 
       {/* ✅ LESSON LEARNED: Replace custom AnimatePresence modal with Modal component */}
       <Modal
@@ -830,7 +849,7 @@ const Sales = () => {
                 value={selectedProduct}
                 onChange={(e) => {
                   setSelectedProduct(e.target.value);
-                  const product = currentProducts.find(p => p.id === parseInt(e.target.value));
+                  const product = products.find((p: any) => p.id === parseInt(e.target.value));
                   if (product) {
                     setSalesPrice(Number(product.salesPrice) || 0);
                     setTaxAmount(0);
@@ -839,7 +858,7 @@ const Sales = () => {
                 className="col-span-5 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Select product...</option>
-                {currentProducts.filter(p => p.status === 'ACTIVE').map((product) => (
+                {products.filter((p: any) => p.status === 'ACTIVE').map((product: any) => (
                   <option key={product.id} value={product.id}>
                     {product.name} - Sales Price: {formatNumber(Number(product.salesPrice || 0))} | Stock: {product.amount}
                   </option>

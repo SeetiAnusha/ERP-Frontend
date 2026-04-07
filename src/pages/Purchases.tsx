@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Eye, CheckCircle, Clock, XCircle, X, Trash2, ShoppingCart, Package, FileText } from 'lucide-react';
 import api from '../api/axios';
@@ -6,7 +6,6 @@ import { Purchase, AssociatedInvoice } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { formatNumber } from '../utils/formatNumber';
 import { cleanFormData } from '../utils/cleanFormData';  // Import utility
-import { useSearch } from '../hooks/useSearch';
 import { useForm } from '../hooks/useForm';
 import { useModal } from '../hooks/useModal';
 import SearchBar from '../components/common/SearchBar';
@@ -18,9 +17,12 @@ import Modal from '../components/common/Modal';
 // ✅ Import shared components for Phase 1 refactoring
 import { SupplierSelector, BankAccountSelector, CardSelector } from '../components/shared';
 
-// ✅ React Query Integration - Better data management
+// ✅ NEW: Import pagination components
+import { useTableData } from '../hooks/useTableData';
+import { Pagination } from '../components/common/Pagination';
+
+// ✅ React Query Integration - Better data management (keep for mutations and related data)
 import { 
-  usePurchases, 
   useCreatePurchase
 } from '../hooks/queries/usePurchases';
 import { useProducts } from '../hooks/queries/useProducts';
@@ -72,16 +74,36 @@ interface EnhancedPurchase {
 const Purchases = () => {
   const { t } = useLanguage();
   
-  // ✅ Use the same search pattern as Products component
-  const { searchTerm, setSearchTerm } = useSearch('purchases');
-  
   // ✅ Modal management using useModal hook like Products
   const purchaseModal = useModal<Purchase>();
   const productModal = useModal();
   const invoiceModal = useModal();
   
-  // ✅ React Query Integration - Better data management
-  const { data: purchases = [], isLoading: purchasesLoading } = usePurchases();
+  // ✅ NEW: Use pagination hook for purchases
+  const {
+    data: purchases,
+    loading: purchasesLoading,
+    pagination,
+    search,
+    updateSearch,
+    updateFilter,
+    clearFilters,
+    goToPage,
+    nextPage,
+    prevPage,
+    firstPage,
+    lastPage,
+    changeLimit,
+    refresh
+  } = useTableData<EnhancedPurchase>({
+    endpoint: '/api/purchases',
+    initialLimit: 50,
+    initialFilters: {
+      status: 'All'
+    }
+  });
+  
+  // ✅ Keep React Query hooks for related data (not paginated)
   const { data: suppliers = [] } = useSuppliers();
   const { data: products = [] } = useProducts();
   const { data: bankAccounts = [] } = useBankAccounts();
@@ -248,11 +270,11 @@ const Purchases = () => {
       bankAccountId: '',
       cardId: '',
       chequeNumber: '',
-      chequeDate: '',
+      chequeDate: new Date().toISOString().split('T')[0], // Default to today
       transferNumber: '',
-      transferDate: '',
+      transferDate: new Date().toISOString().split('T')[0], // Default to today
       paymentReference: '',
-      voucherDate: '',
+      voucherDate: new Date().toISOString().split('T')[0], // Default to today
     },
     validate: validatePurchase,
     onSubmit: async (values) => {
@@ -301,6 +323,9 @@ const Purchases = () => {
         purchaseForm.reset();
         setPurchaseItems([]);
         setAssociatedInvoices([]);
+        
+        // ✅ Refresh pagination data
+        refresh();
         
         // ✅ Success notification
         notify.success('Purchase Created', 'Purchase has been created successfully');
@@ -669,56 +694,30 @@ const Purchases = () => {
     </>
   ), [handleViewDetails, handleViewProducts, handleViewInvoices, t]);
 
-  // ✅ Memoized purchase filtering with performance optimizations
-  const filteredPurchases = useMemo(() => {
-    // Early return optimization - avoid filtering when no search
-    if (!searchTerm.trim() && filterStatus === 'All') {
-      return Array.isArray(purchases) ? purchases as EnhancedPurchase[] : [];
+  // ✅ REMOVED: No longer need manual filtering - backend handles it via pagination
+  // Backend now handles search and filters, so we use the data directly from useTableData
+  
+  // ✅ Update filter when filterStatus changes
+  useEffect(() => {
+    if (filterStatus !== 'All') {
+      updateFilter('status', filterStatus);
+    } else {
+      clearFilters();
     }
-    
-    const lowerSearchTerm = searchTerm.toLowerCase();
-    
-    return Array.isArray(purchases) ? (purchases as unknown as EnhancedPurchase[]).filter((purchase) => {
-      // ✅ PERFORMANCE: Check search match first (most common operation)
-      let matchesSearch = true;
-      if (searchTerm.trim()) {
-        // ✅ PERFORMANCE: Check most likely matches first (registration number, supplier name)
-        matchesSearch = 
-          (purchase.registrationNumber?.toLowerCase().includes(lowerSearchTerm) ?? false) ||
-          (purchase.supplier?.name?.toLowerCase().includes(lowerSearchTerm) ?? false) ||
-          (purchase.supplierRnc?.toLowerCase().includes(lowerSearchTerm) ?? false) ||
-          (purchase.purchaseType?.toLowerCase().includes(lowerSearchTerm) ?? false) ||
-          (purchase.paymentType?.toLowerCase().includes(lowerSearchTerm) ?? false) ||
-          (purchase.ncf?.toLowerCase().includes(lowerSearchTerm) ?? false) ||
-          // ✅ PERFORMANCE: Check numeric fields (convert to string only when needed)
-          (purchase.total?.toString().includes(lowerSearchTerm) ?? false) ||
-          (purchase.paidAmount?.toString().includes(lowerSearchTerm) ?? false) ||
-          (purchase.balanceAmount?.toString().includes(lowerSearchTerm) ?? false);
-      }
-      
-      // ✅ PERFORMANCE: Check status filter (simple comparison)
-      const matchesStatus = filterStatus === 'All' || 
-        (filterStatus === 'Active' && purchase.deletion_status !== 'EXECUTED' && !purchase.is_reversal) ||
-        (filterStatus === 'Deleted' && purchase.deletion_status === 'EXECUTED') ||
-        (filterStatus === 'Reversal' && purchase.is_reversal);
-      
-      return matchesSearch && matchesStatus;
-    }) : [];
-  }, [purchases, searchTerm, filterStatus]); // ✅ Dependency array ensures proper memoization
+  }, [filterStatus, updateFilter, clearFilters]);
 
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
         <div className="flex gap-4 flex-1">
-          {/* ✅ Use the same SearchBar component as Products */}
+          {/* ✅ Use SearchBar with pagination search */}
           <SearchBar
-            value={searchTerm}
-            onChange={setSearchTerm}
+            value={search}
+            onChange={updateSearch}
             placeholder={t('search')}
-            className="flex-1 max-w-md"
           />
           
-          {/* ✅ NEW: Status Filter */}
+          {/* ✅ Status Filter */}
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
@@ -742,13 +741,33 @@ const Purchases = () => {
 
       {/* Purchases List */}
       <DataTable
-        data={filteredPurchases}
+        data={purchases}
         columns={columns}
         customActions={customActions}
         loading={purchasesLoading}
         emptyMessage="No purchases found"
         className="mb-6"
       />
+
+      {/* ✅ NEW: Pagination Component */}
+      <div className="mb-6">
+        <Pagination
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          total={pagination.total}
+          limit={pagination.limit}
+          from={pagination.from}
+          to={pagination.to}
+          hasNext={pagination.hasNext}
+          hasPrev={pagination.hasPrev}
+          onPageChange={goToPage}
+          onLimitChange={changeLimit}
+          onFirst={firstPage}
+          onLast={lastPage}
+          onNext={nextPage}
+          onPrev={prevPage}
+        />
+      </div>
 
       {/* Create Purchase Modal */}
       <Modal

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { FaPlus, FaTrash, FaUniversity, FaArrowUp, FaArrowDown, FaSearch, FaCreditCard } from 'react-icons/fa';
+import { FaPlus, FaTrash, FaUniversity, FaArrowUp, FaArrowDown, FaCreditCard } from 'react-icons/fa';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import axios from '../api/axios';
@@ -10,8 +10,12 @@ import OverpaymentAlertModal from '../components/OverpaymentAlertModal';
 import CreditAwarePaymentModal from '../components/CreditAwarePaymentModal';
 import { QUERY_KEYS } from '../lib/queryKeys';
 
-// ✅ OPTIMIZATION: Use React Query hooks for better performance
-import { useBankTransactions } from '../hooks/queries/useFinancial';
+// ✅ NEW: Import pagination components
+import { useTableData } from '../hooks/useTableData';
+import { Pagination } from '../components/common/Pagination';
+import SearchBar from '../components/common/SearchBar';
+
+// ✅ Keep React Query hooks for bank accounts and suppliers (not paginated)
 import { useBankAccounts, useSuppliers } from '../hooks/queries/useSharedData';
 
 interface BankTransaction {
@@ -30,6 +34,7 @@ interface BankTransaction {
   balance: number;
   bankAccountName?: string;
   bankAccountNumber?: string;
+  accountType?: 'CHECKING' | 'SAVINGS'; // Account type
   referenceNumber?: string;
   chequeNumber?: string;
   transferNumber?: string;
@@ -74,14 +79,36 @@ const BankRegister = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   
-  // ✅ OPTIMIZATION: Use React Query instead of manual API calls
-  const { data: transactions = [], isLoading: transactionsLoading } = useBankTransactions();
+  // ✅ NEW: Use pagination hook for transactions
+  const {
+    data: transactions,
+    loading: transactionsLoading,
+    pagination,
+    search: searchTerm,
+    updateSearch: setSearchTerm,
+    updateFilter,
+    clearFilters,
+    goToPage,
+    nextPage,
+    prevPage,
+    firstPage,
+    lastPage,
+    changeLimit,
+    refresh
+  } = useTableData<BankTransaction>({
+    endpoint: '/api/bank-register',
+    initialLimit: 50,
+    initialFilters: {
+      transactionType: 'All'
+    }
+  });
+  
+  // ✅ Keep React Query hooks for bank accounts and suppliers (not paginated)
   const { data: bankAccounts = [], isLoading: bankAccountsLoading } = useBankAccounts();
   const { data: suppliers = [], isLoading: suppliersLoading } = useSuppliers();
   
   // ✅ PRESERVED: Keep all original state variables exactly as they were
   const [showModal, setShowModal] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('All');
   const [pendingInvoices, setPendingInvoices] = useState<PendingInvoice[]>([]);
   const [selectedInvoices, setSelectedInvoices] = useState<number[]>([]);
@@ -113,6 +140,15 @@ const BankRegister = () => {
   
   // ✅ OPTIMIZATION: Combine loading states
   const isLoading = transactionsLoading || bankAccountsLoading || suppliersLoading;
+  
+  // ✅ Update filter when filterType changes
+  useEffect(() => {
+    if (filterType !== 'All') {
+      updateFilter('transactionType', filterType);
+    } else {
+      clearFilters();
+    }
+  }, [filterType, updateFilter, clearFilters]);
   
   // ✅ OPTIMIZATION: Memoized bank balance calculation
   const bankBalance = useMemo(() => {
@@ -297,10 +333,11 @@ const BankRegister = () => {
       
       await axios.post('/bank-register', submitData);
       
-      // ✅ OPTIMIZATION: Use React Query cache invalidation instead of manual refetch
+      // ✅ OPTIMIZATION: Use React Query cache invalidation and refresh pagination
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankTransactions });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankAccounts });
       queryClient.invalidateQueries({ queryKey: ['recent-activity'] });
+      refresh(); // Refresh paginated data
       
       resetForm();
       
@@ -351,14 +388,15 @@ const BankRegister = () => {
       try {
         await axios.delete(`/bank-register/${id}`);
         
-        // ✅ OPTIMIZATION: Use React Query cache invalidation
+        // ✅ OPTIMIZATION: Use React Query cache invalidation and refresh pagination
         queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankTransactions });
+        refresh(); // Refresh paginated data
       } catch (error) {
         console.error('Error deleting transaction:', error);
         alert(t('errorDeletingTransaction'));
       }
     }
-  }, [t, queryClient]);
+  }, [t, queryClient, refresh]);
 
   const resetForm = useCallback(() => {
     setFormData({
@@ -389,10 +427,11 @@ const BankRegister = () => {
 
   // ✅ Credit-aware payment success handler
   const handleCreditAwarePaymentSuccess = useCallback(() => {
-    // ✅ OPTIMIZATION: Use React Query cache invalidation
+    // ✅ OPTIMIZATION: Use React Query cache invalidation and refresh pagination
     queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankTransactions });
     queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankAccounts });
     queryClient.invalidateQueries({ queryKey: ['recent-activity'] });
+    refresh(); // Refresh paginated data
     
     resetForm();
     
@@ -404,7 +443,7 @@ const BankRegister = () => {
     } else {
       alert('Smart payment completed successfully!');
     }
-  }, [queryClient, resetForm, location.state, navigate]);
+  }, [queryClient, resetForm, location.state, navigate, refresh]);
 
   const toggleInvoiceSelection = useCallback((invoiceId: number) => {
     setSelectedInvoices(prev => 
@@ -421,22 +460,8 @@ const BankRegister = () => {
       .reduce((sum, inv) => sum + parseFloat(inv.balanceAmount?.toString() || '0'), 0);
   }, [pendingInvoices, selectedInvoices]);
 
-  // ✅ OPTIMIZATION: Memoized filtering for better performance
-  const filteredTransactions = useMemo(() => {
-    if (!Array.isArray(transactions)) return [];
-    
-    return transactions.filter(transaction => {
-      const matchesSearch = 
-        transaction.registrationNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        transaction.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        transaction.clientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        transaction.referenceNumber?.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      const matchesType = filterType === 'All' || transaction.transactionType === filterType;
-      
-      return matchesSearch && matchesType;
-    });
-  }, [transactions, searchTerm, filterType]);
+  // ✅ REMOVED: No longer need manual filtering - backend handles it via pagination
+  // const filteredTransactions = useMemo(() => { ... });
 
   // ✅ OPTIMIZATION: Memoized totals for better performance
   const { totalInflow, totalOutflow } = useMemo(() => {
@@ -523,14 +548,12 @@ const BankRegister = () => {
 
       {/* Actions Bar */}
       <div className="flex flex-col md:flex-row gap-4 mb-6">
-        <div className="flex-1 relative">
-          <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder={t('searchTransactions')}
+        {/* ✅ NEW: Use SearchBar component */}
+        <div className="flex-1">
+          <SearchBar
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            onChange={setSearchTerm}
+            placeholder={t('searchTransactions')}
           />
         </div>
         
@@ -573,6 +596,7 @@ const BankRegister = () => {
                 <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('method')}</th>
                 <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('clientName')}/{t('supplier')}</th>
                 <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('bankAccount')}</th>
+                <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">ACCOUNT TYPE</th>
                 <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('originalType')}</th>
                 <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('chequeTransferNumber')}</th>
                 <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">{t('amount')}</th>
@@ -581,14 +605,14 @@ const BankRegister = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredTransactions.length === 0 ? (
+              {transactions.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={14} className="px-6 py-8 text-center text-gray-500">
                     {t('noTransactionsFound')}
                   </td>
                 </tr>
               ) : (
-                filteredTransactions.map((transaction, index) => {
+                transactions.map((transaction, index) => {
                   const isDeleted = transaction.deletion_status === 'EXECUTED';
                   const isReversal = transaction.is_reversal === true;
                   
@@ -639,7 +663,7 @@ const BankRegister = () => {
                     <td className="px-6 py-4 text-sm">{transaction.paymentMethod}</td>
                     <td className="px-6 py-4 text-sm">{transaction.clientName || '-'}</td>
                     
-                    {/* ⭐ NEW: Bank Account Column */}
+                    {/* ⭐ Bank Account Column */}
                     <td className="px-6 py-4 text-sm">
                       {transaction.bankAccountName ? (
                         <span className="text-blue-600 font-medium">
@@ -648,7 +672,19 @@ const BankRegister = () => {
                       ) : '-'}
                     </td>
                     
-                    {/* ⭐ NEW: Original Payment Type Column */}
+                    {/* ⭐ Account Type Column */}
+                    <td className="px-6 py-4 text-sm">
+                      {transaction.accountType ? (
+                        <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
+                          transaction.accountType === 'CHECKING' ? 'bg-blue-100 text-blue-800' :
+                          'bg-purple-100 text-purple-800'
+                        }`}>
+                          {transaction.accountType}
+                        </span>
+                      ) : '-'}
+                    </td>
+                    
+                    {/* ⭐ Original Payment Type Column */}
                     <td className="px-6 py-4 text-sm">
                       {transaction.originalPaymentType ? (
                         <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
@@ -694,6 +730,26 @@ const BankRegister = () => {
           </table>
         </div>
       </motion.div>
+
+      {/* ✅ NEW: Pagination Component */}
+      <div className="mt-6">
+        <Pagination
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          total={pagination.total}
+          limit={pagination.limit}
+          from={pagination.from}
+          to={pagination.to}
+          hasNext={pagination.hasNext}
+          hasPrev={pagination.hasPrev}
+          onPageChange={goToPage}
+          onLimitChange={changeLimit}
+          onFirst={firstPage}
+          onLast={lastPage}
+          onNext={nextPage}
+          onPrev={prevPage}
+        />
+      </div>
 
       {/* New Transaction Modal */}
       {showModal && (

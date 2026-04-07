@@ -3,7 +3,6 @@ import { motion } from 'framer-motion';
 import { 
   CreditCard, 
   User, 
-  Search, 
   DollarSign,
   FileText,
   Eye,
@@ -12,7 +11,9 @@ import {
   TrendingUp,
   Building
 } from 'lucide-react';
-import { useCreditBalances } from '../hooks/queries/useSharedData';
+import { useTableData } from '../hooks/useTableData';
+import { Pagination } from '../components/common/Pagination';
+import SearchBar from '../components/common/SearchBar';
 
 interface CreditBalance {
   id: number;
@@ -45,8 +46,20 @@ interface CreditSummary {
 }
 
 const CreditBalances: React.FC = () => {
-  // ✅ React Query Hook
-  const { data: creditBalances = [], isLoading, isError, refetch } = useCreditBalances();
+  // ✅ NEW: Pagination with useTableData
+  const {
+    data: creditBalances,
+    pagination,
+    loading: isLoading,
+    search,
+    updateSearch,
+    goToPage,
+    changeLimit,
+    refresh
+  } = useTableData<CreditBalance>({
+    endpoint: '/credit-balances',
+    initialLimit: 50
+  });
   
   const [summary, setSummary] = useState<CreditSummary>({
     totalCustomerCredits: 0,
@@ -56,7 +69,6 @@ const CreditBalances: React.FC = () => {
     totalActiveCredits: 0,
     totalUsedCredits: 0
   });
-  const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('ALL');
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
   const [selectedCredit, setSelectedCredit] = useState<CreditBalance | null>(null);
@@ -101,19 +113,9 @@ const CreditBalances: React.FC = () => {
     }
   }, [creditBalances, calculateSummary]);
 
-  // ✅ Memoized: Filtered credits
+  // ✅ Memoized: Filtered credits (client-side filtering for type and status)
   const filteredCredits = useMemo(() => {
     let filtered = creditBalances;
-
-    // Search filter
-    if (searchTerm) {
-      filtered = filtered.filter(credit =>
-        credit.registrationNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        credit.relatedEntityName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        credit.originalTransactionNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        credit.notes?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
 
     // Type filter
     if (filterType !== 'ALL') {
@@ -126,7 +128,7 @@ const CreditBalances: React.FC = () => {
     }
 
     return filtered;
-  }, [creditBalances, searchTerm, filterType, filterStatus]);
+  }, [creditBalances, filterType, filterStatus]);
 
   const formatNumber = (num: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -199,23 +201,6 @@ const CreditBalances: React.FC = () => {
     a.click();
     window.URL.revokeObjectURL(url);
   }, [filteredCredits]);
-
-  // ✅ Error state
-  if (isError) {
-    return (
-      <div className="p-6">
-        <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
-          <p className="text-red-600 font-medium">Error loading credit balances</p>
-          <button
-            onClick={() => refetch()}
-            className="mt-4 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   if (isLoading) {
     return (
@@ -310,14 +295,11 @@ const CreditBalances: React.FC = () => {
 
       {/* Filters and Actions */}
       <div className="flex flex-col md:flex-row gap-4 mb-6">
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-          <input
-            type="text"
+        <div className="flex-1">
+          <SearchBar
+            value={search}
+            onChange={updateSearch}
             placeholder="Search by registration number, entity name, or notes..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
         
@@ -343,7 +325,7 @@ const CreditBalances: React.FC = () => {
         </select>
 
         <button
-          onClick={() => refetch()}
+          onClick={() => refresh()}
           className="bg-gray-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-700"
         >
           <RefreshCw size={16} />
@@ -385,7 +367,7 @@ const CreditBalances: React.FC = () => {
               {filteredCredits.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="px-6 py-8 text-center text-gray-500">
-                    {searchTerm || filterType !== 'ALL' || filterStatus !== 'ALL' 
+                    {search || filterType !== 'ALL' || filterStatus !== 'ALL' 
                       ? 'No credit balances found matching your filters'
                       : 'No credit balances found'
                     }
@@ -454,6 +436,22 @@ const CreditBalances: React.FC = () => {
           </table>
         </div>
       </motion.div>
+
+      {/* ✅ NEW: Pagination Component */}
+      <div className="mt-6">
+        <Pagination
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          total={pagination.total}
+          limit={pagination.limit}
+          from={pagination.from}
+          to={pagination.to}
+          hasNext={pagination.hasNext}
+          hasPrev={pagination.hasPrev}
+          onPageChange={goToPage}
+          onLimitChange={changeLimit}
+        />
+      </div>
 
       {/* Detail Modal */}
       {showDetailModal && selectedCredit && (

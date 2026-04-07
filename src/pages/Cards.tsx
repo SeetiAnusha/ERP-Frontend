@@ -1,11 +1,14 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, Edit2, Trash2, X, CreditCard } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, CreditCard } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
 import { useLanguage } from '../contexts/LanguageContext';
-import { useCards, useBankAccounts } from '../hooks/queries/useSharedData';
+import { useBankAccounts } from '../hooks/queries/useSharedData';
 import { QUERY_KEYS } from '../lib/queryKeys';
+import { useTableData } from '../hooks/useTableData';
+import { Pagination } from '../components/common/Pagination';
+import SearchBar from '../components/common/SearchBar';
 
 interface Card {
   id: number;
@@ -39,14 +42,26 @@ const Cards = () => {
   const { t } = useLanguage();
   const queryClient = useQueryClient();
   
-  // ✅ REACT QUERY: Use shared data hooks instead of local state
-  const { data: cards = [], isLoading: cardsLoading, isError: cardsError } = useCards();
+  // ✅ NEW: Use useTableData for pagination
+  const {
+    data: cards,
+    pagination,
+    loading: cardsLoading,
+    search,
+    updateSearch,
+    goToPage,
+    changeLimit,
+    refresh
+  } = useTableData<Card>({
+    endpoint: '/api/cards',
+    initialLimit: 50,
+    initialSortBy: 'createdAt',
+    initialSortOrder: 'DESC'
+  });
+  
   const { data: bankAccounts = [], isLoading: accountsLoading } = useBankAccounts();
   
   const isLoading = cardsLoading || accountsLoading;
-  const hasError = cardsError;
-  
-  const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingCard, setEditingCard] = useState<Card | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -78,6 +93,7 @@ const Cards = () => {
       
       // ✅ REACT QUERY: Cache invalidation for automatic UI updates
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cards });
+      refresh(); // Refresh pagination data
       
       closeModal();
     } catch (error) {
@@ -95,6 +111,7 @@ const Cards = () => {
         
         // ✅ REACT QUERY: Cache invalidation for automatic UI updates
         queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cards });
+        refresh(); // Refresh pagination data
       } catch (error) {
         console.error('Error deleting card:', error);
       }
@@ -138,39 +155,12 @@ const Cards = () => {
     setIsSubmitting(false);
   }, []);
 
-  // ✅ MEMOIZED: Filtered cards
-  const filteredCards = useMemo(() => {
-    return cards.filter((card) =>
-      Object.values(card).some((value) =>
-        value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    );
-  }, [cards, searchTerm]);
-
   // ✅ OPTIMIZED: Loading state
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
         <span className="ml-3 text-gray-600">Loading cards...</span>
-      </div>
-    );
-  }
-
-  // ✅ ERROR STATE
-  if (hasError) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="text-red-500 text-4xl mb-4">⚠️</div>
-          <p className="text-gray-600 mb-4">Error loading cards</p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
-          >
-            Retry
-          </button>
-        </div>
       </div>
     );
   }
@@ -185,16 +175,11 @@ const Cards = () => {
       </div>
 
       <div className="flex justify-between items-center mb-6">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-          <input
-            type="text"
-            placeholder={t('search')}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-          />
-        </div>
+        <SearchBar
+          value={search}
+          onChange={updateSearch}
+          placeholder={t('search')}
+        />
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
@@ -227,7 +212,7 @@ const Cards = () => {
             </tr>
           </thead>
           <tbody>
-            {filteredCards.map((card) => (
+            {cards.map((card) => (
               <tr key={card.id} className="border-b hover:bg-gray-50">
                 <td className="px-6 py-4 text-sm font-medium">{card.code}</td>
                 <td className="px-6 py-4 text-sm font-semibold text-blue-600">{card.cardName}</td>
@@ -303,6 +288,22 @@ const Cards = () => {
           </tbody>
         </table>
       </motion.div>
+
+      {/* ✅ NEW: Pagination Component */}
+      <div className="mt-6">
+        <Pagination
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          total={pagination.total}
+          limit={pagination.limit}
+          from={pagination.from}
+          to={pagination.to}
+          hasNext={pagination.hasNext}
+          hasPrev={pagination.hasPrev}
+          onPageChange={goToPage}
+          onLimitChange={changeLimit}
+        />
+      </div>
 
       <AnimatePresence>
         {showModal && (

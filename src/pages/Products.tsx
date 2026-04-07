@@ -1,26 +1,27 @@
-import React, { useMemo, useCallback } from 'react';
-import { Plus, History } from 'lucide-react';
+import { useCallback } from 'react';
+import { Plus, History, Edit, Trash2 } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { Product } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import PriceHistoryModal from '../components/PriceHistoryModal';
 import { formatNumber } from '../utils/formatNumber';
+import { useQueryClient } from '@tanstack/react-query';
+import { QUERY_KEYS } from '../lib/queryKeys';
 
 // Reusable Components
 import Modal from '../components/common/Modal';
-import DataTable, { Column } from '../components/common/DataTable';
 import SearchBar from '../components/common/SearchBar';
 import ActionButton from '../components/common/ActionButton';
 import FormField from '../components/common/FormField';
+import { Pagination } from '../components/common/Pagination';
 
-// Custom Hooks (simple, no Redux)
-import { useEntityApi } from '../hooks/useApi';
+// Custom Hooks
 import { useModal } from '../hooks/useModal';
 import { useForm } from '../hooks/useForm';
-import { useSearch } from '../hooks/useSearch';
+import { useTableData } from '../hooks/useTableData';
 
 // React Query hooks
-import { useProducts, useCreateProduct, useUpdateProduct, useDeleteProduct } from '../hooks/queries/useProducts';
-import { useFeatureFlag } from '../lib/featureFlags';
+import { useCreateProduct, useUpdateProduct, useDeleteProduct } from '../hooks/queries/useProducts';
 
 // Form validation
 const validateProduct = (values: any) => {
@@ -43,47 +44,27 @@ const validateProduct = (values: any) => {
 
 const Products = () => {
   const { t, language } = useLanguage();
+  const queryClient = useQueryClient();
   
-  // Feature flag for React Query migration
-  const useReactQuery = useFeatureFlag('react-query-products');
+  // ✅ NEW: Pagination with useTableData
+  const {
+    data: products,
+    pagination,
+    loading,
+    search,
+    updateSearch,
+    goToPage,
+    changeLimit,
+    refresh
+  } = useTableData<Product>({
+    endpoint: 'api/products',
+    initialLimit: 50
+  });
   
-  // Simple search state (no Redux)
-  const { searchTerm, setSearchTerm } = useSearch('products');
-  
-  // React Query hooks (new implementation)
-  const reactQueryProducts = useProducts();
+  // React Query mutations
   const createProductMutation = useCreateProduct();
   const updateProductMutation = useUpdateProduct();
   const deleteProductMutation = useDeleteProduct();
-  
-  // Legacy API hooks (old implementation)
-  const legacyApi = useEntityApi<Product>('/products', 'Product');
-
-  // Conditional data and functions based on feature flag
-  const products = useReactQuery ? (reactQueryProducts.data || []) : legacyApi.items;
-  const loading = useReactQuery ? reactQueryProducts.isLoading : legacyApi.loading;
-  
-  // Conditional functions based on feature flag
-  const fetchProducts = useReactQuery ? 
-    () => reactQueryProducts.refetch() : 
-    legacyApi.fetchAll;
-    
-  const createProduct = useReactQuery ?
-    (data: Partial<Product>) => createProductMutation.mutateAsync(data) :
-    legacyApi.create;
-    
-  const updateProduct = useReactQuery ?
-    (id: number | string, data: Partial<Product>) => updateProductMutation.mutateAsync({ id, data }) :
-    legacyApi.update;
-    
-  const deleteProduct = useReactQuery ?
-    (id: number | string) => {
-      if (window.confirm(`Are you sure you want to delete this product?`)) {
-        return deleteProductMutation.mutateAsync(id);
-      }
-      return Promise.resolve(null);
-    } :
-    legacyApi.remove;
 
   // Modal management
   const productModal = useModal<Product>();
@@ -124,25 +105,19 @@ const Products = () => {
       };
 
       if (productModal.data) {
-        await updateProduct(productModal.data.id, productData);
+        await updateProductMutation.mutateAsync({ id: productModal.data.id, data: productData });
       } else {
-        await createProduct(productData);
+        await createProductMutation.mutateAsync(productData);
       }
       
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.products });
+      refresh(); // ✅ Critical for pagination
       productModal.close();
       productForm.reset();
     }
   });
 
-  // Load products on mount (only for legacy API)
-  React.useEffect(() => {
-    if (!useReactQuery) {
-      legacyApi.fetchAll();
-    }
-    // React Query automatically fetches on mount
-  }, [useReactQuery, legacyApi.fetchAll]);
-
-  // ✅ OPTIMIZED: Memoized modal handler to prevent unnecessary re-renders
+  // Modal handler
   const handleOpenModal = useCallback((product?: Product) => {
     if (product) {
       productForm.setValues({
@@ -161,108 +136,23 @@ const Products = () => {
     productModal.open(product);
   }, [productForm, productModal]);
 
-  // ✅ OPTIMIZED: Memoized table columns to prevent recreation on every render
-  const columns: Column<Product>[] = useMemo(() => [
-    {
-      key: 'code',
-      label: t('productCode'),
-      render: (value) => <span className="font-medium">{value}</span>
-    },
-    {
-      key: 'name',
-      label: t('productName'),
-      render: (value) => <span className="font-medium">{value}</span>
-    },
-    {
-      key: 'description',
-      label: t('description'),
-      render: (value) => <span className="text-gray-600">{value || '-'}</span>
-    },
-    {
-      key: 'unit',
-      label: t('unitOfMeasurement'),
-      align: 'center'
-    },
-    {
-      key: 'amount',
-      label: t('amount'),
-      align: 'right',
-      render: (value) => formatNumber(Number(value))
-    },
-    {
-      key: 'unitCost',
-      label: t('unitPrice'),
-      align: 'right',
-      render: (value) => formatNumber(Number(value))
-    },
-    {
-      key: 'salesPrice',
-      label: t('salesPrice'),
-      align: 'right',
-      className: 'text-blue-600 font-semibold',
-      render: (value) => formatNumber(Number(value || 0))
-    },
-    {
-      key: 'id',
-      label: t('salesPriceHistory'),
-      align: 'center',
-      render: (_, row) => (
-        <ActionButton
-          onClick={() => priceHistoryModal.open({ id: row.id, name: row.name })}
-          icon={History}
-          variant="secondary"
-          size="sm"
-          className="mx-auto"
-        >
-          {t('history')}
-        </ActionButton>
-      )
+  // Handle delete
+  const handleDeleteProduct = useCallback(async (product: Product) => {
+    if (window.confirm(`Are you sure you want to delete ${product.name}?`)) {
+      await deleteProductMutation.mutateAsync(product.id);
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.products });
+      refresh(); // ✅ Critical for pagination
     }
-  ], [t, priceHistoryModal]); // ✅ Only recreate when translation function or modal changes
-
-  // Handle delete with proper signature
-  const handleDeleteProduct = useCallback((product: Product) => {
-    deleteProduct(product.id);
-  }, [deleteProduct]);
-
-  // ✅ OPTIMIZED: Memoized product filtering for better performance
-  const filteredProducts = useMemo(() => {
-    // Early return if no search term - avoid unnecessary filtering
-    if (!searchTerm.trim()) {
-      return products;
-    }
-    
-    const lowerSearchTerm = searchTerm.toLowerCase();
-    
-    return products.filter((product: Product) => {
-      // ✅ PERFORMANCE: Check most likely matches first (name, code)
-      if (product.name?.toLowerCase().includes(lowerSearchTerm)) return true;
-      if (product.code?.toLowerCase().includes(lowerSearchTerm)) return true;
-      
-      // ✅ PERFORMANCE: Check other string fields
-      if (product.description?.toLowerCase().includes(lowerSearchTerm)) return true;
-      if (product.unit?.toLowerCase().includes(lowerSearchTerm)) return true;
-      if (product.category?.toLowerCase().includes(lowerSearchTerm)) return true;
-      if (product.status?.toLowerCase().includes(lowerSearchTerm)) return true;
-      
-      // ✅ PERFORMANCE: Check numeric fields (convert to string only when needed)
-      if (product.amount?.toString().includes(lowerSearchTerm)) return true;
-      if (product.unitCost?.toString().includes(lowerSearchTerm)) return true;
-      if (product.salesPrice?.toString().includes(lowerSearchTerm)) return true;
-      if (product.taxRate?.toString().includes(lowerSearchTerm)) return true;
-      
-      return false;
-    });
-  }, [products, searchTerm]); // ✅ Only re-compute when products or searchTerm changes
+  }, [deleteProductMutation, queryClient, refresh]);
 
   return (
     <div>
       {/* Header with Search and Add Button */}
       <div className="flex justify-between items-center mb-6">
         <SearchBar
-          value={searchTerm}
-          onChange={setSearchTerm}
-          placeholder={t('search')}
+          value={search}
+          onChange={updateSearch}
+          placeholder={t('search') + '...'}
         />
         
         <ActionButton
@@ -275,14 +165,101 @@ const Products = () => {
       </div>
 
       {/* Products Table */}
-      <DataTable
-        data={filteredProducts}
-        columns={columns}
-        onEdit={handleOpenModal}
-        onDelete={handleDeleteProduct}
-        loading={loading}
-        emptyMessage="No products found"
-      />
+      {loading ? (
+        <div className="bg-white rounded-xl shadow-lg p-12 text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <span className="ml-3 text-gray-600">Loading...</span>
+        </div>
+      ) : (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="bg-white rounded-xl shadow-lg overflow-hidden"
+        >
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-max table-auto">
+              <thead className="bg-gray-50 border-b-2 border-gray-200 sticky top-0 z-20">
+                <tr>
+                  <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">{t('productCode').toUpperCase()}</th>
+                  <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">{t('productName').toUpperCase()}</th>
+                  <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">{t('description').toUpperCase()}</th>
+                  <th className="px-4 py-4 text-center text-sm font-bold text-gray-800 whitespace-nowrap">{t('unitOfMeasurement').toUpperCase()}</th>
+                  <th className="px-4 py-4 text-right text-sm font-bold text-gray-800 whitespace-nowrap">{t('amount').toUpperCase()}</th>
+                  <th className="px-4 py-4 text-right text-sm font-bold text-gray-800 whitespace-nowrap">{t('unitPrice').toUpperCase()}</th>
+                  <th className="px-4 py-4 text-right text-sm font-bold text-gray-800 whitespace-nowrap">{t('salesPrice').toUpperCase()}</th>
+                  <th className="px-4 py-4 text-center text-sm font-bold text-gray-800 whitespace-nowrap">{t('salesPriceHistory').toUpperCase()}</th>
+                  <th className="px-4 py-4 text-center text-sm font-bold text-gray-800 whitespace-nowrap">ACTIONS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {products.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="px-6 py-12 text-center text-gray-500">
+                      {t('noProductsFound')}
+                    </td>
+                  </tr>
+                ) : (
+                  products.map((product) => (
+                    <tr key={product.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3 text-sm font-medium">{product.code}</td>
+                      <td className="px-4 py-3 text-sm font-medium">{product.name}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{product.description || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-center">{product.unit}</td>
+                      <td className="px-4 py-3 text-sm text-right">{formatNumber(Number(product.amount))}</td>
+                      <td className="px-4 py-3 text-sm text-right">{formatNumber(Number(product.unitCost))}</td>
+                      <td className="px-4 py-3 text-sm text-right text-blue-600 font-semibold">{formatNumber(Number(product.salesPrice || 0))}</td>
+                      <td className="px-4 py-3 text-sm text-center">
+                        <ActionButton
+                          onClick={() => priceHistoryModal.open({ id: product.id, name: product.name })}
+                          icon={History}
+                          variant="secondary"
+                          size="sm"
+                        >
+                          {t('history')}
+                        </ActionButton>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex gap-2 justify-center">
+                          <button
+                            onClick={() => handleOpenModal(product)}
+                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                            title="Edit"
+                          >
+                            <Edit size={18} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteProduct(product)}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                            title="Delete"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </motion.div>
+      )}
+
+      {/* ✅ NEW: Pagination Component */}
+      <div className="mt-6">
+        <Pagination
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          total={pagination.total}
+          limit={pagination.limit}
+          from={pagination.from}
+          to={pagination.to}
+          hasNext={pagination.hasNext}
+          hasPrev={pagination.hasPrev}
+          onPageChange={goToPage}
+          onLimitChange={changeLimit}
+        />
+      </div>
 
       {/* Product Form Modal */}
       <Modal
@@ -423,7 +400,7 @@ const Products = () => {
           productId={priceHistoryModal.data.id}
           productName={priceHistoryModal.data.name}
           onClose={() => priceHistoryModal.close()}
-          onPriceUpdated={fetchProducts}
+          onPriceUpdated={refresh}
         />
       )}
     </div>

@@ -1,12 +1,14 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, Edit2, Trash2, X, Building2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Building2 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
 import { useLanguage } from '../contexts/LanguageContext';
 import { formatNumber } from '../utils/formatNumber';
-import { useBankAccounts } from '../hooks/queries/useSharedData';
 import { QUERY_KEYS } from '../lib/queryKeys';
+import { useTableData } from '../hooks/useTableData';
+import { Pagination } from '../components/common/Pagination';
+import SearchBar from '../components/common/SearchBar';
 
 interface BankAccount {
   id: number;
@@ -22,10 +24,22 @@ const BankAccounts = () => {
   const { t } = useLanguage();
   const queryClient = useQueryClient();
   
-  // ✅ REACT QUERY: Use shared data hook instead of local state
-  const { data: accounts = [], isLoading, isError } = useBankAccounts();
-  
-  const [searchTerm, setSearchTerm] = useState('');
+  // ✅ NEW: Use useTableData for pagination
+  const {
+    data: accounts,
+    pagination,
+    loading,
+    search,
+    updateSearch,
+    goToPage,
+    changeLimit,
+    refresh
+  } = useTableData<BankAccount>({
+    endpoint: '/api/bank-accounts',
+    initialLimit: 50,
+    initialSortBy: 'createdAt',
+    initialSortOrder: 'DESC'
+  });
   const [showModal, setShowModal] = useState(false);
   const [editingAccount, setEditingAccount] = useState<BankAccount | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -44,6 +58,12 @@ const BankAccounts = () => {
     // Prevent double submission
     if (isSubmitting) return;
     
+    // Validate account number is exactly 4 digits
+    if (!/^\d{4}$/.test(formData.accountNumber)) {
+      alert('Account number must be exactly 4 digits (last 4 digits of your account)');
+      return;
+    }
+    
     setIsSubmitting(true);
     try {
       if (editingAccount) {
@@ -54,6 +74,7 @@ const BankAccounts = () => {
       
       // ✅ REACT QUERY: Cache invalidation for automatic UI updates
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankAccounts });
+      refresh(); // Refresh pagination data
       
       closeModal();
     } catch (error) {
@@ -71,6 +92,7 @@ const BankAccounts = () => {
         
         // ✅ REACT QUERY: Cache invalidation for automatic UI updates
         queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankAccounts });
+        refresh(); // Refresh pagination data
       } catch (error) {
         console.error('Error deleting bank account:', error);
       }
@@ -108,39 +130,12 @@ const BankAccounts = () => {
     setIsSubmitting(false);
   }, []);
 
-  // ✅ MEMOIZED: Filtered accounts
-  const filteredAccounts = useMemo(() => {
-    return accounts.filter((account) =>
-      Object.values(account).some((value) =>
-        value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    );
-  }, [accounts, searchTerm]);
-
   // ✅ OPTIMIZED: Loading state
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
         <span className="ml-3 text-gray-600">Loading bank accounts...</span>
-      </div>
-    );
-  }
-
-  // ✅ ERROR STATE
-  if (isError) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="text-red-500 text-4xl mb-4">⚠️</div>
-          <p className="text-gray-600 mb-4">Error loading bank accounts</p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-          >
-            Retry
-          </button>
-        </div>
       </div>
     );
   }
@@ -155,16 +150,11 @@ const BankAccounts = () => {
       </div>
 
       <div className="flex justify-between items-center mb-6">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-          <input
-            type="text"
-            placeholder={t('search')}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
+        <SearchBar
+          value={search}
+          onChange={updateSearch}
+          placeholder={t('search')}
+        />
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
@@ -194,7 +184,7 @@ const BankAccounts = () => {
             </tr>
           </thead>
           <tbody>
-            {filteredAccounts.map((account) => (
+            {accounts.map((account) => (
               <tr key={account.id} className="border-b hover:bg-gray-50">
                 <td className="px-6 py-4 text-sm font-medium">{account.code}</td>
                 <td className="px-6 py-4 text-sm">{account.bankName}</td>
@@ -229,6 +219,22 @@ const BankAccounts = () => {
           </tbody>
         </table>
       </motion.div>
+
+      {/* ✅ NEW: Pagination Component */}
+      <div className="mt-6">
+        <Pagination
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          total={pagination.total}
+          limit={pagination.limit}
+          from={pagination.from}
+          to={pagination.to}
+          hasNext={pagination.hasNext}
+          hasPrev={pagination.hasPrev}
+          onPageChange={goToPage}
+          onLimitChange={changeLimit}
+        />
+      </div>
 
       <AnimatePresence>
         {showModal && (
@@ -272,10 +278,20 @@ const BankAccounts = () => {
                   <input
                     type="text"
                     required
+                    maxLength={4}
+                    pattern="[0-9]{4}"
                     value={formData.accountNumber}
-                    onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
+                    onChange={(e) => {
+                      // Only allow digits and max 4 characters
+                      const value = e.target.value.replace(/\D/g, '').slice(0, 4);
+                      setFormData({ ...formData, accountNumber: value });
+                    }}
                     className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter last 4 digits"
                   />
+                  <p className="text-xs text-gray-500 mt-1">
+                    ⚠️ For security, enter only the last 4 digits of your account number
+                  </p>
                 </div>
 
                 <div>

@@ -1,21 +1,35 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, Edit, Trash2, X } from 'lucide-react';
+import { Plus, Edit, Trash2, X } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
 import { Client } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
-import { useClients } from '../hooks/queries/useSharedData';
 import { QUERY_KEYS } from '../lib/queryKeys';
+import { useTableData } from '../hooks/useTableData';
+import { Pagination } from '../components/common/Pagination';
+import SearchBar from '../components/common/SearchBar';
 
 const Clients = () => {
   const { t } = useLanguage();
   const queryClient = useQueryClient();
   
-  // ✅ REACT QUERY: Use shared data hook instead of local state
-  const { data: clients = [], isLoading, isError } = useClients();
-  
-  const [searchTerm, setSearchTerm] = useState('');
+  // ✅ NEW: Use useTableData for pagination
+  const {
+    data: clients,
+    pagination,
+    loading,
+    search,
+    updateSearch,
+    goToPage,
+    changeLimit,
+    refresh
+  } = useTableData<Client>({
+    endpoint: '/api/clients',
+    initialLimit: 50,
+    initialSortBy: 'createdAt',
+    initialSortOrder: 'DESC'
+  });
   const [showModal, setShowModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
@@ -44,6 +58,7 @@ const Clients = () => {
       
       // ✅ REACT QUERY: Cache invalidation for automatic UI updates
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.clients });
+      refresh(); // Refresh pagination data
       
       closeModal();
     } catch (error) {
@@ -61,6 +76,7 @@ const Clients = () => {
         
         // ✅ REACT QUERY: Cache invalidation for automatic UI updates
         queryClient.invalidateQueries({ queryKey: QUERY_KEYS.clients });
+        refresh(); // Refresh pagination data
       } catch (error) {
         console.error('Error deleting client:', error);
       }
@@ -86,17 +102,8 @@ const Clients = () => {
     setFormData({ code: '', name: '', rncCedula: '', phone: '', address: '' });
   }, []);
 
-  // ✅ MEMOIZED: Filtered clients
-  const filteredClients = useMemo(() => {
-    return clients.filter((client) =>
-      Object.values(client).some((value) =>
-        value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    );
-  }, [clients, searchTerm]);
-
   // ✅ OPTIMIZED: Loading state
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -105,37 +112,14 @@ const Clients = () => {
     );
   }
 
-  // ✅ ERROR STATE
-  if (isError) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="text-red-500 text-4xl mb-4">⚠️</div>
-          <p className="text-gray-600 mb-4">Error loading clients</p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-          <input
-            type="text"
-            placeholder={t('search')}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-        </div>
+        <SearchBar
+          value={search}
+          onChange={updateSearch}
+          placeholder={t('search')}
+        />
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
@@ -165,7 +149,7 @@ const Clients = () => {
           </thead>
           <tbody>
             <AnimatePresence>
-              {filteredClients.map((client, index) => (
+              {clients.map((client, index) => (
                 <motion.tr
                   key={client.id}
                   initial={{ opacity: 0, y: 20 }}
@@ -205,6 +189,22 @@ const Clients = () => {
           </tbody>
         </table>
       </motion.div>
+
+      {/* ✅ NEW: Pagination Component */}
+      <div className="mt-6">
+        <Pagination
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          total={pagination.total}
+          limit={pagination.limit}
+          from={pagination.from}
+          to={pagination.to}
+          hasNext={pagination.hasNext}
+          hasPrev={pagination.hasPrev}
+          onPageChange={goToPage}
+          onLimitChange={changeLimit}
+        />
+      </div>
 
       <AnimatePresence>
         {showModal && (

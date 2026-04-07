@@ -186,7 +186,7 @@ const ExpenseDashboard = ({
               : 0;
             
             return (
-              <div key={item.category?.id || index} className="flex items-center justify-between">
+              <div key={`category-${item.category?.id || index}`} className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   <div className={`w-3 h-3 rounded-full bg-blue-${500 + index * 100}`}></div>
                   <div>
@@ -238,7 +238,7 @@ const ExpenseDashboard = ({
             };
             
             return (
-              <div key={item.status} className="flex items-center justify-between">
+              <div key={`status-${item.status}`} className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                     statusColors[item.status] || 'bg-gray-100 text-gray-800'
@@ -265,7 +265,7 @@ const ExpenseDashboard = ({
       {/* Metrics skeleton */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {[1, 2, 3, 4].map(i => (
-          <div key={i} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div key={`skeleton-metric-${i}`} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="animate-pulse">
               <div className="h-4 bg-gray-200 rounded w-1/2 mb-2"></div>
               <div className="h-8 bg-gray-200 rounded w-3/4 mb-2"></div>
@@ -278,12 +278,12 @@ const ExpenseDashboard = ({
       {/* Charts skeleton */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {[1, 2].map(i => (
-          <div key={i} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div key={`skeleton-chart-${i}`} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="animate-pulse">
               <div className="h-6 bg-gray-200 rounded w-1/3 mb-4"></div>
               <div className="space-y-3">
                 {[1, 2, 3].map(j => (
-                  <div key={j} className="flex justify-between">
+                  <div key={`skeleton-item-${i}-${j}`} className="flex justify-between">
                     <div className="h-4 bg-gray-200 rounded w-1/2"></div>
                     <div className="h-4 bg-gray-200 rounded w-1/4"></div>
                   </div>
