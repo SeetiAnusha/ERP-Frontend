@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { FaFileInvoice, FaChartBar, FaMoneyBillWave, FaBook, FaCalendarAlt, FaDownload } from 'react-icons/fa';
-import { useLanguage } from '../contexts/LanguageContext';
+// import { useLanguage } from '../contexts/LanguageContext';
 import { useBalanceSheet, useProfitLoss, useCashFlow, useExportReport } from '../hooks/queries/useAccounting';
 import { formatNumber } from '../utils/formatNumber';
 
