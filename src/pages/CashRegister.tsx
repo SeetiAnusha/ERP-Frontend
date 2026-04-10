@@ -737,22 +737,6 @@ const CashRegister = () => {
     };
   }, [transactions, reportDate, cashRegisterMasters]);
 
-    // ✅ SIMPLIFIED: Only track CASH (no credit cards, debit cards, bank transfers)
-    const report = {
-      cashInflow: filtered.filter(t => t.transactionType === 'INFLOW')
-        .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0),
-      bankDeposits: filtered.filter(t => t.transactionType === 'OUTFLOW' && t.paymentMethod === 'BANK_DEPOSIT')
-        .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0),
-      corrections: filtered.filter(t => t.transactionType === 'OUTFLOW' && t.paymentMethod === 'CORRECTION')
-        .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0),
-      transactionCount: filtered.length,
-      inflowCount: filtered.filter(t => t.transactionType === 'INFLOW').length,
-      outflowCount: filtered.filter(t => t.transactionType === 'OUTFLOW').length,
-    };
-
-    return report;
-  }, [transactions, reportDate]);
-
   // ✅ REMOVED: No longer need manual filtering - backend handles it via pagination
   // Backend now handles search and filters, so we use the data directly from useTableData
 
