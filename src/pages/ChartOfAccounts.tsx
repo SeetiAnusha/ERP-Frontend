@@ -9,11 +9,10 @@ import {
   useDeleteAccount,
   useInitializeAccounts 
 } from '../hooks/queries/useAccounting';
-import { formatNumber } from '../utils/formatNumber';
 import AccountModal from '../components/modals/AccountModal';
 
 const ChartOfAccounts = () => {
-  const { t } = useLanguage();
+  // const { t } = useLanguage(); // Unused for now
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('ALL');
   const [isModalOpen, setIsModalOpen] = useState(false);

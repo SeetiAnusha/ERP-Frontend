@@ -44,7 +44,6 @@ const ExpenseDashboard = ({
   autoRefresh = false,
   refreshInterval = 30000
 }: ExpenseDashboardProps) => {
-  const queryClient = useQueryClient();
   const [selectedPeriod, setSelectedPeriod] = useState('all');
 
   // ✅ FIXED: Use React Query hook for dashboard data
@@ -147,7 +146,7 @@ const ExpenseDashboard = ({
         </div>
         
         <div className="space-y-4">
-          {dashboardData.topCategories.slice(0, 5).map((item, index) => {
+          {dashboardData.topCategories.slice(0, 5).map((item: any, index: number) => {
             const totalAmount = dashboardData.summary?.totalAmount || 0;
             const percentage = totalAmount > 0 
               ? ((item.amount || 0) / totalAmount) * 100 
@@ -197,7 +196,7 @@ const ExpenseDashboard = ({
         </div>
         
         <div className="space-y-3">
-          {dashboardData.breakdowns.byStatus.map((item) => {
+          {dashboardData.breakdowns.byStatus.map((item: any) => {
             const statusColors: Record<string, string> = {
               'PAID': 'bg-green-100 text-green-800',
               'PENDING': 'bg-yellow-100 text-yellow-800',

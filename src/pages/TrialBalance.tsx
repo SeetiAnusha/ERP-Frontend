@@ -6,7 +6,7 @@ import { useTrialBalance } from '../hooks/queries/useAccounting';
 import { formatNumber } from '../utils/formatNumber';
 
 const TrialBalance = () => {
-  const { t } = useLanguage();
+  // const { t } = useLanguage(); // Unused for now
   const [asOfDate, setAsOfDate] = useState(new Date().toISOString().split('T')[0]);
 
   const { data: trialBalance, isLoading } = useTrialBalance(asOfDate);

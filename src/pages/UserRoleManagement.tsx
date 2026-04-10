@@ -1,8 +1,8 @@
 import { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Edit, Trash2, X, Search, Shield, Users } from 'lucide-react';
+import { Plus, Edit, Trash2, X, Shield, Users } from 'lucide-react';
 import api from '../api/axios';
-import { useLanguage } from '../contexts/LanguageContext';
+// import { useLanguage } from '../contexts/LanguageContext';
 
 interface UserWithRole {
   user_id: number;
@@ -30,7 +30,7 @@ interface SearchUser {
 }
 
 const UserRoleManagement = () => {
-  const { t } = useLanguage();
+  // const { t } = useLanguage(); // Unused for now
   
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const [availableRoles, setAvailableRoles] = useState<AvailableRole[]>([]);

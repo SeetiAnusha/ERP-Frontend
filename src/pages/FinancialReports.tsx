@@ -6,7 +6,7 @@ import { useBalanceSheet, useProfitLoss, useCashFlow, useExportReport } from '..
 import { formatNumber } from '../utils/formatNumber';
 
 const FinancialReports = () => {
-  const { t } = useLanguage();
+  // const { t } = useLanguage(); // Unused for now
   const [activeReport, setActiveReport] = useState<'balance-sheet' | 'profit-loss' | 'cash-flow' | null>(null);
   const [dateRange, setDateRange] = useState({
     startDate: new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0],

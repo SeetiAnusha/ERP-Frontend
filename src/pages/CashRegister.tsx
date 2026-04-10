@@ -737,17 +737,6 @@ const CashRegister = () => {
     };
   }, [transactions, reportDate, cashRegisterMasters]);
 
-  // Keep old generateReport for backward compatibility
-  const generateReport = useCallback(() => {
-    const safeTransactions = Array.isArray(transactions) ? transactions : [];
-    const filtered = safeTransactions.filter(t => {
-      const tDate = new Date(t.registrationDate.split('T')[0]);
-      const selectedDate = new Date(reportDate);
-      tDate.setHours(0, 0, 0, 0);
-      selectedDate.setHours(0, 0, 0, 0);
-      return tDate.getTime() === selectedDate.getTime();
-    });
-
     // ✅ SIMPLIFIED: Only track CASH (no credit cards, debit cards, bank transfers)
     const report = {
       cashInflow: filtered.filter(t => t.transactionType === 'INFLOW')

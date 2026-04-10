@@ -292,9 +292,9 @@ const TransactionDeletion: React.FC = () => {
   // ✅ Watch for impact analysis changes to load approvers
   React.useEffect(() => {
     if (impactAnalysis && selectedTransaction) {
-      const amount = impactAnalysis.entityData?.amount || 
-                     impactAnalysis.entityData?.total ||
-                     impactAnalysis.entityData?.paymentAmount || 0;
+      const amount = (impactAnalysis as any).entityData?.amount || 
+                     (impactAnalysis as any).entityData?.total ||
+                     (impactAnalysis as any).entityData?.paymentAmount || 0;
       
       // ✅ FIXED: Get the required role from impact analysis
       const requiredRole = impactAnalysis.requiredApprovals?.[0] || 'Manager';
@@ -328,8 +328,8 @@ const TransactionDeletion: React.FC = () => {
       reason: reason.trim(),
       deletionReasonCode,
       customMemo: customMemo.trim() || undefined,
-      selectedApproverId // ✅ NEW: Send selected approver
-    });
+      selectedApproverId: selectedApproverId // ✅ NEW: Send selected approver
+    } as any);
   }, [selectedTransaction, reason, deletionReasonCode, customMemo, entityType, deletionReasons, selectedApproverId, submitDeletionMutation]);
 
   // ✅ Memoized process approval step handler

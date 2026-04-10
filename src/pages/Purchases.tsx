@@ -109,10 +109,6 @@ const Purchases = () => {
   const { data: cards = [] } = useCards();
   const createPurchaseMutation = useCreatePurchase();
   
-  
-  // ✅ NEW: Filter state for deletion status
-  const [filterStatus, setFilterStatus] = useState<string>('All');
-  
   // Products (keep these as they're for the product selection modal)
   const [purchaseItems, setPurchaseItems] = useState<PurchaseItem[]>([]);
   const [selectedProduct, setSelectedProduct] = useState('');
