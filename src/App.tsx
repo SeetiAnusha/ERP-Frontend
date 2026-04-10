@@ -47,6 +47,15 @@ import DataClassification from './pages/DataClassification';
 import TransactionDeletion from './pages/TransactionDeletion';
 // Authentication
 import Authentication from './pages/Authentication';
+// User Role Management
+import UserRoleManagement from './pages/UserRoleManagement';
+// Accounting & Financial Reporting
+// import ChartOfAccounts from './pages/ChartOfAccounts';
+// import GeneralLedger from './pages/GeneralLedger';
+// import TrialBalance from './pages/TrialBalance';
+// import FinancialReports from './pages/FinancialReports';
+import CreditCardFees from './pages/CreditCardFees';
+import CreditCardFeesDashboard from './pages/CreditCardFeesDashboard';
 
 function App() {
   return (
@@ -119,7 +128,16 @@ function App() {
                       <Route path="/credit-balances" element={<CreditBalances />} />
                       <Route path="/data-classification" element={<DataClassification />} />
                       <Route path="/transaction-deletion" element={<TransactionDeletion />} />
+                      <Route path="/user-roles" element={<UserRoleManagement />} />
                       <Route path="/expense-debug" element={<ExpenseDebug />} />
+                      {/* Accounting & Financial Reporting Routes */}
+                      {/* <Route path="/accounting/chart-of-accounts" element={<ChartOfAccounts />} />
+                      <Route path="/accounting/general-ledger" element={<GeneralLedger />} />
+                      <Route path="/accounting/trial-balance" element={<TrialBalance />} />
+                      <Route path="/accounting/financial-reports" element={<FinancialReports />} /> */}
+                      {/* Credit Card Fees Routes */}
+                      <Route path="/credit-card-fees" element={<CreditCardFees />} />
+                      <Route path="/credit-card-fees/dashboard" element={<CreditCardFeesDashboard />} />
                     </Routes>
                   </Layout>
                 </ProtectedRoute>

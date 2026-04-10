@@ -21,11 +21,6 @@ interface ExpenseRecord {
     name: string;
     rnc?: string;
   };
-  client?: {
-    id: number;
-    name: string;
-    rncCedula?: string;
-  };
   expenseCategory: {
     id: number;
     name: string;
@@ -43,11 +38,6 @@ interface ExpenseRecord {
   status: string;
   createdAt: string;
   
-  relatedARId?: number;
-  relatedDocumentType?: string;
-  relatedDocumentNumber?: string;
-  cardPaymentNetworkId?: number;
-  
   deletion_status?: string;
   deleted_at?: string;
   deleted_by?: number;
@@ -58,6 +48,10 @@ interface ExpenseRecord {
 const BusinessExpenses = () => {
   const queryClient = useQueryClient();
   
+  // ✅ PAGINATION: Add page state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(50);
+  
   // ✅ FIXED: Show ALL records by default, user can filter by date if needed
   // Dashboard uses its own period selector (independent)
   const [tableDateRange, setTableDateRange] = useState({
@@ -65,18 +59,31 @@ const BusinessExpenses = () => {
     endDate: ''
   });
   
-  // ✅ OPTIMIZATION: Use React Query - pass undefined if user clears dates to get ALL records
+  // ✅ OPTIMIZATION: Use React Query with pagination
   const shouldFilterByDate = tableDateRange.startDate && tableDateRange.endDate;
-  const { data: rawExpenses = [], isLoading: expensesLoading } = useBusinessExpenses(
-    shouldFilterByDate ? tableDateRange : undefined
-  );
+  const { data: expenseResponse, isLoading: expensesLoading } = useBusinessExpenses({
+    dateRange: shouldFilterByDate ? tableDateRange : undefined,
+    page: currentPage,
+    limit: pageSize
+  });
+  
   const { data: suppliers = [], isLoading: suppliersLoading } = useSuppliers();
   
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [showDashboard, setShowDashboard] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [activeTab, setActiveTab] = useState<'supplier' | 'processing' | 'all'>('supplier');
+
+  // ✅ PAGINATION: Extract data and pagination info
+  const rawExpenses = expenseResponse?.data || [];
+  const pagination = expenseResponse?.pagination || {
+    page: 1,
+    limit: pageSize,
+    total: 0,
+    totalPages: 0,
+    hasNextPage: false,
+    hasPreviousPage: false
+  };
 
   // ✅ OPTIMIZATION: Combine loading states
   const isLoading = expensesLoading || suppliersLoading;
@@ -90,7 +97,6 @@ const BusinessExpenses = () => {
       registrationNumber: expense.registrationNumber,
       date: expense.date,
       supplier: expense.supplier || null,
-      client: expense.client || null,
       expenseCategory: expense.expenseCategory || { id: 0, name: 'Uncategorized', code: '' },
       expenseType: expense.expenseTypeModel || { id: 0, name: 'General', code: '' },
       description: expense.description || 'No description',
@@ -99,10 +105,6 @@ const BusinessExpenses = () => {
       paymentStatus: expense.paymentStatus || 'Unpaid',
       status: expense.status,
       createdAt: expense.createdAt,
-      relatedARId: expense.relatedARId,
-      relatedDocumentType: expense.relatedDocumentType,
-      relatedDocumentNumber: expense.relatedDocumentNumber,
-      cardPaymentNetworkId: expense.cardPaymentNetworkId,
       deletion_status: expense.deletion_status,
       deleted_at: expense.deleted_at,
       deleted_by: expense.deleted_by,
@@ -110,16 +112,6 @@ const BusinessExpenses = () => {
       deletion_memo: expense.deletion_memo,
     }));
   }, [rawExpenses]);
-
-  // ✅ OPTIMIZATION: Memoized expense filtering by type
-  const { supplierExpenses, processingFees } = useMemo(() => {
-    if (!Array.isArray(expenses)) return { supplierExpenses: [], processingFees: [] };
-    
-    return {
-      supplierExpenses: expenses.filter(e => e.supplier && !e.client),
-      processingFees: expenses.filter(e => e.client && !e.supplier)
-    };
-  }, [expenses]);
 
   // ✅ OPTIMIZATION: Memoized status badge function
   const getStatusBadge = useCallback((status: string, isDeleted?: boolean) => {
@@ -145,29 +137,18 @@ const BusinessExpenses = () => {
     );
   }, []);
 
-  // ✅ OPTIMIZATION: Memoized filtered expenses based on active tab and search
+  // ✅ OPTIMIZATION: Memoized filtered expenses based on search
   const filteredExpenses = useMemo(() => {
-    let expensesToFilter: ExpenseRecord[] = [];
-    
-    if (activeTab === 'supplier') {
-      expensesToFilter = supplierExpenses;
-    } else if (activeTab === 'processing') {
-      expensesToFilter = processingFees;
-    } else {
-      expensesToFilter = expenses;
-    }
-    
-    if (!searchTerm) return expensesToFilter;
+    if (!searchTerm) return expenses;
     
     const lowerSearch = searchTerm.toLowerCase();
-    return expensesToFilter.filter((expense) =>
+    return expenses.filter((expense) =>
       expense.registrationNumber?.toLowerCase().includes(lowerSearch) ||
       expense.description?.toLowerCase().includes(lowerSearch) ||
       expense.supplier?.name?.toLowerCase().includes(lowerSearch) ||
-      expense.client?.name?.toLowerCase().includes(lowerSearch) ||
       expense.expenseCategory?.name?.toLowerCase().includes(lowerSearch)
     );
-  }, [expenses, supplierExpenses, processingFees, activeTab, searchTerm]);
+  }, [expenses, searchTerm]);
 
   // ✅ OPTIMIZATION: Memoized submit handler with React Query cache invalidation
   const handleSubmitExpense = useCallback(async (expenseData: any) => {
@@ -178,10 +159,25 @@ const BusinessExpenses = () => {
       // ✅ OPTIMIZATION: Use React Query cache invalidation
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.businessExpenses });
       queryClient.invalidateQueries({ queryKey: ['recent-activity'] });
+      // ✅ FIX: Invalidate dashboard cache to refresh dashboard data
+      queryClient.invalidateQueries({ queryKey: ['business-expenses', 'dashboard'] });
+      
+      // ✅ TASK 2: Invalidate bank accounts and cards cache to update balances
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankAccounts });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cards });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.suppliers });
       
       setShowModal(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error handling business expense submission:', error);
+      
+      // ✅ IMPROVED: Show specific error message from backend
+      const errorMessage = error.response?.data?.message || 
+                          error.response?.data?.error || 
+                          error.message || 
+                          'Failed to create business expense';
+      
+      alert(`Error: ${errorMessage}`);
       throw error;
     } finally {
       setIsSubmitting(false);
@@ -201,12 +197,28 @@ const BusinessExpenses = () => {
   // ✅ NEW: Clear date filter to show ALL records
   const clearDateFilter = useCallback(() => {
     setTableDateRange({ startDate: '', endDate: '' });
+    setCurrentPage(1); // Reset to first page
   }, []);
 
-  // ✅ OPTIMIZATION: Memoized tab change handler
-  const handleTabChange = useCallback((tab: 'supplier' | 'processing' | 'all') => {
-    setActiveTab(tab);
+  // ✅ PAGINATION: Page change handlers
+  const handlePageChange = useCallback((newPage: number) => {
+    setCurrentPage(newPage);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
+
+  const handleNextPage = useCallback(() => {
+    if (pagination.hasNextPage) {
+      setCurrentPage(prev => prev + 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [pagination.hasNextPage]);
+
+  const handlePreviousPage = useCallback(() => {
+    if (pagination.hasPreviousPage) {
+      setCurrentPage(prev => prev - 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [pagination.hasPreviousPage]);
 
   // ✅ OPTIMIZATION: Loading state with better UX
   if (isLoading) {
@@ -285,18 +297,16 @@ const BusinessExpenses = () => {
             />
           </div>
 
-          {/* Add Expense Button - Only for Supplier tab */}
-          {activeTab === 'supplier' && (
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={openModal}
-              className="bg-blue-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 shadow-lg whitespace-nowrap"
-            >
-              <Plus size={20} />
-              Add Expense
-            </motion.button>
-          )}
+          {/* Add Expense Button */}
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={openModal}
+            className="bg-blue-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 shadow-lg whitespace-nowrap"
+          >
+            <Plus size={20} />
+            Add Expense
+          </motion.button>
         </div>
       </div>
 
@@ -312,51 +322,15 @@ const BusinessExpenses = () => {
         </motion.div>
       )}
 
-      {/* Tab Navigation */}
+      {/* Expenses List */}
       <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-        <div className="border-b border-gray-200">
-          <nav className="flex -mb-px">
-            <TabButton
-              active={activeTab === 'supplier'}
-              onClick={() => handleTabChange('supplier')}
-              icon={<TrendingUp size={16} />}
-              label="Supplier Expenses"
-              count={supplierExpenses.length}
-            />
-            
-            <TabButton
-              active={activeTab === 'processing'}
-              onClick={() => handleTabChange('processing')}
-              icon="💳"
-              label="Processing Fees"
-              count={processingFees.length}
-              badgeColor="bg-blue-100 text-blue-600"
-            />
-            
-            <TabButton
-              active={activeTab === 'all'}
-              onClick={() => handleTabChange('all')}
-              icon={<BarChart3 size={16} />}
-              label="All Expenses"
-              count={expenses.length}
-            />
-          </nav>
-        </div>
-
-        {/* Info Banner for Processing Fees Tab */}
-        {activeTab === 'processing' && <InfoBanner />}
-
         {/* Expenses List Header */}
         <div className="p-6 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-800">
-            {activeTab === 'supplier' && `Supplier Expense Records (${filteredExpenses.length})`}
-            {activeTab === 'processing' && `Processing Fee Records (${filteredExpenses.length})`}
-            {activeTab === 'all' && `All Expense Records (${filteredExpenses.length})`}
+            Supplier Expense Records ({filteredExpenses.length})
           </h2>
           <p className="text-sm text-gray-600 mt-1">
-            {activeTab === 'supplier' && '💡 Unpaid expenses are automatically shown in Accounts Payable for payment processing'}
-            {activeTab === 'processing' && '🔒 Read-only records automatically generated from AR collections'}
-            {activeTab === 'all' && '📊 Combined view of all business expenses'}
+            💡 Unpaid expenses are automatically shown in Accounts Payable for payment processing
           </p>
         </div>
 
@@ -364,11 +338,72 @@ const BusinessExpenses = () => {
         {filteredExpenses.length === 0 ? (
           <EmptyState />
         ) : (
-          <ExpenseTable
-            expenses={filteredExpenses}
-            activeTab={activeTab}
-            getStatusBadge={getStatusBadge}
-          />
+          <>
+            <ExpenseTable
+              expenses={filteredExpenses}
+              getStatusBadge={getStatusBadge}
+            />
+            
+            {/* ✅ PAGINATION CONTROLS */}
+            {pagination.totalPages > 1 && (
+              <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+                <div className="text-sm text-gray-700">
+                  Showing <span className="font-medium">{((pagination.page - 1) * pagination.limit) + 1}</span> to{' '}
+                  <span className="font-medium">
+                    {Math.min(pagination.page * pagination.limit, pagination.total)}
+                  </span> of{' '}
+                  <span className="font-medium">{pagination.total}</span> results
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handlePreviousPage}
+                    disabled={!pagination.hasPreviousPage}
+                    className="px-3 py-1 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Previous
+                  </button>
+                  
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                      let pageNum;
+                      if (pagination.totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (pagination.page <= 3) {
+                        pageNum = i + 1;
+                      } else if (pagination.page >= pagination.totalPages - 2) {
+                        pageNum = pagination.totalPages - 4 + i;
+                      } else {
+                        pageNum = pagination.page - 2 + i;
+                      }
+                      
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => handlePageChange(pageNum)}
+                          className={`px-3 py-1 rounded-lg text-sm font-medium ${
+                            pagination.page === pageNum
+                              ? 'bg-blue-600 text-white'
+                              : 'text-gray-700 hover:bg-gray-50 border border-gray-300'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  
+                  <button
+                    onClick={handleNextPage}
+                    disabled={!pagination.hasNextPage}
+                    className="px-3 py-1 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -384,48 +419,6 @@ const BusinessExpenses = () => {
   );
 };
 
-// ✅ OPTIMIZATION: Memoized Tab Button Component
-const TabButton = ({ active, onClick, icon, label, count, badgeColor = 'bg-gray-100 text-gray-600' }: any) => (
-  <button
-    onClick={onClick}
-    className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
-      active
-        ? 'border-blue-600 text-blue-600'
-        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-    }`}
-  >
-    <div className="flex items-center gap-2">
-      {icon}
-      <span>{label}</span>
-      <span className={`ml-2 px-2 py-0.5 ${badgeColor} rounded-full text-xs`}>
-        {count}
-      </span>
-    </div>
-  </button>
-);
-
-// ✅ OPTIMIZATION: Memoized Info Banner Component
-const InfoBanner = () => (
-  <div className="bg-blue-50 border-b border-blue-200 p-4">
-    <div className="flex items-start gap-3">
-      <div className="text-blue-600 text-xl">ℹ️</div>
-      <div className="flex-1">
-        <h4 className="text-sm font-semibold text-blue-900 mb-1">
-          About Processing Fees
-        </h4>
-        <p className="text-sm text-blue-800">
-          These fees are automatically recorded when collecting AR payments via credit card. 
-          They are linked to clients (not suppliers) and cannot be edited manually.
-        </p>
-        <div className="mt-2 text-xs text-blue-700">
-          <strong>Category:</strong> Credit Card Processing Fees (Fixed) • 
-          <strong className="ml-2">Type:</strong> Auto-assigned by card network
-        </div>
-      </div>
-    </div>
-  </div>
-);
-
 // ✅ OPTIMIZATION: Memoized Empty State Component
 const EmptyState = () => (
   <div className="p-8 text-center">
@@ -435,21 +428,16 @@ const EmptyState = () => (
 );
 
 // ✅ OPTIMIZATION: Memoized Expense Table Component
-const ExpenseTable = ({ expenses, activeTab, getStatusBadge }: any) => (
+const ExpenseTable = ({ expenses, getStatusBadge }: any) => (
   <div className="overflow-x-auto">
     <table className="w-full">
       <thead className="bg-gray-50 border-b border-gray-200">
         <tr>
           <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">REGISTRATION #</th>
           <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">DATE</th>
-          <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">
-            {activeTab === 'processing' ? 'CLIENT' : activeTab === 'supplier' ? 'SUPPLIER' : 'ENTITY'}
-          </th>
+          <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">SUPPLIER</th>
           <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">CATEGORY</th>
           <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">TYPE</th>
-          {activeTab === 'processing' && (
-            <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">RELATED AR</th>
-          )}
           <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">DESCRIPTION</th>
           <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">AMOUNT</th>
           <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">PAYMENT</th>
@@ -463,7 +451,6 @@ const ExpenseTable = ({ expenses, activeTab, getStatusBadge }: any) => (
             key={expense.id}
             expense={expense}
             index={index}
-            activeTab={activeTab}
             getStatusBadge={getStatusBadge}
           />
         ))}
@@ -473,9 +460,8 @@ const ExpenseTable = ({ expenses, activeTab, getStatusBadge }: any) => (
 );
 
 // ✅ OPTIMIZATION: Memoized Expense Row Component
-const ExpenseRow = ({ expense, index, activeTab, getStatusBadge }: any) => {
+const ExpenseRow = ({ expense, index, getStatusBadge }: any) => {
   const isDeleted = expense.deletion_status === 'EXECUTED';
-  const isProcessingFee = !!expense.client;
   
   return (
     <motion.tr
@@ -483,13 +469,12 @@ const ExpenseRow = ({ expense, index, activeTab, getStatusBadge }: any) => {
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05 }}
       className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${
-        isDeleted ? 'bg-red-50 opacity-75' : isProcessingFee ? 'bg-blue-50' : ''
+        isDeleted ? 'bg-red-50 opacity-75' : ''
       }`}
     >
       <td className="px-6 py-4 text-sm font-medium">
         <div className="flex items-center gap-2">
           {isDeleted && <span className="text-red-500">🗑️</span>}
-          {isProcessingFee && <span className="text-blue-500">💳</span>}
           <span className={isDeleted ? 'line-through text-gray-500' : ''}>
             {expense.registrationNumber}
           </span>
@@ -497,15 +482,7 @@ const ExpenseRow = ({ expense, index, activeTab, getStatusBadge }: any) => {
       </td>
       <td className="px-6 py-4 text-sm">{new Date(expense.date).toLocaleDateString()}</td>
       <td className="px-6 py-4 text-sm">
-        {expense.client ? (
-          <div>
-            <div className="font-medium text-blue-700">{expense.client.name}</div>
-            {expense.client.rncCedula && (
-              <div className="text-xs text-gray-500">RNC: {expense.client.rncCedula}</div>
-            )}
-            <div className="text-xs text-blue-600 mt-1">Client (Processing Fee)</div>
-          </div>
-        ) : expense.supplier ? (
+        {expense.supplier ? (
           <div>
             <div className={isDeleted ? 'line-through text-gray-500' : ''}>
               {expense.supplier.name}
@@ -520,18 +497,9 @@ const ExpenseRow = ({ expense, index, activeTab, getStatusBadge }: any) => {
       </td>
       <td className="px-6 py-4 text-sm">
         {expense.expenseCategory ? (
-          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${
-            isProcessingFee 
-              ? 'bg-blue-100 text-blue-800 border border-blue-300' 
-              : 'bg-gray-100 text-gray-800'
-          }`}>
+          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-800">
             <FolderTree size={12} className="mr-1" />
             {expense.expenseCategory.name}
-            {isProcessingFee && <span className="ml-1">🔒</span>}
-          </span>
-        ) : isProcessingFee ? (
-          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800 border border-blue-300">
-            💳 Processing Fee
           </span>
         ) : (
           <span className="text-gray-400">-</span>
@@ -541,45 +509,23 @@ const ExpenseRow = ({ expense, index, activeTab, getStatusBadge }: any) => {
         {expense.expenseType ? (
           <div className="flex items-center gap-1">
             {expense.expenseType.name}
-            {isProcessingFee && (
-              <span className="text-xs text-blue-600" title="Auto-assigned by system">
-                (Auto)
-              </span>
-            )}
           </div>
-        ) : isProcessingFee ? (
-          <span className="text-xs text-blue-600">Auto-generated</span>
         ) : (
           <span className="text-gray-400">-</span>
         )}
       </td>
-      {activeTab === 'processing' && (
-        <td className="px-6 py-4 text-sm">
-          {expense.relatedDocumentNumber ? (
-            <span className="text-blue-600 font-medium">
-              {expense.relatedDocumentNumber}
-            </span>
-          ) : (
-            <span className="text-gray-400">-</span>
-          )}
-        </td>
-      )}
       <td className="px-6 py-4 text-sm max-w-xs truncate" title={expense.description}>
         <span className={isDeleted ? 'line-through text-gray-500' : ''}>
           {expense.description}
         </span>
       </td>
       <td className="px-6 py-4 text-sm font-semibold text-right">
-        <span className={`${isDeleted ? 'line-through text-gray-500' : isProcessingFee ? 'text-red-600' : ''}`}>
+        <span className={isDeleted ? 'line-through text-gray-500' : ''}>
           {formatNumber(expense.amount)}
         </span>
       </td>
       <td className="px-6 py-4 text-sm">
-        {isProcessingFee ? (
-          <span className="text-xs text-blue-600">AUTO_DEDUCTION</span>
-        ) : (
-          expense.paymentType
-        )}
+        {expense.paymentType}
       </td>
       <td className="px-6 py-4 text-center">
         {getStatusBadge(expense.paymentStatus, isDeleted)}

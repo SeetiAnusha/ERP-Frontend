@@ -487,8 +487,8 @@ const AccountsPayablePage = () => {
         </table>
       </motion.div>
 
-      {/* ✅ NEW: Pagination Component */}
-      <div className="mt-6">
+      {/* ✅ Pagination - Always visible, sticky at bottom like Purchases and Bank Register */}
+      <div className="bg-white rounded-lg shadow-sm p-4 sticky bottom-0 z-10">
         <Pagination
           page={pagination.page}
           totalPages={pagination.totalPages}
@@ -500,6 +500,10 @@ const AccountsPayablePage = () => {
           hasPrev={pagination.hasPrev}
           onPageChange={goToPage}
           onLimitChange={changeLimit}
+          onFirst={() => goToPage(1)}
+          onLast={() => goToPage(pagination.totalPages)}
+          onNext={() => goToPage(pagination.page + 1)}
+          onPrev={() => goToPage(pagination.page - 1)}
         />
       </div>
 

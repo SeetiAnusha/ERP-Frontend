@@ -26,7 +26,7 @@ import {
   useCreatePurchase
 } from '../hooks/queries/usePurchases';
 import { useProducts } from '../hooks/queries/useProducts';
-import { useBankAccounts, useSuppliers, useCards } from '../hooks/queries/useSharedData';
+import { useSuppliers, useCards } from '../hooks/queries/useSharedData';
 import { notify } from '../utils/notifications';
 
 interface PurchaseItem {
@@ -106,7 +106,6 @@ const Purchases = () => {
   // ✅ Keep React Query hooks for related data (not paginated)
   const { data: suppliers = [] } = useSuppliers();
   const { data: products = [] } = useProducts();
-  const { data: bankAccounts = [] } = useBankAccounts();
   const { data: cards = [] } = useCards();
   const createPurchaseMutation = useCreatePurchase();
   
@@ -136,7 +135,14 @@ const Purchases = () => {
     purchaseType: '',
     paymentType: '',
     cardId: '',
-    bankAccountId: ''
+    bankAccountId: '',
+    // ✅ NO DUPLICATION: Same payment detail fields as main purchase
+    chequeNumber: '',
+    chequeDate: new Date().toISOString().split('T')[0],
+    transferNumber: '',
+    transferDate: new Date().toISOString().split('T')[0],
+    paymentReference: '',
+    voucherDate: new Date().toISOString().split('T')[0],
   });
 
   // View Details Modals (keep these for the view modals)
@@ -237,16 +243,7 @@ const Purchases = () => {
       // ❌ REMOVED: All balance validation - Backend handles with real-time data
       // Frontend should NOT validate balances using potentially stale cached data
 
-
-
-
-
-
           
-
-
-
-
 
       
       // Backend will validate credit limits and account balances with accurate, real-time data
@@ -400,7 +397,14 @@ const Purchases = () => {
       purchaseType: '',
       paymentType: '',
       cardId: '',
-      bankAccountId: ''
+      bankAccountId: '',
+      // ✅ Reset payment detail fields
+      chequeNumber: '',
+      chequeDate: new Date().toISOString().split('T')[0],
+      transferNumber: '',
+      transferDate: new Date().toISOString().split('T')[0],
+      paymentReference: '',
+      voucherDate: new Date().toISOString().split('T')[0],
     });
     invoiceModal.close();
   };
@@ -607,6 +611,11 @@ const Purchases = () => {
       render: (value) => value || 'N/A'
     },
     {
+      key: 'ncf',
+      label: t('ncf'),
+      render: (value) => value || 'N/A'
+    },
+    {
       key: 'date',
       label: t('date'),
       render: (value) => new Date(value).toLocaleDateString()
@@ -700,7 +709,8 @@ const Purchases = () => {
   // ✅ Update filter when filterStatus changes
   useEffect(() => {
     if (filterStatus !== 'All') {
-      updateFilter('status', filterStatus);
+      // ✅ FIX: Use 'paymentStatus' instead of 'status' to match Purchase model column
+      updateFilter('paymentStatus', filterStatus);
     } else {
       clearFilters();
     }
@@ -718,16 +728,17 @@ const Purchases = () => {
           />
           
           {/* ✅ Status Filter */}
-          <select
+          {/* <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
           >
             <option value="All">All Purchases</option>
-            <option value="Active">Active Purchases</option>
-            <option value="Deleted">🗑️ Deleted Purchases</option>
-            <option value="Reversal">↩️ Reversal Entries</option>
-          </select>
+            <option value="Paid">Paid</option>
+            <option value="Partial">Partial</option>
+            <option value="Unpaid">Unpaid</option>
+            <option value="DELETED">🗑️ Deleted Purchases</option>
+          </select> */}
         </div>
         
         <ActionButton
@@ -739,18 +750,19 @@ const Purchases = () => {
         </ActionButton>
       </div>
 
-      {/* Purchases List */}
-      <DataTable
-        data={purchases}
-        columns={columns}
-        customActions={customActions}
-        loading={purchasesLoading}
-        emptyMessage="No purchases found"
-        className="mb-6"
-      />
+      {/* Purchases List - Fixed height container to prevent outer scroll */}
+      <div className="mb-4">
+        <DataTable
+          data={purchases}
+          columns={columns}
+          customActions={customActions}
+          loading={purchasesLoading}
+          emptyMessage="No purchases found"
+        />
+      </div>
 
-      {/* ✅ NEW: Pagination Component */}
-      <div className="mb-6">
+      {/* ✅ Pagination - Always visible, no scroll needed */}
+      <div className="bg-white rounded-lg shadow-sm p-4 sticky bottom-0 z-10">
         <Pagination
           page={pagination.page}
           totalPages={pagination.totalPages}
@@ -1524,68 +1536,236 @@ const Purchases = () => {
                   </div>
                 </div>
 
-                {/* Card Selection for Invoice Payment Types */}
+                {/* ✅ NO DUPLICATION: Use Shared CardSelector Component */}
+
                 {(newAssociatedInvoice.paymentType === 'DEBIT_CARD' || newAssociatedInvoice.paymentType === 'CREDIT_CARD') && (
-                  <div className="grid grid-cols-1 gap-3 mb-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        {newAssociatedInvoice.paymentType === 'DEBIT_CARD' ? 'Select Debit Card *' : 'Select Credit Card *'}
-                      </label>
-                      <select
-                        required
-                        value={newAssociatedInvoice.cardId}
-                        onChange={(e) => setNewAssociatedInvoice({...newAssociatedInvoice, cardId: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-orange-500"
-                      >
-                        <option value="">
-                          {newAssociatedInvoice.paymentType === 'DEBIT_CARD' ? 'Select debit card...' : 'Select credit card...'}
-                        </option>
-                        {cards
-                          .filter((card: any) => card.cardType === (newAssociatedInvoice.paymentType === 'DEBIT_CARD' ? 'DEBIT' : 'CREDIT'))
-                          .map((card: any) => (
-                            <option key={card.id} value={card.id}>
-                              {card.cardName ? card.cardName : `${card.cardBrand || (newAssociatedInvoice.paymentType === 'DEBIT_CARD' ? 'Debit Card' : 'Credit Card')} ****${card.cardNumberLast4}`}
-                              {newAssociatedInvoice.paymentType === 'DEBIT_CARD' && card.BankAccount && 
-                                ` - ${card.BankAccount.bankName} (Balance: $${Number(card.BankAccount.balance).toFixed(2)})`}
-                              {newAssociatedInvoice.paymentType === 'CREDIT_CARD' && card.creditLimit && 
-                                ` (Limit: $${Number(card.creditLimit).toFixed(2)}, Available: $${(Number(card.creditLimit) - Number(card.usedCredit || 0)).toFixed(2)})`}
-                            </option>
-                          ))}
-                      </select>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {newAssociatedInvoice.paymentType === 'DEBIT_CARD' 
-                          ? '💳 DEBIT: Money deducted from bank account immediately' 
-                          : '💳 CREDIT: Creates Accounts Payable - you pay card company later'}
-                      </p>
+
+                  <>
+
+                    <CardSelector
+
+                      value={newAssociatedInvoice.cardId}
+
+                      onChange={(value) => setNewAssociatedInvoice({...newAssociatedInvoice, cardId: value})}
+
+                      cardType={newAssociatedInvoice.paymentType === 'DEBIT_CARD' ? 'DEBIT' : 'CREDIT'}
+
+                      required
+
+                      label={newAssociatedInvoice.paymentType === 'DEBIT_CARD' ? 'Select Debit Card' : 'Select Credit Card'}
+
+                      showAvailableLimit={true}
+
+                      className="mb-3"
+
+                    />
+
+                    
+
+                    {/* Payment Reference and Voucher Date */}
+
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+
+                      <div>
+
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Payment Reference *</label>
+
+                        <input
+
+                          type="text"
+
+                          required
+
+                          value={newAssociatedInvoice.paymentReference}
+
+                          onChange={(e) => setNewAssociatedInvoice({...newAssociatedInvoice, paymentReference: e.target.value})}
+
+                          className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-orange-500"
+
+                          placeholder="Enter payment reference/voucher number"
+
+                        />
+
+                      </div>
+
+                      <div>
+
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Voucher Date *</label>
+
+                        <input
+
+                          type="date"
+
+                          required
+
+                          value={newAssociatedInvoice.voucherDate}
+
+                          onChange={(e) => setNewAssociatedInvoice({...newAssociatedInvoice, voucherDate: e.target.value})}
+
+                          className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-orange-500"
+
+                        />
+
+                      </div>
+
                     </div>
-                  </div>
+
+                    
+
+                    <p className="text-xs text-gray-500 mb-3">
+
+                      {newAssociatedInvoice.paymentType === 'DEBIT_CARD' 
+
+                        ? '💳 DEBIT: Money deducted from bank account immediately' 
+
+                        : '💳 CREDIT: Creates Accounts Payable - you pay card company later'}
+
+                    </p>
+
+                  </>
+
                 )}
 
-                {/* Bank Account Selection for Invoice Payment Types */}
+                {/* ✅ NO DUPLICATION: Use Shared BankAccountSelector Component */}
+
                 {(newAssociatedInvoice.paymentType === 'BANK_TRANSFER' || newAssociatedInvoice.paymentType === 'CHEQUE' || newAssociatedInvoice.paymentType === 'DEPOSIT') && (
-                  <div className="grid grid-cols-1 gap-3 mb-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Select Bank Account *
-                      </label>
-                      <select
-                        required
-                        value={newAssociatedInvoice.bankAccountId || ''}
-                        onChange={(e) => setNewAssociatedInvoice({...newAssociatedInvoice, bankAccountId: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-orange-500"
-                      >
-                        <option value="">Select bank account...</option>
-                        {bankAccounts.map((account: any) => (
-                          <option key={account.id} value={account.id}>
-                            {account.bankName} - {account.accountNumber} ({account.accountType}) - Balance: $${Number(account.balance).toFixed(2)}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="text-xs text-gray-500 mt-1">
-                        💰 {newAssociatedInvoice.paymentType}: Money deducted from selected bank account
-                      </p>
-                    </div>
-                  </div>
+
+                  <>
+
+                    <BankAccountSelector
+
+                      value={newAssociatedInvoice.bankAccountId || ''}
+
+                      onChange={(value) => setNewAssociatedInvoice({...newAssociatedInvoice, bankAccountId: value})}
+
+                      required
+
+                      label="Select Bank Account"
+
+                      showBalance={true}
+
+                      className="mb-3"
+
+                    />
+
+                    
+
+                    {/* Cheque Details */}
+
+                    {newAssociatedInvoice.paymentType === 'CHEQUE' && (
+
+                      <div className="grid grid-cols-2 gap-3 mb-3">
+
+                        <div>
+
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Cheque Number *</label>
+
+                          <input
+
+                            type="text"
+
+                            required
+
+                            value={newAssociatedInvoice.chequeNumber}
+
+                            onChange={(e) => setNewAssociatedInvoice({...newAssociatedInvoice, chequeNumber: e.target.value})}
+
+                            className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-orange-500"
+
+                            placeholder="Enter cheque number"
+
+                          />
+
+                        </div>
+
+                        <div>
+
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Cheque Date *</label>
+
+                          <input
+
+                            type="date"
+
+                            required
+
+                            value={newAssociatedInvoice.chequeDate}
+
+                            onChange={(e) => setNewAssociatedInvoice({...newAssociatedInvoice, chequeDate: e.target.value})}
+
+                            className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-orange-500"
+
+                          />
+
+                        </div>
+
+                      </div>
+
+                    )}
+
+                    
+
+                    {/* Bank Transfer Details */}
+
+                    {newAssociatedInvoice.paymentType === 'BANK_TRANSFER' && (
+
+                      <div className="grid grid-cols-2 gap-3 mb-3">
+
+                        <div>
+
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Transfer Number *</label>
+
+                          <input
+
+                            type="text"
+
+                            required
+
+                            value={newAssociatedInvoice.transferNumber}
+
+                            onChange={(e) => setNewAssociatedInvoice({...newAssociatedInvoice, transferNumber: e.target.value})}
+
+                            className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-orange-500"
+
+                            placeholder="Enter transfer reference number"
+
+                          />
+
+                        </div>
+
+                        <div>
+
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Transfer Date *</label>
+
+                          <input
+
+                            type="date"
+
+                            required
+
+                            value={newAssociatedInvoice.transferDate}
+
+                            onChange={(e) => setNewAssociatedInvoice({...newAssociatedInvoice, transferDate: e.target.value})}
+
+                            className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-orange-500"
+
+                          />
+
+                        </div>
+
+                      </div>
+
+                    )}
+
+                    
+
+                    <p className="text-xs text-gray-500 mb-3">
+
+                      💰 {newAssociatedInvoice.paymentType}: Money deducted from selected bank account
+
+                    </p>
+
+                  </>
+
                 )}
 
                 <div className="flex justify-end">

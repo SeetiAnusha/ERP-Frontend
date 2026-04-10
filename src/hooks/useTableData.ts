@@ -110,10 +110,18 @@ export function useTableData<T = any>(options: UseTableDataOptions) {
 
   // Update filter
   const updateFilter = useCallback((key: string, value: any) => {
-    setFilters(prev => ({
-      ...prev,
-      [key]: value
-    }));
+    setFilters(prev => {
+      // ✅ FIX: Remove key completely when value is undefined/null/empty
+      // This ensures React's dependency tracking works correctly
+      if (value === undefined || value === null || value === '') {
+        const { [key]: removed, ...rest } = prev;
+        return rest;  // Key completely removed from object
+      }
+      return {
+        ...prev,
+        [key]: value
+      };
+    });
     goToPage(1); // Reset to first page when filter changes
   }, [goToPage]);
 

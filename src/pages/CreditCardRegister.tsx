@@ -12,8 +12,12 @@ interface CreditCardTransaction {
   amount: number;
   relatedDocumentType: string;
   relatedDocumentNumber: string;
+  relatedDocumentId?: number;
   supplierName?: string;
   supplierRnc?: string;
+  clientName?: string;
+  clientRnc?: string;
+  ncf?: string;
   description: string;
   cardId: number;
   cardIssuer?: string;
@@ -266,24 +270,29 @@ const CreditCardRegister = () => {
             <p className="mt-4 text-gray-600">Loading credit card transactions...</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
+          <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+            <table className="w-full min-w-max">
+              <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
                 <tr>
-                  <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">REGISTRATION #</th>
-                  <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">DATE</th>
-                  <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">TYPE</th>
-                  <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">CARD</th>
-                  <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">DESCRIPTION</th>
-                  <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">DOCUMENT</th>
-                  <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">AMOUNT</th>
-                  <th className="px-6 py-4 text-center text-sm font-bold text-gray-800">ACTIONS</th>
+                  <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">REGISTRATION #</th>
+                  <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">DATE</th>
+                  <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">TYPE</th>
+                  <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">SUPPLIER NAME</th>
+                  <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">SUPPLIER RNC</th>
+                  <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">NCF</th>
+                  <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">RELATED DOC TYPE</th>
+                  <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">RELATED DOC #</th>
+                  <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">REFERENCE #</th>
+                  <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">CARD</th>
+                  <th className="px-4 py-4 text-left text-sm font-bold text-gray-800 whitespace-nowrap">DESCRIPTION</th>
+                  <th className="px-4 py-4 text-right text-sm font-bold text-gray-800 whitespace-nowrap">AMOUNT</th>
+                  <th className="px-4 py-4 text-center text-sm font-bold text-gray-800 whitespace-nowrap">ACTIONS</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredTransactions.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
+                    <td colSpan={13} className="px-6 py-12 text-center text-gray-500">
                       <FaCreditCard className="mx-auto text-4xl text-gray-300 mb-4" />
                       <p className="text-lg font-medium">No credit card transactions found</p>
                       <p className="text-sm">Credit card transactions will appear here when payments are made</p>
@@ -298,42 +307,78 @@ const CreditCardRegister = () => {
                       transition={{ delay: index * 0.05 }}
                       className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
                     >
-                      <td className="px-6 py-4 text-sm font-medium">{transaction.registrationNumber}</td>
-                      <td className="px-6 py-4 text-sm">
+                      {/* Registration Number */}
+                      <td className="px-4 py-4 text-sm font-medium whitespace-nowrap">{transaction.registrationNumber}</td>
+                      
+                      {/* Date */}
+                      <td className="px-4 py-4 text-sm whitespace-nowrap">
                         {new Date(transaction.registrationDate).toLocaleDateString()}
                       </td>
-                      <td className="px-6 py-4">
+                      
+                      {/* Transaction Type */}
+                      <td className="px-4 py-4 whitespace-nowrap">
                         <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium ${getTransactionTypeColor(transaction.transactionType)}`}>
                           {getTransactionTypeIcon(transaction.transactionType)}
                           {transaction.transactionType}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm">
+                      
+                      {/* Supplier Name */}
+                      <td className="px-4 py-4 text-sm whitespace-nowrap">
+                        {transaction.supplierName || transaction.clientName || 'N/A'}
+                      </td>
+                      
+                      {/* Supplier RNC */}
+                      <td className="px-4 py-4 text-sm whitespace-nowrap">
+                        {transaction.supplierRnc || transaction.clientRnc || 'N/A'}
+                      </td>
+                      
+                      {/* NCF */}
+                      <td className="px-4 py-4 text-sm whitespace-nowrap">
+                        {transaction.ncf || 'N/A'}
+                      </td>
+                      
+                      {/* Related Document Type */}
+                      <td className="px-4 py-4 text-sm whitespace-nowrap">
+                        <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-800">
+                          {transaction.relatedDocumentType}
+                        </span>
+                      </td>
+                      
+                      {/* Related Document Number */}
+                      <td className="px-4 py-4 text-sm font-medium whitespace-nowrap">
+                        {transaction.relatedDocumentNumber}
+                      </td>
+                      
+                      {/* Reference Number */}
+                      <td className="px-4 py-4 text-sm whitespace-nowrap">
+                        {transaction.referenceNumber || 'N/A'}
+                      </td>
+                      
+                      {/* Card */}
+                      <td className="px-4 py-4 text-sm whitespace-nowrap">
                         <div>
                           <p className="font-medium">{transaction.cardBrand} ****{transaction.cardNumberLast4 || 'N/A'}</p>
                           <p className="text-gray-500 text-xs">{transaction.cardIssuer}</p>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-sm">
-                        <div>
-                          <p className="font-medium">{transaction.description}</p>
-                          {transaction.supplierName && (
-                            <p className="text-gray-500 text-xs">{transaction.supplierName}</p>
-                          )}
-                        </div>
+                      
+                      {/* Description */}
+                      <td className="px-4 py-4 text-sm max-w-xs">
+                        <p className="truncate" title={transaction.description}>
+                          {transaction.description}
+                        </p>
                       </td>
-                      <td className="px-6 py-4 text-sm">
-                        <div>
-                          <p className="font-medium">{transaction.relatedDocumentType}</p>
-                          <p className="text-gray-500 text-xs">{transaction.relatedDocumentNumber}</p>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-sm font-semibold text-right">
+                      
+                      {/* Amount */}
+                      <td className="px-4 py-4 text-sm font-semibold text-right whitespace-nowrap">
                         <span className={transaction.transactionType === 'CHARGE' ? 'text-red-600' : 'text-green-600'}>
                           {transaction.transactionType === 'CHARGE' ? '+' : '-'}{formatNumber(transaction.amount)}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-center">
+                      
+                      {/* Actions */}
+                      <td className="px-4 py-4 text-center whitespace-nowrap">
                         <button
                           onClick={() => handleViewDetails(transaction)}
                           className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
@@ -417,16 +462,31 @@ const CreditCardRegister = () => {
                 </div>
               </div>
 
-              {selectedTransaction.supplierName && (
+              {(selectedTransaction.supplierName || selectedTransaction.clientName) && (
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Supplier</label>
-                    <p className="text-sm text-gray-900">{selectedTransaction.supplierName}</p>
+                    <label className="block text-sm font-medium text-gray-700">
+                      {selectedTransaction.supplierName ? 'Supplier' : 'Client'}
+                    </label>
+                    <p className="text-sm text-gray-900">
+                      {selectedTransaction.supplierName || selectedTransaction.clientName}
+                    </p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Supplier RNC</label>
-                    <p className="text-sm text-gray-900">{selectedTransaction.supplierRnc || 'N/A'}</p>
+                    <label className="block text-sm font-medium text-gray-700">
+                      {selectedTransaction.supplierName ? 'Supplier RNC' : 'Client RNC'}
+                    </label>
+                    <p className="text-sm text-gray-900">
+                      {selectedTransaction.supplierRnc || selectedTransaction.clientRnc || 'N/A'}
+                    </p>
                   </div>
+                </div>
+              )}
+
+              {selectedTransaction.ncf && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">NCF</label>
+                  <p className="text-sm text-gray-900">{selectedTransaction.ncf}</p>
                 </div>
               )}
 

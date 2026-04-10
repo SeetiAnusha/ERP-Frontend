@@ -50,7 +50,7 @@ function DataTable<T extends { id: number | string }>({
       animate={{ opacity: 1 }}
       className={`bg-white rounded-xl shadow-lg overflow-hidden ${className}`}
     >
-      <div className="overflow-x-auto max-h-[600px] overflow-y-auto scrollbar-always">
+      <div className="overflow-x-auto max-h-[500px] overflow-y-auto scrollbar-thin">
         <table className="w-full">
           <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-20">
             <tr>

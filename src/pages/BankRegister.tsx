@@ -731,8 +731,8 @@ const BankRegister = () => {
         </div>
       </motion.div>
 
-      {/* ✅ NEW: Pagination Component */}
-      <div className="mt-6">
+      {/* ✅ Pagination - Always visible, sticky at bottom like Purchases */}
+      <div className="bg-white rounded-lg shadow-sm p-4 sticky bottom-0 z-10">
         <Pagination
           page={pagination.page}
           totalPages={pagination.totalPages}

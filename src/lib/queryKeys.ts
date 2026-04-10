@@ -46,6 +46,7 @@ export const QUERY_KEYS = {
   // ✅ NEW: Business Expenses
   businessExpenses: ['business-expenses'] as const,
   businessExpense: (id: number) => ['business-expenses', id] as const,
+  businessExpenseDashboard: (period?: string) => ['business-expenses', 'dashboard', period ?? 'all'] as const,
   
   // Master Data
   clients: ['clients'] as const,
@@ -81,6 +82,16 @@ export const QUERY_KEYS = {
   // ✅ NEW: Investments (standalone)
   investments: ['investments'] as const,
   investment: (id: number) => ['investments', id] as const,
+  
+  // ✅ NEW: Accounting & Financial Reporting
+  chartOfAccounts: ['chart-of-accounts'] as const,
+  generalLedger: ['general-ledger'] as const,
+  trialBalance: ['trial-balance'] as const,
+  fiscalPeriods: ['fiscal-periods'] as const,
+  balanceSheet: ['balance-sheet'] as const,
+  profitLoss: ['profit-loss'] as const,
+  cashFlow: ['cash-flow'] as const,
+  accountStatement: ['account-statement'] as const,
 } as const;
 
 // Type for query keys

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
   TrendingUp, 
@@ -6,16 +6,16 @@ import {
   DollarSign, 
   Receipt, 
   PieChart, 
-  // Calendar, // Unused
   AlertCircle,
-  // Loader2, // Unused
   RefreshCw,
   Filter,
   Download
 } from 'lucide-react';
-import api from '../api/axios';
 import { ExpenseDashboardData } from '../types';
 import { formatNumber } from '../utils/formatNumber';
+import { useBusinessExpenseDashboard } from '../hooks/queries/useFinancial';
+import { useQueryClient } from '@tanstack/react-query';
+import { QUERY_KEYS } from '../lib/queryKeys';
 
 /**
  * ExpenseDashboard Component
@@ -44,11 +44,13 @@ const ExpenseDashboard = ({
   autoRefresh = false,
   refreshInterval = 30000
 }: ExpenseDashboardProps) => {
-  const [dashboardData, setDashboardData] = useState<ExpenseDashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [selectedPeriod, setSelectedPeriod] = useState('all');
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
+  // ✅ FIXED: Use React Query hook for dashboard data
+  const { data: dashboardData, isLoading: loading, error: queryError, refetch } = useBusinessExpenseDashboard(selectedPeriod);
+  
+  const error = queryError ? (queryError as any).message : null;
 
   const periods = [
     { value: 'all', label: 'All Records' },
@@ -58,43 +60,9 @@ const ExpenseDashboard = ({
     { value: 'year', label: 'This Year' }
   ];
 
-  // Fetch dashboard data
-  useEffect(() => {
-    fetchDashboardData();
-  }, [selectedPeriod]);
-
-  // Auto-refresh functionality
-  useEffect(() => {
-    if (autoRefresh && refreshInterval > 0) {
-      const interval = setInterval(() => {
-        fetchDashboardData(true); // Silent refresh
-      }, refreshInterval);
-
-      return () => clearInterval(interval);
-    }
-  }, [autoRefresh, refreshInterval, selectedPeriod]);
-
-  const fetchDashboardData = async (silent = false) => {
-    try {
-      if (!silent) setLoading(true);
-      setError(null);
-
-      const response = await api.get('/business-expenses/dashboard', {
-        params: { period: selectedPeriod }
-      });
-
-      if (response.data.success) {
-        setDashboardData(response.data.data);
-        setLastUpdated(new Date());
-      } else {
-        throw new Error(response.data.message || 'Failed to fetch dashboard data');
-      }
-    } catch (error: any) {
-      console.error('Error fetching expense dashboard:', error);
-      setError(error.response?.data?.message || error.message || 'Failed to load dashboard data');
-    } finally {
-      setLoading(false);
-    }
+  // ✅ FIXED: Manual refresh now uses React Query refetch
+  const handleRefresh = () => {
+    refetch();
   };
 
   const exportData = async () => {
@@ -302,7 +270,7 @@ const ExpenseDashboard = ({
       <h3 className="text-lg font-semibold text-gray-900 mb-2">Failed to Load Dashboard</h3>
       <p className="text-gray-600 mb-4">{error}</p>
       <button
-        onClick={() => fetchDashboardData()}
+        onClick={handleRefresh}
         className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors flex items-center gap-2 mx-auto"
       >
         <RefreshCw className="h-4 w-4" />
@@ -339,11 +307,6 @@ const ExpenseDashboard = ({
           <h2 className="text-2xl font-bold text-gray-900">Expense Dashboard</h2>
           <p className="text-gray-600">
             Overview for {periods.find(p => p.value === selectedPeriod)?.label}
-            {lastUpdated && (
-              <span className="ml-2 text-sm">
-                • Last updated {lastUpdated.toLocaleTimeString()}
-              </span>
-            )}
           </p>
         </div>
         
@@ -366,7 +329,7 @@ const ExpenseDashboard = ({
           )}
           
           <button
-            onClick={() => fetchDashboardData()}
+            onClick={handleRefresh}
             disabled={loading}
             className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
             title="Refresh"

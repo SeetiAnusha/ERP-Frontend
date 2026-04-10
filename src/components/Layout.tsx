@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -26,6 +26,9 @@ import {
   User,
   Shield,
   Trash2,
+  // BookOpen,
+  // Scale,
+  // FileBarChart,
 } from 'lucide-react';
 import LanguageSwitcher from './LanguageSwitcher';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -39,10 +42,29 @@ const Layout = ({ children }: LayoutProps) => {
   const location = useLocation();
   const { t } = useLanguage();
   const { user, logout, isAuthenticated } = useAuth();
+  const [myApprovalRole, setMyApprovalRole] = useState<any>(null);
 
   const handleLogout = () => {
     logout();
   };
+
+  // Fetch user's approval role
+  useEffect(() => {
+    const fetchMyRole = async () => {
+      if (isAuthenticated) {
+        try {
+          const api = (await import('../api/axios')).default;
+          const response = await api.get('/user-roles/my-roles');
+          if (response.data.data.approvalRoles && response.data.data.approvalRoles.length > 0) {
+            setMyApprovalRole(response.data.data.approvalRoles[0]);
+          }
+        } catch (error) {
+          console.error('Failed to fetch user role:', error);
+        }
+      }
+    };
+    fetchMyRole();
+  }, [isAuthenticated]);
 
   const menuItems = [
     { path: '/', icon: LayoutDashboard, label: t('dashboard') },
@@ -54,6 +76,7 @@ const Layout = ({ children }: LayoutProps) => {
     { path: '/suppliers', icon: Package, label: t('suppliers') },
     // Expense Management Section
     { path: '/business-expenses', icon: TrendingUp, label: 'Expense Management' },
+    { path: '/credit-card-fees', icon: CreditCard, label: 'Credit Card Fees' },
     { path: '/expense-categories', icon: FolderTree, label: 'Expense Categories' },
     // { path: '/payments', icon: DollarSign, label: t('payments') },
     { path: '/accounts-receivable', icon: FileText, label: 'Accounts Receivable' },
@@ -74,7 +97,16 @@ const Layout = ({ children }: LayoutProps) => {
     { path: '/adjustments', icon: Settings, label: t('adjustments') },
     { path: '/data-classification', icon: Shield, label: 'Data Classification' },
     { path: '/transaction-deletion', icon: Trash2, label: 'Transaction Deletion' },
+    // Only show User Role Management for admins and managers
+    ...(user && (user.role === 'admin' || user.role === 'manager') ? [
+      { path: '/user-roles', icon: Shield, label: 'User Role Management' }
+    ] : []),
     { path: '/reports', icon: BarChart3, label: t('reports') },
+    // Accounting & Financial Reporting Section
+    // { path: '/accounting/chart-of-accounts', icon: BookOpen, label: 'Chart of Accounts' },
+    // { path: '/accounting/general-ledger', icon: FileText, label: 'General Ledger' },
+    // { path: '/accounting/trial-balance', icon: Scale, label: 'Trial Balance' },
+    // { path: '/accounting/financial-reports', icon: FileBarChart, label: 'Financial Reports' },
     //  { path: '/investments', icon: Package, label: t('investments') },
     // { path: '/prepaid-expenses', icon: Package, label: t('prepaidExpenses') },
   ];
@@ -129,9 +161,14 @@ const Layout = ({ children }: LayoutProps) => {
                   <div className="flex items-center space-x-2 text-sm text-gray-600">
                     <User size={16} />
                     <span>{user.firstName} {user.lastName}</span>
-                    <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
+                    <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">
                       {user.role}
                     </span>
+                    {myApprovalRole && (
+                      <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold" title="Approval Role & Limit">
+                        {myApprovalRole.role_name} (${myApprovalRole.approval_limit?.toLocaleString()})
+                      </span>
+                    )}
                   </div>
                   
                   <button

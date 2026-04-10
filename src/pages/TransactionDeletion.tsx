@@ -128,6 +128,10 @@ const TransactionDeletion: React.FC = () => {
   const [deletionReasonCode, setDeletionReasonCode] = useState('');
   const [customMemo, setCustomMemo] = useState('');
   const [impactAnalysis, setImpactAnalysis] = useState<ImpactAnalysis | null>(null);
+  
+  // ✅ NEW: Approver selection state
+  const [selectedApproverId, setSelectedApproverId] = useState<number | null>(null);
+  const [availableApprovers, setAvailableApprovers] = useState<any[]>([]);
 
   // ✅ Memoized load available transactions
   const loadAvailableTransactions = useCallback(async (selectedEntityType: string) => {
@@ -191,6 +195,8 @@ const TransactionDeletion: React.FC = () => {
       setDeletionReasonCode('');
       setCustomMemo('');
       setImpactAnalysis(null);
+      setSelectedApproverId(null); // ✅ NEW: Reset approver selection
+      setAvailableApprovers([]); // ✅ NEW: Clear approvers list
       // Invalidate and refetch
       queryClient.invalidateQueries({ queryKey: ['my-deletion-requests'] });
       // Switch to My Requests tab
@@ -266,10 +272,47 @@ const TransactionDeletion: React.FC = () => {
     });
   }, [selectedTransaction, entityType, analyzeImpactMutation]);
 
+  // ✅ NEW: Load available approvers when impact analysis is complete
+  const loadAvailableApprovers = useCallback(async (amount: number, requiredRole: string) => {
+    try {
+      // ✅ FIXED: Pass requiredRole to filter dropdown by specific role
+      const response = await axios.get(`/user-roles/available-approvers?amount=${amount}&requiredRole=${requiredRole}`);
+      setAvailableApprovers(response.data.data || []);
+      
+      // Auto-select first approver if only one available
+      if (response.data.data && response.data.data.length === 1) {
+        setSelectedApproverId(response.data.data[0].user_id);
+      }
+    } catch (error) {
+      console.error('Error loading approvers:', error);
+      setAvailableApprovers([]);
+    }
+  }, []);
+
+  // ✅ Watch for impact analysis changes to load approvers
+  React.useEffect(() => {
+    if (impactAnalysis && selectedTransaction) {
+      const amount = impactAnalysis.entityData?.amount || 
+                     impactAnalysis.entityData?.total ||
+                     impactAnalysis.entityData?.paymentAmount || 0;
+      
+      // ✅ FIXED: Get the required role from impact analysis
+      const requiredRole = impactAnalysis.requiredApprovals?.[0] || 'Manager';
+      
+      loadAvailableApprovers(amount, requiredRole);
+    }
+  }, [impactAnalysis, selectedTransaction, loadAvailableApprovers]);
+
   // ✅ Memoized submit deletion request handler
   const submitDeletionRequest = useCallback(async () => {
     if (!selectedTransaction || !reason || !deletionReasonCode) {
       setError('Please fill all required fields');
+      return;
+    }
+
+    // ✅ NEW: Check if approver is selected
+    if (!selectedApproverId) {
+      setError('Please select an approver to send the request to');
       return;
     }
 
@@ -284,9 +327,10 @@ const TransactionDeletion: React.FC = () => {
       entityId: selectedTransaction.id,
       reason: reason.trim(),
       deletionReasonCode,
-      customMemo: customMemo.trim() || undefined
+      customMemo: customMemo.trim() || undefined,
+      selectedApproverId // ✅ NEW: Send selected approver
     });
-  }, [selectedTransaction, reason, deletionReasonCode, customMemo, entityType, deletionReasons, submitDeletionMutation]);
+  }, [selectedTransaction, reason, deletionReasonCode, customMemo, entityType, deletionReasons, selectedApproverId, submitDeletionMutation]);
 
   // ✅ Memoized process approval step handler
   const processApprovalStep = useCallback(async (stepId: number, decision: 'APPROVED' | 'REJECTED', notes?: string) => {
@@ -542,6 +586,59 @@ const TransactionDeletion: React.FC = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* ✅ NEW: Approver Selection Section */}
+                <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <h4 className="font-semibold text-blue-900 mb-3 flex items-center">
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    Select Approver to Send Request *
+                  </h4>
+                  
+                  {availableApprovers.length > 0 ? (
+                    <>
+                      <select
+                        value={selectedApproverId || ''}
+                        onChange={(e) => setSelectedApproverId(e.target.value ? parseInt(e.target.value) : null)}
+                        className="w-full px-4 py-3 border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900 font-medium"
+                      >
+                        <option value="">Choose who should approve this deletion...</option>
+                        {availableApprovers.map((approver) => (
+                          <option key={approver.user_id} value={approver.user_id}>
+                            {approver.full_name} ({approver.role_name}) - Can approve up to ${approver.approval_limit.toLocaleString()}
+                          </option>
+                        ))}
+                      </select>
+                      
+                      {selectedApproverId && (
+                        <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                          <div className="flex items-center text-green-800">
+                            <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                            <span className="font-medium">
+                              ✅ Request will be sent to: {availableApprovers.find(a => a.user_id === selectedApproverId)?.full_name}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                      
+                      <p className="mt-2 text-sm text-blue-700">
+                        💡 <strong>Professional Tip:</strong> Select the manager or approver who is most familiar with this transaction. 
+                        Only users with sufficient approval limits are shown.
+                      </p>
+                    </>
+                  ) : (
+                    <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800">
+                      <p className="font-medium">⚠️ No approvers available</p>
+                      <p className="text-sm mt-1">
+                        There are no users with sufficient approval authority for this transaction amount. 
+                        Please contact your administrator to assign approval roles.
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -596,7 +693,7 @@ const TransactionDeletion: React.FC = () => {
             <div className="flex items-center justify-between">
               <button
                 onClick={submitDeletionRequest}
-                disabled={loading || !impactAnalysis}
+                disabled={loading || !impactAnalysis || !selectedApproverId}
                 className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
               >
                 {loading && (
@@ -609,8 +706,16 @@ const TransactionDeletion: React.FC = () => {
               </button>
               
               {impactAnalysis && !loading && (
-                <div className="text-sm text-green-600 bg-green-50 px-3 py-2 rounded">
-                  ✅ Ready to submit - Impact analyzed
+                <div className="text-sm">
+                  {selectedApproverId ? (
+                    <div className="text-green-600 bg-green-50 px-3 py-2 rounded">
+                      ✅ Ready to submit - Approver selected
+                    </div>
+                  ) : (
+                    <div className="text-yellow-600 bg-yellow-50 px-3 py-2 rounded">
+                      ⚠️ Please select an approver above
+                    </div>
+                  )}
                 </div>
               )}
             </div>

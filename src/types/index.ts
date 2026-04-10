@@ -246,6 +246,20 @@ export interface CashTransaction {
   receiptNumber?: string;
   customerId?: number;
   invoiceIds?: string;
+  // ✅ NEW: CashRegisterMaster association
+  cashRegisterMaster?: {
+    id: number;
+    code: string;
+    name: string;
+    location: string;
+  };
+  // ✅ NEW: BankAccount association (for outflows)
+  bankAccount?: {
+    id: number;
+    bankName: string;
+    accountNumber: string;
+    accountType: 'CHECKING' | 'SAVINGS';
+  };
   // ✅ NEW: Deletion tracking fields
   deletion_status?: string;
   deleted_at?: string;

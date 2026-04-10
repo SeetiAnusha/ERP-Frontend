@@ -74,26 +74,77 @@ export const usePayments = () => {
 // - useRecentActivityStatistics()
 // - useRecentActivityByDateRange(startDate, endDate, enabled)
 
-// ✅ NEW: Business Expenses hooks
-export const useBusinessExpenses = (dateRange?: { startDate: string; endDate: string }) => {
+// ✅ NEW: Business Expenses hooks with pagination
+export const useBusinessExpenses = (options?: { 
+  dateRange?: { startDate: string; endDate: string };
+  page?: number;
+  limit?: number;
+}) => {
+  const { dateRange, page = 1, limit = 50 } = options || {};
+  
   return useQuery({
     queryKey: dateRange 
-      ? [...QUERY_KEYS.businessExpenses, dateRange.startDate, dateRange.endDate]
-      : QUERY_KEYS.businessExpenses,
+      ? [...QUERY_KEYS.businessExpenses, dateRange.startDate, dateRange.endDate, page, limit]
+      : [...QUERY_KEYS.businessExpenses, page, limit],
     queryFn: async () => {
-      const params = dateRange ? {
-        dateFrom: dateRange.startDate,
-        dateTo: dateRange.endDate
-      } : {};
+      const params: any = {
+        page,
+        limit
+      };
+      
+      if (dateRange) {
+        params.dateFrom = dateRange.startDate;
+        params.dateTo = dateRange.endDate;
+      }
       
       const response = await api.get('/business-expenses', { params });
       
       // Handle response structure
-      if (response.data.success && Array.isArray(response.data.data)) {
+      if (response.data.success) {
+        return {
+          data: response.data.data || [],
+          pagination: response.data.pagination || {
+            page,
+            limit,
+            total: 0,
+            totalPages: 0,
+            hasNextPage: false,
+            hasPreviousPage: false
+          }
+        };
+      }
+      
+      return {
+        data: Array.isArray(response.data) ? response.data : [],
+        pagination: {
+          page,
+          limit,
+          total: 0,
+          totalPages: 0,
+          hasNextPage: false,
+          hasPreviousPage: false
+        }
+      };
+    },
+    ...CACHE_STRATEGIES.FINANCIAL_DATA,
+    throwOnError: false,
+  });
+};
+
+// ✅ NEW: Business Expense Dashboard hook
+export const useBusinessExpenseDashboard = (period: string = 'all') => {
+  return useQuery({
+    queryKey: QUERY_KEYS.businessExpenseDashboard(period),
+    queryFn: async () => {
+      const response = await api.get('/business-expenses/dashboard', {
+        params: { period }
+      });
+      
+      if (response.data.success) {
         return response.data.data;
       }
       
-      return Array.isArray(response.data) ? response.data : [];
+      return response.data;
     },
     ...CACHE_STRATEGIES.FINANCIAL_DATA,
     throwOnError: false,

@@ -1,3 +1,7 @@
+
+// ✅ SHARED DATA HOOKS - Used across multiple components
+// These hooks cache data globally, eliminating duplicate API calls
+
 import { useQuery } from '@tanstack/react-query';
 import api from '../../api/axios';
 import { QUERY_KEYS } from '../../lib/queryKeys';
@@ -6,14 +10,31 @@ import { CACHE_STRATEGIES } from '../../lib/queryClient';
 // ✅ SHARED DATA HOOKS - Used across multiple components
 // These hooks cache data globally, eliminating duplicate API calls
 
+/**
+ * Helper function to extract data from API response
+ * Handles both paginated ({ data: [...], pagination: {...} }) and non-paginated responses
+ */
+const extractDataArray = (response: any): any[] => {
+  // Handle paginated response: { data: [...], pagination: {...} }
+  if (response.data && Array.isArray(response.data.data)) {
+    return response.data.data;
+  }
+  // Handle direct array response
+  if (Array.isArray(response.data)) {
+    return response.data;
+  }
+  // Fallback to empty array
+  return [];
+};
+
 export const useClients = () => {
   return useQuery({
     queryKey: QUERY_KEYS.clients,
     queryFn: async () => {
       const response = await api.get('/clients');
-      return Array.isArray(response.data) ? response.data : [];
+      return extractDataArray(response);
     },
-    ...CACHE_STRATEGIES.MASTER_DATA, // 5 min stale time, 30 min cache time
+    ...CACHE_STRATEGIES.MASTER_DATA,
     throwOnError: false,
   });
 };
@@ -23,7 +44,7 @@ export const useBankAccounts = () => {
     queryKey: QUERY_KEYS.bankAccounts,
     queryFn: async () => {
       const response = await api.get('/bank-accounts');
-      return Array.isArray(response.data) ? response.data : [];
+      return extractDataArray(response);
     },
     ...CACHE_STRATEGIES.MASTER_DATA,
     throwOnError: false,
@@ -35,7 +56,7 @@ export const useCards = () => {
     queryKey: QUERY_KEYS.cards,
     queryFn: async () => {
       const response = await api.get('/cards');
-      return Array.isArray(response.data) ? response.data : [];
+      return extractDataArray(response);
     },
     ...CACHE_STRATEGIES.MASTER_DATA,
     throwOnError: false,
@@ -47,7 +68,7 @@ export const useCashRegisters = () => {
     queryKey: QUERY_KEYS.cashRegisters,
     queryFn: async () => {
       const response = await api.get('/cash-register-masters');
-      return Array.isArray(response.data) ? response.data : [];
+      return extractDataArray(response);
     },
     ...CACHE_STRATEGIES.MASTER_DATA,
     throwOnError: false,
@@ -59,7 +80,7 @@ export const useSuppliers = () => {
     queryKey: QUERY_KEYS.suppliers,
     queryFn: async () => {
       const response = await api.get('/suppliers');
-      return Array.isArray(response.data) ? response.data : [];
+      return extractDataArray(response);
     },
     ...CACHE_STRATEGIES.MASTER_DATA,
     throwOnError: false,
@@ -71,7 +92,7 @@ export const usePaymentNetworks = () => {
     queryKey: QUERY_KEYS.paymentNetworks,
     queryFn: async () => {
       const response = await api.get('/card-payment-networks');
-      return Array.isArray(response.data) ? response.data : [];
+      return extractDataArray(response);
     },
     ...CACHE_STRATEGIES.MASTER_DATA,
     throwOnError: false,
@@ -84,7 +105,7 @@ export const useCreditBalances = () => {
     queryKey: QUERY_KEYS.creditBalances,
     queryFn: async () => {
       const response = await api.get('/credit-balances');
-      return Array.isArray(response.data) ? response.data : [];
+      return extractDataArray(response);
     },
     ...CACHE_STRATEGIES.MASTER_DATA,
     throwOnError: false,
@@ -97,14 +118,25 @@ export const useCreditCardTransactions = () => {
     queryKey: QUERY_KEYS.creditCardTransactions,
     queryFn: async () => {
       const response = await api.get('/credit-card-register');
+      console.log('Credit Card Register Response:', response.data);
+      
       // Handle different response structures
       if (Array.isArray(response.data)) {
         return response.data;
-      } else if (response.data.data && Array.isArray(response.data.data.entries)) {
-        return response.data.data.entries;
+      } else if (response.data.success && response.data.data) {
+        // Backend returns { success: true, data: { entries: [...], total: X } }
+        if (Array.isArray(response.data.data.entries)) {
+          return response.data.data.entries;
+        }
+        // Or backend returns { success: true, data: [...] }
+        if (Array.isArray(response.data.data)) {
+          return response.data.data;
+        }
       } else if (response.data.entries && Array.isArray(response.data.entries)) {
         return response.data.entries;
       }
+      
+      console.warn('Unexpected response structure:', response.data);
       return [];
     },
     ...CACHE_STRATEGIES.MASTER_DATA,
@@ -147,7 +179,7 @@ export const useFinancers = () => {
     queryKey: QUERY_KEYS.financers,
     queryFn: async () => {
       const response = await api.get('/financers');
-      return Array.isArray(response.data) ? response.data : [];
+      return extractDataArray(response);
     },
     ...CACHE_STRATEGIES.MASTER_DATA,
     throwOnError: false,
@@ -160,7 +192,7 @@ export const useInvestmentAgreements = () => {
     queryKey: QUERY_KEYS.investmentAgreements,
     queryFn: async () => {
       const response = await api.get('/investment-agreements');
-      return Array.isArray(response.data) ? response.data : [];
+      return extractDataArray(response);
     },
     ...CACHE_STRATEGIES.MASTER_DATA,
     throwOnError: false,
@@ -203,7 +235,7 @@ export const useInvestors = () => {
     queryKey: QUERY_KEYS.investors,
     queryFn: async () => {
       const response = await api.get('/investors');
-      return Array.isArray(response.data) ? response.data : [];
+      return extractDataArray(response);
     },
     ...CACHE_STRATEGIES.MASTER_DATA,
     throwOnError: false,
@@ -229,7 +261,7 @@ export const useRecentActivity = (limit: number = 100) => {
     queryKey: QUERY_KEYS.recentActivity(limit),
     queryFn: async () => {
       const response = await api.get(`/recent-activity?limit=${limit}`);
-      return Array.isArray(response.data) ? response.data : [];
+      return extractDataArray(response);
     },
     ...CACHE_STRATEGIES.MASTER_DATA,
     throwOnError: false,
@@ -255,7 +287,7 @@ export const useRecentActivityByDateRange = (startDate: string, endDate: string,
     queryKey: QUERY_KEYS.recentActivityByDateRange(startDate, endDate),
     queryFn: async () => {
       const response = await api.get(`/recent-activity/date-range?startDate=${startDate}&endDate=${endDate}`);
-      return Array.isArray(response.data) ? response.data : [];
+      return extractDataArray(response);
     },
     ...CACHE_STRATEGIES.MASTER_DATA,
     throwOnError: false,
@@ -310,7 +342,7 @@ export const useAdjustments = () => {
     queryKey: QUERY_KEYS.adjustments,
     queryFn: async () => {
       const response = await api.get('/adjustments');
-      return Array.isArray(response.data) ? response.data : [];
+      return extractDataArray(response);
     },
     ...CACHE_STRATEGIES.MASTER_DATA,
     throwOnError: false,
@@ -323,7 +355,7 @@ export const useInvestments = () => {
     queryKey: QUERY_KEYS.investments,
     queryFn: async () => {
       const response = await api.get('/investments');
-      return Array.isArray(response.data) ? response.data : [];
+      return extractDataArray(response);
     },
     ...CACHE_STRATEGIES.MASTER_DATA,
     throwOnError: false,

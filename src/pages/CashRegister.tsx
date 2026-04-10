@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { FaPlus, FaTrash, FaWallet, FaArrowUp, FaArrowDown, FaSearch } from 'react-icons/fa';
+import { FaPlus, FaTrash, FaWallet, FaArrowUp, FaArrowDown } from 'react-icons/fa';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import axios from '../api/axios';
@@ -12,8 +12,12 @@ import OverpaymentAlertModal from '../components/OverpaymentAlertModal';
 import CustomerCreditAwarePaymentModal from '../components/CustomerCreditAwarePaymentModal';
 import { QUERY_KEYS } from '../lib/queryKeys';
 
-// ✅ REACT QUERY IMPORTS
-import { useCashTransactions } from '../hooks/queries/useFinancial';
+// ✅ NEW: Import pagination components
+import { useTableData } from '../hooks/useTableData';
+import { Pagination } from '../components/common/Pagination';
+import SearchBar from '../components/common/SearchBar';
+
+// ✅ Keep React Query hooks for shared master data (not paginated)
 import { useSharedMasterData } from '../hooks/queries/useSharedData';
 
 const CashRegister = () => {
@@ -22,24 +26,45 @@ const CashRegister = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   
-  // ✅ REACT QUERY HOOKS - Direct usage without feature flags
-  const { data: transactions = [], isLoading: transactionsLoading, isError: transactionsError } = useCashTransactions();
+  // ✅ NEW: Use pagination hook for transactions
+  const {
+    data: transactions,
+    loading: transactionsLoading,
+    pagination,
+    search: searchTerm,
+    updateSearch: setSearchTerm,
+    updateFilter,
+    clearFilters,
+    goToPage,
+    nextPage,
+    prevPage,
+    firstPage,
+    lastPage,
+    changeLimit,
+    refresh
+  } = useTableData<CashTransaction>({
+    endpoint: '/api/cash-register',
+    initialLimit: 50,
+    initialFilters: {
+      transactionType: 'All'
+    }
+  });
+  
+  // ✅ Keep React Query hooks for shared master data (not paginated)
   const sharedData = useSharedMasterData();
   
   const cashRegisterMasters = sharedData.cashRegisters || [];
   const bankAccounts = sharedData.bankAccounts || [];
   const customers = sharedData.clients || [];
-  // const cards = sharedData.cards || [];
   const paymentNetworks = sharedData.paymentNetworks || [];
   
   const isLoading = transactionsLoading || sharedData.isLoading;
-  const hasError = transactionsError || sharedData.hasError;
+  const hasError = sharedData.hasError;
   
   // ✅ SHARED STATE (USED BY BOTH IMPLEMENTATIONS)
   const [showModal, setShowModal] = useState(false);
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('All');
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -88,6 +113,7 @@ const CashRegister = () => {
     bankAccountId: '',
     amount: '',
     description: '',
+    transferNumber: '', // ✅ NEW: User-entered transfer number for bank deposit
   });
 
   const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
@@ -96,6 +122,15 @@ const CashRegister = () => {
   useEffect(() => {
     fetchActiveAgreements();
   }, []);
+  
+  // ✅ Update filter when filterType changes
+  useEffect(() => {
+    if (filterType !== 'All') {
+      updateFilter('transactionType', filterType);
+    } else {
+      clearFilters();
+    }
+  }, [filterType, updateFilter, clearFilters]);
 
   // ✅ MEMOIZED: Status badge function for deletion indicators
   const getTransactionStatusBadge = useCallback((transaction: CashTransaction) => {
@@ -394,11 +429,12 @@ const CashRegister = () => {
       
       await axios.post('/cash-register', cleanedData);
       
-      // ✅ REACT QUERY: Cache invalidation for automatic UI updates
+      // ✅ OPTIMIZATION: Use React Query cache invalidation and refresh pagination
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashTransactions });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashRegisters });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankAccounts });
       queryClient.invalidateQueries({ queryKey: ['recent-activity'] });
+      refresh(); // Refresh paginated data
       
       // Refresh credit preview after AR collection payment
       if (formData.relatedDocumentType === 'AR_COLLECTION' && formData.customerId) {
@@ -511,10 +547,11 @@ const CashRegister = () => {
 
   // ✅ MEMOIZED: Customer credit-aware payment success handler
   const handleCustomerCreditAwarePaymentSuccess = useCallback(() => {
-    // ✅ REACT QUERY: Cache invalidation
+    // ✅ OPTIMIZATION: Use React Query cache invalidation and refresh pagination
     queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashTransactions });
     queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashRegisters });
     queryClient.invalidateQueries({ queryKey: QUERY_KEYS.clients });
+    refresh(); // Refresh paginated data
     
     // 🔥 FIX: Refresh credit preview to show updated credit balance
     if (formData.customerId) {
@@ -553,20 +590,22 @@ const CashRegister = () => {
         transactionType: 'OUTFLOW',
         amount: depositData.amount,
         paymentMethod: 'BANK_DEPOSIT',
-        relatedDocumentType: '',
-        relatedDocumentNumber: '',
+        relatedDocumentType: 'BANK_DEPOSIT',
+        relatedDocumentNumber: depositData.transferNumber || '', // ✅ NEW: Pass user-entered transfer number
         description: depositData.description || 'Bank deposit',
         cashRegisterId: depositData.cashRegisterId,
         bankAccountId: depositData.bankAccountId,
+        transferNumber: depositData.transferNumber || '', // ✅ NEW: Pass transfer number for bank register
       });
       
       alert('Bank deposit recorded successfully! Cash register balance decreased and bank account increased.');
       
-      // ✅ REACT QUERY: Cache invalidation
+      // ✅ OPTIMIZATION: Use React Query cache invalidation and refresh pagination
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashTransactions });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashRegisters });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankAccounts });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankTransactions });
+      refresh(); // Refresh paginated data
       
       resetDepositForm();
     } catch (error: any) {
@@ -582,6 +621,7 @@ const CashRegister = () => {
       bankAccountId: '',
       amount: '',
       description: '',
+      transferNumber: '', // ✅ NEW: Reset transfer number
     });
     setShowDepositModal(false);
   }, []);
@@ -611,7 +651,93 @@ const CashRegister = () => {
     }
   }, [formData.amount, selectedInvoices, formData.customerId, formData.relatedDocumentType]);
 
-  // ✅ MEMOIZED: Generate report
+  // ✅ PROFESSIONAL: Generate comprehensive report grouped by store
+  const generateProfessionalReport = useCallback(() => {
+    const safeTransactions = Array.isArray(transactions) ? transactions : [];
+    const filtered = safeTransactions.filter(t => {
+      const tDate = new Date(t.registrationDate.split('T')[0]);
+      const selectedDate = new Date(reportDate);
+      tDate.setHours(0, 0, 0, 0);
+      selectedDate.setHours(0, 0, 0, 0);
+      return tDate.getTime() === selectedDate.getTime();
+    });
+
+    // Group transactions by cash register (store)
+    const storeReports = new Map();
+    
+    // Initialize all cash registers
+    cashRegisterMasters.forEach(register => {
+      storeReports.set(register.id, {
+        id: register.id,
+        name: register.name,
+        code: register.code,
+        location: register.location,
+        openingBalance: parseFloat(register.balance.toString()),
+        inflow: 0,
+        inflowCount: 0,
+        outflow: 0,
+        outflowCount: 0,
+        bankDeposits: [] as Array<{ bankName: string; accountNumber: string; amount: number }>,
+        transactions: [] as typeof safeTransactions
+      });
+    });
+
+    // Process transactions
+    filtered.forEach(t => {
+      if (t.cashRegisterId && storeReports.has(t.cashRegisterId)) {
+        const store = storeReports.get(t.cashRegisterId);
+        store.transactions.push(t);
+        
+        if (t.transactionType === 'INFLOW') {
+          store.inflow += parseFloat(t.amount.toString());
+          store.inflowCount++;
+        } else if (t.transactionType === 'OUTFLOW') {
+          store.outflow += parseFloat(t.amount.toString());
+          store.outflowCount++;
+          
+          // Track bank deposits
+          if (t.paymentMethod === 'BANK_DEPOSIT' && t.bankAccount) {
+            store.bankDeposits.push({
+              bankName: t.bankAccount.bankName,
+              accountNumber: t.bankAccount.accountNumber,
+              amount: parseFloat(t.amount.toString())
+            });
+          }
+        }
+      }
+    });
+
+    // Calculate totals
+    let totalInflow = 0;
+    let totalOutflow = 0;
+    let totalBankDeposits = 0;
+    const allBankDeposits: Array<{ bankName: string; accountNumber: string; amount: number; storeName: string }> = [];
+
+    storeReports.forEach((store: any) => {
+      totalInflow += store.inflow;
+      totalOutflow += store.outflow;
+      store.bankDeposits.forEach((deposit: any) => {
+        totalBankDeposits += deposit.amount;
+        allBankDeposits.push({
+          ...deposit,
+          storeName: store.name
+        });
+      });
+    });
+
+    return {
+      stores: Array.from(storeReports.values()).filter((s: any) => s.transactions.length > 0),
+      allStores: Array.from(storeReports.values()),
+      totalInflow,
+      totalOutflow,
+      totalBankDeposits,
+      netMovement: totalInflow - totalOutflow,
+      allBankDeposits,
+      transactionCount: filtered.length
+    };
+  }, [transactions, reportDate, cashRegisterMasters]);
+
+  // Keep old generateReport for backward compatibility
   const generateReport = useCallback(() => {
     const safeTransactions = Array.isArray(transactions) ? transactions : [];
     const filtered = safeTransactions.filter(t => {
@@ -622,41 +748,24 @@ const CashRegister = () => {
       return tDate.getTime() === selectedDate.getTime();
     });
 
+    // ✅ SIMPLIFIED: Only track CASH (no credit cards, debit cards, bank transfers)
     const report = {
-      cash: filtered.filter(t => t.transactionType === 'INFLOW' && t.paymentMethod === 'CASH')
-        .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0),
-      creditCard: filtered.filter(t => t.transactionType === 'INFLOW' && t.paymentMethod === 'CREDIT_CARD')
-        .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0),
-      debitCard: filtered.filter(t => t.transactionType === 'INFLOW' && t.paymentMethod === 'DEBIT_CARD')
-        .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0),
-      bankTransferIn: filtered.filter(t => t.transactionType === 'INFLOW' && t.paymentMethod === 'BANK_TRANSFER')
-        .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0),
-      cheque: filtered.filter(t => t.transactionType === 'INFLOW' && t.paymentMethod === 'BANK_CHEQUE')
+      cashInflow: filtered.filter(t => t.transactionType === 'INFLOW')
         .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0),
       bankDeposits: filtered.filter(t => t.transactionType === 'OUTFLOW' && t.paymentMethod === 'BANK_DEPOSIT')
         .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0),
       corrections: filtered.filter(t => t.transactionType === 'OUTFLOW' && t.paymentMethod === 'CORRECTION')
         .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0),
+      transactionCount: filtered.length,
+      inflowCount: filtered.filter(t => t.transactionType === 'INFLOW').length,
+      outflowCount: filtered.filter(t => t.transactionType === 'OUTFLOW').length,
     };
 
     return report;
   }, [transactions, reportDate]);
 
-  // ✅ MEMOIZED: Filtered transactions
-  const filteredTransactions = useMemo(() => {
-    if (!Array.isArray(transactions)) return [];
-    
-    return transactions.filter(transaction => {
-    const matchesSearch = 
-      transaction.registrationNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      transaction.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      transaction.clientName?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesType = filterType === 'All' || transaction.transactionType === filterType;
-    
-    return matchesSearch && matchesType;
-    });
-  }, [transactions, searchTerm, filterType]);
+  // ✅ REMOVED: No longer need manual filtering - backend handles it via pagination
+  // Backend now handles search and filters, so we use the data directly from useTableData
 
   // ✅ MEMOIZED: Total calculations
   const { totalInflow, totalOutflow } = useMemo(() => {
@@ -803,16 +912,12 @@ const CashRegister = () => {
       {/* Filters */}
       <div className="bg-white rounded-xl shadow-lg p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="relative">
-            <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder={t('searchTransactions')}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
+          {/* ✅ NEW: Use SearchBar component */}
+          <SearchBar
+            value={searchTerm}
+            onChange={setSearchTerm}
+            placeholder={t('searchTransactions')}
+          />
 
           <select
             value={filterType}
@@ -827,7 +932,7 @@ const CashRegister = () => {
       </div>
 
       {/* Transactions Table */}
-      <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+      <div className="bg-white rounded-xl shadow-lg overflow-hidden mb-4">
         <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-20">
@@ -839,10 +944,28 @@ const CashRegister = () => {
                   {t('date')}
                 </th>
                 <th className="px-6 py-3 text-left text-sm font-bold text-gray-800 uppercase tracking-wider">
+                  Store Name
+                </th>
+                <th className="px-6 py-3 text-left text-sm font-bold text-gray-800 uppercase tracking-wider">
+                  Bank Name & Number
+                </th>
+                <th className="px-6 py-3 text-left text-sm font-bold text-gray-800 uppercase tracking-wider">
+                  Account Type
+                </th>
+                <th className="px-6 py-3 text-left text-sm font-bold text-gray-800 uppercase tracking-wider">
                   {t('type')}
                 </th>
                 <th className="px-6 py-3 text-left text-sm font-bold text-gray-800 uppercase tracking-wider">
                   {t('method')}
+                </th>
+                <th className="px-6 py-3 text-left text-sm font-bold text-gray-800 uppercase tracking-wider">
+                  Client Name
+                </th>
+                <th className="px-6 py-3 text-left text-sm font-bold text-gray-800 uppercase tracking-wider">
+                  Client RNC
+                </th>
+                <th className="px-6 py-3 text-left text-sm font-bold text-gray-800 uppercase tracking-wider">
+                  NCF
                 </th>
                 <th className="px-6 py-3 text-left text-sm font-bold text-gray-800 uppercase tracking-wider">
                   {t('description')}
@@ -856,7 +979,14 @@ const CashRegister = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredTransactions.map((transaction) => {
+              {transactions.length === 0 ? (
+                <tr>
+                  <td colSpan={13} className="px-6 py-8 text-center text-gray-500">
+                    {transactionsLoading ? 'Loading transactions...' : t('noTransactionsFound')}
+                  </td>
+                </tr>
+              ) : (
+                transactions.map((transaction) => {
                 const isDeleted = transaction.deletion_status === 'EXECUTED';
                 const isReversal = transaction.is_reversal === true;
                 
@@ -880,11 +1010,31 @@ const CashRegister = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(transaction.registrationDate).toLocaleDateString()}
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {transaction.cashRegisterMaster?.name || '-'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {transaction.bankAccount 
+                      ? `${transaction.bankAccount.bankName} - ${transaction.bankAccount.accountNumber}` 
+                      : '-'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {transaction.bankAccount?.accountType || '-'}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {getTransactionStatusBadge(transaction)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {transaction.paymentMethod}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {transaction.clientName || '-'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                    {transaction.clientRnc || '-'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                    {transaction.ncf || '-'}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
                     <span className={isDeleted ? 'line-through text-gray-500' : ''}>
@@ -910,10 +1060,31 @@ const CashRegister = () => {
                   </td>
                 </tr>
                 );
-              })}
+              })
+              )}
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* ✅ NEW: Pagination - Always visible, no scroll needed */}
+      <div className="bg-white rounded-lg shadow-sm p-4 sticky bottom-0 z-10">
+        <Pagination
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          total={pagination.total}
+          limit={pagination.limit}
+          from={pagination.from}
+          to={pagination.to}
+          hasNext={pagination.hasNext}
+          hasPrev={pagination.hasPrev}
+          onPageChange={goToPage}
+          onLimitChange={changeLimit}
+          onFirst={firstPage}
+          onLast={lastPage}
+          onNext={nextPage}
+          onPrev={prevPage}
+        />
       </div>
 
       {/* Transaction Modal - Phase 3 Updated */}
@@ -1602,6 +1773,20 @@ const CashRegister = () => {
                 </div>
 
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Transfer Number
+                    <span className="text-xs text-gray-500 ml-2">(Bank reference number)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={depositData.transferNumber}
+                    onChange={(e) => setDepositData({...depositData, transferNumber: e.target.value})}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                    placeholder="Enter bank transfer/deposit reference number"
+                  />
+                </div>
+
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">{t('description')}</label>
                   <input
                     type="text"
@@ -1633,157 +1818,235 @@ const CashRegister = () => {
         </div>
       )}
 
-      {/* End of Day Report Modal */}
-      {showReportModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
-          >
-            <div className="p-6">
-              <h3 className="text-2xl font-bold mb-6 text-purple-600">{t('endOfDayReport')}</h3>
-              
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  📅 {t('date')}
-                </label>
-                <input
-                  type="date"
-                  value={reportDate}
-                  onChange={(e) => setReportDate(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-lg"
-                />
+      {/* End of Day Report Modal - PROFESSIONAL REDESIGN */}
+      {showReportModal && (() => {
+        const report = generateProfessionalReport();
+        
+        return (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-white rounded-xl shadow-2xl max-w-6xl w-full my-8"
+            >
+              {/* Header */}
+              <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6 rounded-t-xl">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-2xl font-bold flex items-center gap-2">
+                      <span>📊</span>
+                      End of Day Cash Report
+                    </h3>
+                    <p className="text-blue-100 text-sm mt-1">
+                      {new Date(reportDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowReportModal(false)}
+                    className="text-white hover:bg-white hover:bg-opacity-20 rounded-lg p-2 transition"
+                  >
+                    ✕
+                  </button>
+                </div>
+                
+                {/* Date Selector */}
+                <div className="mt-4">
+                  <input
+                    type="date"
+                    value={reportDate}
+                    onChange={(e) => setReportDate(e.target.value)}
+                    className="px-4 py-2 rounded-lg text-gray-800 font-medium focus:ring-2 focus:ring-white"
+                  />
+                </div>
               </div>
 
-              {(() => {
-                const report = generateReport();
-                const totalIn = report.cash + report.creditCard + report.debitCard + report.bankTransferIn + report.cheque;
-                const totalOut = report.bankDeposits + report.corrections;
-                const netCash = totalIn - totalOut;
-                
-                const filtered = Array.isArray(transactions) ? transactions.filter(t => {
-                  const tDate = new Date(t.registrationDate.split('T')[0]);
-                  const selectedDate = new Date(reportDate);
-                  tDate.setHours(0, 0, 0, 0);
-                  selectedDate.setHours(0, 0, 0, 0);
-                  return tDate.getTime() === selectedDate.getTime();
-                }) : [];
-                
-                return (
-                  <div className="space-y-6">
-                    <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded">
-                      <p className="text-sm text-blue-800">
-                        📊 Showing {filtered.length} transaction(s) for {new Date(reportDate).toLocaleDateString()}
+              <div className="p-6 max-h-[calc(90vh-200px)] overflow-y-auto">
+                {/* Overall Summary */}
+                <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-6 mb-6 border border-gray-200">
+                  <h4 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                    <span>📈</span>
+                    Overall Summary
+                  </h4>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <div className="text-center">
+                      <p className="text-xs text-gray-600 mb-1">Total Stores</p>
+                      <p className="text-2xl font-bold text-gray-800">{report.stores.length}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs text-gray-600 mb-1">Cash Inflow</p>
+                      <p className="text-2xl font-bold text-green-600">{formatNumber(report.totalInflow)}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs text-gray-600 mb-1">Cash Outflow</p>
+                      <p className="text-2xl font-bold text-red-600">{formatNumber(report.totalOutflow)}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs text-gray-600 mb-1">Bank Deposits</p>
+                      <p className="text-2xl font-bold text-blue-600">{formatNumber(report.totalBankDeposits)}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs text-gray-600 mb-1">Net Movement</p>
+                      <p className={`text-2xl font-bold ${report.netMovement >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {report.netMovement >= 0 ? '+' : ''}{formatNumber(report.netMovement)}
                       </p>
                     </div>
+                  </div>
+                </div>
 
-                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-6 border-2 border-blue-300">
-                      <h4 className="text-xl font-bold mb-6 text-blue-900">💵 {t('cashRegister')} Summary</h4>
+                {/* Per-Store Breakdown */}
+                <div className="space-y-4 mb-6">
+                  {report.stores.length === 0 ? (
+                    <div className="text-center py-12 text-gray-500">
+                      <p className="text-lg">No transactions found for this date</p>
+                      <p className="text-sm mt-2">Try selecting a different date</p>
+                    </div>
+                  ) : (
+                    report.stores.map((store: any) => {
+                      const expectedBalance = store.openingBalance + store.inflow - store.outflow;
+                      const cashRemaining = expectedBalance;
+                      const hasShortage = cashRemaining < 0;
                       
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-3">
-                          <h5 className="font-bold text-green-700 text-lg mb-3">➕ {t('totalIn')}</h5>
-                          
-                          <div className="bg-white rounded-lg p-3 shadow-sm">
-                            <div className="flex justify-between items-center">
-                              <span className="text-sm text-gray-700">💵 {t('cash')}</span>
-                              <span className="font-bold text-green-600">${formatNumber(report.cash)}</span>
+                      return (
+                        <div key={store.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                          {/* Store Header */}
+                          <div className="bg-gradient-to-r from-indigo-50 to-blue-50 p-4 border-b border-gray-200">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <h5 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                                  <span>🏪</span>
+                                  {store.name}
+                                </h5>
+                                <p className="text-xs text-gray-600 mt-1">
+                                  {store.code} • {store.location}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-xs text-gray-600">Transactions</p>
+                                <p className="text-lg font-bold text-gray-800">{store.transactions.length}</p>
+                              </div>
                             </div>
                           </div>
-                          
-                          <div className="bg-white rounded-lg p-3 shadow-sm">
-                            <div className="flex justify-between items-center">
-                              <span className="text-sm text-gray-700">💳 {t('creditCard')}</span>
-                              <span className="font-bold text-green-600">${formatNumber(report.creditCard)}</span>
+
+                          {/* Store Details */}
+                          <div className="p-4 bg-white">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                              {/* Left Column */}
+                              <div className="space-y-3">
+                                <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                                  <span className="text-sm text-gray-600">Opening Balance:</span>
+                                  <span className="text-lg font-semibold text-gray-800">{formatNumber(store.openingBalance)}</span>
+                                </div>
+                                <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                                  <span className="text-sm text-green-700">Cash Inflow:</span>
+                                  <span className="text-lg font-semibold text-green-600">
+                                    +{formatNumber(store.inflow)} <span className="text-xs text-gray-500">({store.inflowCount})</span>
+                                  </span>
+                                </div>
+                                <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                                  <span className="text-sm text-red-700">Cash Outflow:</span>
+                                  <span className="text-lg font-semibold text-red-600">
+                                    -{formatNumber(store.outflow)} <span className="text-xs text-gray-500">({store.outflowCount})</span>
+                                  </span>
+                                </div>
+                                <div className="flex justify-between items-center py-2 bg-blue-50 px-3 rounded">
+                                  <span className="text-sm font-medium text-blue-900">Expected Balance:</span>
+                                  <span className="text-xl font-bold text-blue-700">{formatNumber(expectedBalance)}</span>
+                                </div>
+                              </div>
+
+                              {/* Right Column - Bank Deposits */}
+                              <div className="bg-gray-50 rounded-lg p-4">
+                                <p className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                                  <span>💸</span>
+                                  Bank Deposits Made:
+                                </p>
+                                {store.bankDeposits.length === 0 ? (
+                                  <p className="text-sm text-gray-500 italic">No deposits made today</p>
+                                ) : (
+                                  <div className="space-y-2">
+                                    {store.bankDeposits.map((deposit: any, idx: number) => (
+                                      <div key={idx} className="flex justify-between items-center text-sm bg-white p-2 rounded">
+                                        <span className="text-gray-700">
+                                          → {deposit.bankName} (****{deposit.accountNumber})
+                                        </span>
+                                        <span className="font-semibold text-gray-800">{formatNumber(deposit.amount)}</span>
+                                      </div>
+                                    ))}
+                                    <div className="flex justify-between items-center text-sm font-bold pt-2 border-t border-gray-300">
+                                      <span className="text-gray-700">Total Deposited:</span>
+                                      <span className="text-blue-600">{formatNumber(store.bankDeposits.reduce((sum: number, d: any) => sum + d.amount, 0))}</span>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                          
-                          <div className="bg-white rounded-lg p-3 shadow-sm">
-                            <div className="flex justify-between items-center">
-                              <span className="text-sm text-gray-700">💳 {t('debitCard')}</span>
-                              <span className="font-bold text-green-600">${formatNumber(report.debitCard)}</span>
-                            </div>
-                          </div>
-                          
-                          <div className="bg-white rounded-lg p-3 shadow-sm">
-                            <div className="flex justify-between items-center">
-                              <span className="text-sm text-gray-700">🏦 {t('bankTransfer')}</span>
-                              <span className="font-bold text-green-600">${formatNumber(report.bankTransferIn)}</span>
-                            </div>
-                          </div>
-                          
-                          <div className="bg-white rounded-lg p-3 shadow-sm">
-                            <div className="flex justify-between items-center">
-                              <span className="text-sm text-gray-700">📝 {t('cheque')}</span>
-                              <span className="font-bold text-green-600">${formatNumber(report.cheque)}</span>
-                            </div>
-                          </div>
-                          
-                          <div className="bg-green-100 rounded-lg p-3 border-2 border-green-400">
-                            <div className="flex justify-between items-center">
-                              <span className="font-bold text-green-800">{t('totalIn')}:</span>
-                              <span className="font-bold text-green-800 text-xl">${formatNumber(totalIn)}</span>
+
+                            {/* Cash Remaining */}
+                            <div className={`rounded-lg p-4 ${hasShortage ? 'bg-red-50 border-2 border-red-300' : 'bg-green-50 border-2 border-green-300'}`}>
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                                  <span>💵</span>
+                                  Cash Remaining in Register:
+                                </span>
+                                <span className={`text-2xl font-bold ${hasShortage ? 'text-red-600' : 'text-green-600'}`}>
+                                  {formatNumber(cashRemaining)}
+                                  {hasShortage && <span className="ml-2 text-sm">⚠️ SHORTAGE!</span>}
+                                </span>
+                              </div>
                             </div>
                           </div>
                         </div>
+                      );
+                    })
+                  )}
+                </div>
 
-                        <div className="space-y-3">
-                          <h5 className="font-bold text-red-700 text-lg mb-3">➖ {t('totalOut')}</h5>
-                          
-                          <div className="bg-white rounded-lg p-3 shadow-sm">
-                            <div className="flex justify-between items-center">
-                              <span className="text-sm text-gray-700">🏦 {t('bankDeposits')}</span>
-                              <span className="font-bold text-red-600">${formatNumber(report.bankDeposits)}</span>
-                            </div>
-                          </div>
-                          
-                          <div className="bg-white rounded-lg p-3 shadow-sm">
-                            <div className="flex justify-between items-center">
-                              <span className="text-sm text-gray-700">🔧 {t('corrections')}</span>
-                              <span className="font-bold text-red-600">${formatNumber(report.corrections)}</span>
-                            </div>
-                          </div>
-                          
-                          <div className="bg-red-100 rounded-lg p-3 border-2 border-red-400">
-                            <div className="flex justify-between items-center">
-                              <span className="font-bold text-red-800">{t('totalOut')}:</span>
-                              <span className="font-bold text-red-800 text-xl">${formatNumber(totalOut)}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="border-t-2 border-blue-300 my-6"></div>
-
-                      <div className={`rounded-lg p-5 shadow-lg border-4 ${netCash >= 0 ? 'bg-green-100 border-green-500' : 'bg-red-100 border-red-500'}`}>
-                        <div className="flex justify-between items-center">
+                {/* Bank Deposit Summary */}
+                {report.allBankDeposits.length > 0 && (
+                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-200">
+                    <h4 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                      <span>🏦</span>
+                      Bank Deposit Summary
+                    </h4>
+                    <div className="space-y-2">
+                      {report.allBankDeposits.map((deposit: any, idx: number) => (
+                        <div key={idx} className="flex justify-between items-center bg-white p-3 rounded-lg">
                           <div>
-                            <p className="text-lg font-bold text-gray-800">{t('expectedCashInRegister')}</p>
-                            <p className="text-xs text-gray-600 mt-1">(Total In - Total Out)</p>
+                            <span className="font-medium text-gray-800">{deposit.bankName} (****{deposit.accountNumber})</span>
+                            <span className="text-xs text-gray-500 ml-2">from {deposit.storeName}</span>
                           </div>
-                          <span className={`text-4xl font-bold ${netCash >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                            ${formatNumber(netCash)}
-                          </span>
+                          <span className="font-bold text-blue-600">{formatNumber(deposit.amount)}</span>
                         </div>
+                      ))}
+                      <div className="flex justify-between items-center bg-blue-100 p-3 rounded-lg font-bold border-t-2 border-blue-300">
+                        <span className="text-gray-800">Total Deposited:</span>
+                        <span className="text-blue-700 text-xl">{formatNumber(report.totalBankDeposits)}</span>
                       </div>
                     </div>
                   </div>
-                );
-              })()}
+                )}
+              </div>
 
-              <div className="flex gap-3 pt-6">
+              {/* Footer */}
+              <div className="bg-gray-50 p-4 rounded-b-xl border-t border-gray-200 flex gap-3">
                 <button
                   onClick={() => setShowReportModal(false)}
-                  className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg hover:bg-gray-300 transition font-medium"
+                  className="flex-1 bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition font-semibold"
                 >
-                  {t('close')}
+                  Close Report
+                </button>
+                <button
+                  onClick={() => window.print()}
+                  className="flex-1 bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition font-semibold flex items-center justify-center gap-2"
+                >
+                  <span>🖨️</span>
+                  Print Report
                 </button>
               </div>
-            </div>
-          </motion.div>
-        </div>
-      )}
+            </motion.div>
+          </div>
+        );
+      })()}
 
       {/* Overpayment Alert Modal */}
       {overpaymentData && (

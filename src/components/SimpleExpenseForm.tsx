@@ -48,7 +48,7 @@ const SimpleExpenseForm = ({
 
   const [associatedCosts, setAssociatedCosts] = useState<any[]>([]);
 
-  // ✅ OPTIMIZATION: Use React Query instead of manual API calls
+  // ✅ TASK 2: Use React Query - cache updates automatically after submission
   const { data: allBankAccounts = [] } = useBankAccounts();
   const { data: allCards = [] } = useCards();
 
