@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { FaBalanceScale, FaCalendarAlt, FaDownload, FaCheckCircle, FaExclamationTriangle } from 'react-icons/fa';
-import { useLanguage } from '../contexts/LanguageContext';
 import { useTrialBalance } from '../hooks/queries/useAccounting';
 import { formatNumber } from '../utils/formatNumber';
 

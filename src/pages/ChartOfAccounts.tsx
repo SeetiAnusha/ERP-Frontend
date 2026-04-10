@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { FaBook, FaPlus, FaEdit, FaTrash, FaSearch, FaUpload } from 'react-icons/fa';
-import { useLanguage } from '../contexts/LanguageContext';
 import { 
   useChartOfAccounts, 
   useCreateAccount, 

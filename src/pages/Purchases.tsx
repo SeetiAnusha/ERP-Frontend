@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Eye, CheckCircle, Clock, XCircle, X, Trash2, ShoppingCart, Package, FileText } from 'lucide-react';
 import api from '../api/axios';
@@ -86,8 +86,6 @@ const Purchases = () => {
     pagination,
     search,
     updateSearch,
-    updateFilter,
-    clearFilters,
     goToPage,
     nextPage,
     prevPage,
@@ -701,16 +699,6 @@ const Purchases = () => {
 
   // ✅ REMOVED: No longer need manual filtering - backend handles it via pagination
   // Backend now handles search and filters, so we use the data directly from useTableData
-  
-  // ✅ Update filter when filterStatus changes
-  useEffect(() => {
-    if (filterStatus !== 'All') {
-      // ✅ FIX: Use 'paymentStatus' instead of 'status' to match Purchase model column
-      updateFilter('paymentStatus', filterStatus);
-    } else {
-      clearFilters();
-    }
-  }, [filterStatus, updateFilter, clearFilters]);
 
   return (
     <div>

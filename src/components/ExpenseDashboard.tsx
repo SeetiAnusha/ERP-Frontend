@@ -11,11 +11,8 @@ import {
   Filter,
   Download
 } from 'lucide-react';
-import { ExpenseDashboardData } from '../types';
 import { formatNumber } from '../utils/formatNumber';
 import { useBusinessExpenseDashboard } from '../hooks/queries/useFinancial';
-import { useQueryClient } from '@tanstack/react-query';
-import { QUERY_KEYS } from '../lib/queryKeys';
 
 /**
  * ExpenseDashboard Component
@@ -34,15 +31,11 @@ import { QUERY_KEYS } from '../lib/queryKeys';
 interface ExpenseDashboardProps {
   className?: string;
   showFilters?: boolean;
-  autoRefresh?: boolean;
-  refreshInterval?: number; // in milliseconds
 }
 
 const ExpenseDashboard = ({
   className = '',
-  showFilters = true,
-  autoRefresh = false,
-  refreshInterval = 30000
+  showFilters = true
 }: ExpenseDashboardProps) => {
   const [selectedPeriod, setSelectedPeriod] = useState('all');
 
