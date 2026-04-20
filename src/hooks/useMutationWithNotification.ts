@@ -51,7 +51,7 @@ export function useMutationWithNotification<TData = any, TVariables = any>({
       }
       
       // Log success (only in development)
-      if (process.env.NODE_ENV === 'development') {
+      if (import.meta.env.DEV) {
         console.log('Mutation successful', { successMessage });
       }
       
@@ -70,7 +70,7 @@ export function useMutationWithNotification<TData = any, TVariables = any>({
       notify.error('Error', message);
       
       // Log error (only in development, or send to error tracking in production)
-      if (process.env.NODE_ENV === 'development') {
+      if (import.meta.env.DEV) {
         console.error('Mutation failed', error);
       }
       

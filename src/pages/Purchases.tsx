@@ -7,7 +7,6 @@ import { Purchase, AssociatedInvoice } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { formatNumber } from '../utils/formatNumber';
 import { cleanFormData } from '../utils/cleanFormData';  // Import utility
-import { extractErrorMessage } from '../utils/errorHandler';
 import { useForm } from '../hooks/useForm';
 import { useModal } from '../hooks/useModal';
 import SearchBar from '../components/common/SearchBar';
