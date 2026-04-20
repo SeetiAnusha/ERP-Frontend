@@ -59,7 +59,7 @@ const Cards = () => {
     changeLimit,
     refresh
   } = useTableData<Card>({
-    endpoint: '/cards',  // ✅ FIXED: Removed /api/ prefix
+    endpoint: 'cards',  // ✅ FIXED: No leading slash (baseURL already has /api)
     initialLimit: 50,
     initialSortBy: 'createdAt',
     initialSortOrder: 'DESC'

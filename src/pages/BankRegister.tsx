@@ -98,7 +98,7 @@ const BankRegister = () => {
     changeLimit,
     refresh
   } = useTableData<BankTransaction>({
-    endpoint: '/bank-register',  // ✅ FIXED: Removed /api/ prefix
+    endpoint: 'bank-register',  // ✅ FIXED: No leading slash (baseURL already has /api)
     initialLimit: 50,
     initialFilters: {
       transactionType: 'All'

@@ -30,7 +30,7 @@ const Clients = () => {
     changeLimit,
     refresh
   } = useTableData<Client>({
-    endpoint: '/clients',  // ✅ FIXED: Removed /api/ prefix
+    endpoint: 'clients',  // ✅ FIXED: No leading slash (baseURL already has /api)
     initialLimit: 50,
     initialSortBy: 'createdAt',
     initialSortOrder: 'DESC'

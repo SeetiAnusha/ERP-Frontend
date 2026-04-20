@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import api from '../api/axios';  // ✅ FIXED: Use configured axios instance
 import { usePagination } from './usePagination';
 
 export interface UseTableDataOptions {
@@ -80,7 +80,7 @@ export function useTableData<T = any>(options: UseTableDataOptions) {
         }
       });
 
-      const response = await axios.get(endpoint, { params });
+      const response = await api.get(endpoint, { params });  // ✅ FIXED: Use api instead of axios
       console.log('📦 useTableData response:', {
         endpoint,
         params,

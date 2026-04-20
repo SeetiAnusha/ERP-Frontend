@@ -45,7 +45,7 @@ const CashRegister = () => {
     changeLimit,
     refresh
   } = useTableData<CashTransaction>({
-    endpoint: '/cash-register',  // ✅ FIXED: Removed /api/ prefix
+    endpoint: 'cash-register',  // ✅ FIXED: No leading slash (baseURL already has /api)
     initialLimit: 50,
     initialFilters: {
       transactionType: 'All'

@@ -38,7 +38,7 @@ const AccountsReceivablePage = () => {
     changeLimit,
     refresh
   } = useTableData<AccountsReceivable>({
-    endpoint: '/accounts-receivable',  // ✅ FIXED: Removed /api/ prefix
+    endpoint: 'accounts-receivable',  // ✅ FIXED: No leading slash (baseURL already has /api)
     initialLimit: 50,
     initialSortBy: 'createdAt',
     initialSortOrder: 'DESC'

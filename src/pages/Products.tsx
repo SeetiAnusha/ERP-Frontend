@@ -64,7 +64,7 @@ const Products = () => {
     changeLimit,
     refresh
   } = useTableData<Product>({
-    endpoint: '/products',  // ✅ FIXED: Added leading slash
+    endpoint: 'products',  // ✅ FIXED: No leading slash (baseURL already has /api)
     initialLimit: 50
   });
   

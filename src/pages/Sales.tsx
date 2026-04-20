@@ -66,7 +66,7 @@ const Sales = () => {
     changeLimit,
     refresh
   } = useTableData<EnhancedSale>({
-    endpoint: '/sales',  // ✅ FIXED: Added leading slash
+    endpoint: 'sales',  // ✅ FIXED: No leading slash (baseURL already has /api)
     initialLimit: 50
   });
   

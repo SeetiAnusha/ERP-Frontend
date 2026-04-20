@@ -95,7 +95,7 @@ const Purchases = () => {
     changeLimit,
     refresh
   } = useTableData<EnhancedPurchase>({
-    endpoint: '/purchases',  // ✅ FIXED: Added leading slash
+    endpoint: 'purchases',  // ✅ FIXED: No leading slash (baseURL already has /api)
     initialLimit: 50,
     initialFilters: {
       status: 'All'

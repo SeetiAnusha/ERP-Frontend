@@ -31,7 +31,7 @@ const Suppliers = () => {
     changeLimit,
     refresh
   } = useTableData<Supplier>({
-    endpoint: '/suppliers',  // ✅ FIXED: Removed /api/ prefix
+    endpoint: 'suppliers',  // ✅ FIXED: No leading slash (baseURL already has /api)
     initialLimit: 50,
     initialSortBy: 'createdAt',
     initialSortOrder: 'DESC'
