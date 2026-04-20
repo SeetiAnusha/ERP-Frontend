@@ -34,7 +34,7 @@ const AccountsPayablePage = () => {
     changeLimit,
     refresh
   } = useTableData<AccountsPayable>({
-    endpoint: '/api/accounts-payable',
+    endpoint: '/accounts-payable',  // ✅ FIXED: Removed /api/ prefix
     initialLimit: 50,
     initialSortBy: 'createdAt',
     initialSortOrder: 'DESC'

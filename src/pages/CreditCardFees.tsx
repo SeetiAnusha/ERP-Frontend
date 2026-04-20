@@ -57,7 +57,7 @@ const CreditCardFees = () => {
     changeLimit,
     updateFilter
   } = useTableData<CreditCardFeeRecord>({
-    endpoint: '/api/credit-card-fees',
+    endpoint: '/credit-card-fees',  // ✅ FIXED: Removed /api/ prefix
     initialLimit: 50,
     initialSortBy: 'transactionDate',
     initialSortOrder: 'DESC'

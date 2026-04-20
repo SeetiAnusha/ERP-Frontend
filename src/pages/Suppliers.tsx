@@ -31,7 +31,7 @@ const Suppliers = () => {
     changeLimit,
     refresh
   } = useTableData<Supplier>({
-    endpoint: '/api/suppliers',
+    endpoint: '/suppliers',  // ✅ FIXED: Removed /api/ prefix
     initialLimit: 50,
     initialSortBy: 'createdAt',
     initialSortOrder: 'DESC'

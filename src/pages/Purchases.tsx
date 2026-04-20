@@ -95,7 +95,7 @@ const Purchases = () => {
     changeLimit,
     refresh
   } = useTableData<EnhancedPurchase>({
-    endpoint: '/api/purchases',
+    endpoint: '/purchases',  // ✅ FIXED: Added leading slash
     initialLimit: 50,
     initialFilters: {
       status: 'All'

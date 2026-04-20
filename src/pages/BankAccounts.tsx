@@ -40,7 +40,7 @@ const BankAccounts = () => {
     changeLimit,
     refresh
   } = useTableData<BankAccount>({
-    endpoint: '/api/bank-accounts',
+    endpoint: '/bank-accounts',  // ✅ FIXED: Removed /api/ prefix
     initialLimit: 50,
     initialSortBy: 'createdAt',
     initialSortOrder: 'DESC'

@@ -45,7 +45,7 @@ const CashRegister = () => {
     changeLimit,
     refresh
   } = useTableData<CashTransaction>({
-    endpoint: '/api/cash-register',
+    endpoint: '/cash-register',  // ✅ FIXED: Removed /api/ prefix
     initialLimit: 50,
     initialFilters: {
       transactionType: 'All'
