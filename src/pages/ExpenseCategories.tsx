@@ -2,9 +2,13 @@ import { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Search, Edit2, Trash2, FolderTree, X, Check, AlertCircle } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import api from '../api/axios';
 import { useExpenseCategories } from '../hooks/queries/useSharedData';
 import { QUERY_KEYS } from '../lib/queryKeys';
+import { extractErrorMessage } from '../utils/errorHandler';
+import { useConfirm } from '../hooks/useConfirm';
+import ConfirmDialog from '../components/common/ConfirmDialog';
 // import { useLanguage } from '../contexts/LanguageContext';
 
 interface ExpenseCategory {
@@ -31,6 +35,9 @@ const ExpenseCategories = () => {
   // ✅ React Query Hooks
   const { data: categories = [], isLoading, isError, refetch } = useExpenseCategories();
   const queryClient = useQueryClient();
+  
+  // ✅ Confirm Dialog Hook
+  const { confirm, dialogProps } = useConfirm();
   
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -77,12 +84,12 @@ const ExpenseCategories = () => {
     if (isSubmitting) return;
     
     if (!formData.name.trim()) {
-      alert('Category name is required');
+      toast.error('Category name is required');
       return;
     }
 
     if (!formData.code.trim()) {
-      alert('Category code is required');
+      toast.error('Category code is required');
       return;
     }
 
@@ -98,8 +105,10 @@ const ExpenseCategories = () => {
 
       if (editingCategory) {
         await api.put(`/expenses/categories/${editingCategory.id}`, submitData);
+        toast.success('Category updated successfully');
       } else {
         await api.post('/expenses/categories', submitData);
+        toast.success('Category created successfully');
       }
       
       // ✅ Invalidate cache
@@ -108,8 +117,7 @@ const ExpenseCategories = () => {
       closeModal();
     } catch (error: any) {
       console.error('Error saving category:', error);
-      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Error saving category';
-      alert(errorMessage);
+      toast.error(extractErrorMessage(error));
     } finally {
       setIsSubmitting(false);
     }
@@ -120,12 +128,12 @@ const ExpenseCategories = () => {
     e.preventDefault();
     
     if (!newTypeData.name.trim() || !selectedCategory) {
-      alert('Type name is required');
+      toast.error('Type name is required');
       return;
     }
 
     if (!newTypeData.code.trim()) {
-      alert('Type code is required');
+      toast.error('Type code is required');
       return;
     }
 
@@ -139,33 +147,39 @@ const ExpenseCategories = () => {
       };
 
       await api.post('/expenses/types', submitData);
+      toast.success('Expense type added successfully');
       
       fetchExpenseTypes(selectedCategory.id);
       setNewTypeData({ name: '', code: '', description: '', isActive: true });
       setShowAddTypeForm(false);
     } catch (error: any) {
       console.error('Error adding expense type:', error);
-      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Error adding expense type';
-      alert(errorMessage);
+      toast.error(extractErrorMessage(error));
     }
   }, [newTypeData, selectedCategory, fetchExpenseTypes]);
 
   // ✅ Memoized: Handle delete category
   const handleDeleteCategory = useCallback(async (id: number) => {
-    if (!confirm('Are you sure you want to delete this category? This action cannot be undone.')) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: 'Delete Category',
+      message: 'Are you sure you want to delete this category? This action cannot be undone.',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      variant: 'danger'
+    });
+    if (!confirmed) return;
 
     try {
       await api.delete(`/expenses/categories/${id}`);
+      toast.success('Category deleted successfully');
       // ✅ Invalidate cache
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenseCategories });
       refetch();
     } catch (error: any) {
       console.error('Error deleting category:', error);
-      alert(error.response?.data?.error || 'Error deleting category');
+      toast.error(extractErrorMessage(error));
     }
-  }, [queryClient, refetch]);
+  }, [confirm, queryClient, refetch]);
 
   // ✅ Memoized: Handle toggle status
   const handleToggleStatus = useCallback(async (category: ExpenseCategory) => {
@@ -174,12 +188,13 @@ const ExpenseCategories = () => {
         ...category,
         isActive: !category.isActive
       });
+      toast.success(`Category ${!category.isActive ? 'activated' : 'deactivated'} successfully`);
       // ✅ Invalidate cache
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenseCategories });
       refetch();
     } catch (error: any) {
       console.error('Error updating category status:', error);
-      alert(error.response?.data?.error || 'Error updating category status');
+      toast.error(extractErrorMessage(error));
     }
   }, [queryClient, refetch]);
 
@@ -640,6 +655,9 @@ const ExpenseCategories = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog {...dialogProps} />
     </div>
   );
 };

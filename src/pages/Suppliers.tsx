@@ -10,10 +10,15 @@ import { QUERY_KEYS } from '../lib/queryKeys';
 import { useTableData } from '../hooks/useTableData';
 import { Pagination } from '../components/common/Pagination';
 import SearchBar from '../components/common/SearchBar';
+import { useConfirm } from '../hooks/useConfirm';
+import ConfirmDialog from '../components/common/ConfirmDialog';
+import { toast } from 'sonner';
+import { extractErrorMessage } from '../utils/errorHandler';
 
 const Suppliers = () => {
   const { t } = useLanguage();
   const queryClient = useQueryClient();
+  const { confirm, dialogProps } = useConfirm();
   
   // ✅ NEW: Use useTableData for pagination
   const {
@@ -52,9 +57,11 @@ const Suppliers = () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.suppliers });
       refresh(); // Refresh pagination data
       closeModal();
+      toast.success('Supplier created successfully');
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('Error creating supplier:', error);
+      toast.error(extractErrorMessage(error));
     },
   });
 
@@ -68,9 +75,11 @@ const Suppliers = () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.suppliers });
       refresh(); // Refresh pagination data
       closeModal();
+      toast.success('Supplier updated successfully');
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('Error updating supplier:', error);
+      toast.error(extractErrorMessage(error));
     },
   });
 
@@ -82,9 +91,11 @@ const Suppliers = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.suppliers });
       refresh(); // Refresh pagination data
+      toast.success('Supplier deleted successfully');
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('Error deleting supplier:', error);
+      toast.error(extractErrorMessage(error));
     },
   });
 
@@ -99,12 +110,20 @@ const Suppliers = () => {
     }
   }, [editingSupplier, formData, createMutation, updateMutation]);
 
-  // ✅ Memoized delete handler
+  // ✅ Memoized delete handler - NO MORE window.confirm!
   const handleDelete = useCallback(async (id: number) => {
-    if (window.confirm(t('confirmDelete'))) {
+    const confirmed = await confirm({
+      title: t('confirmDelete') || 'Delete Supplier',
+      message: 'Are you sure you want to delete this supplier? This action cannot be undone.',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      variant: 'danger'
+    });
+
+    if (confirmed) {
       deleteMutation.mutate(id);
     }
-  }, [t, deleteMutation]);
+  }, [t, deleteMutation, confirm]);
 
   // ✅ Memoized modal handlers
   const openModal = useCallback((supplier?: Supplier) => {
@@ -322,6 +341,9 @@ const Suppliers = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ✅ Confirm Dialog - Replaces window.confirm */}
+      <ConfirmDialog {...dialogProps} />
     </div>
   );
 };

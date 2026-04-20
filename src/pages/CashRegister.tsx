@@ -3,11 +3,13 @@ import { motion } from 'framer-motion';
 import { FaPlus, FaTrash, FaWallet, FaArrowUp, FaArrowDown } from 'react-icons/fa';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import axios from '../api/axios';
 import { CashTransaction } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { formatNumber } from '../utils/formatNumber';
 import { cleanFormData } from '../utils/cleanFormData';
+import { extractErrorMessage } from '../utils/errorHandler';
 import OverpaymentAlertModal from '../components/OverpaymentAlertModal';
 import CustomerCreditAwarePaymentModal from '../components/CustomerCreditAwarePaymentModal';
 import { QUERY_KEYS } from '../lib/queryKeys';
@@ -291,18 +293,18 @@ const CashRegister = () => {
       
       // For payments requiring payment method, validate first
       if (!formData.paymentMethod) {
-        alert('Please select a payment method');
+        toast.error('Please select a payment method');
         return;
       }
       
       if (formData.paymentMethod === 'CASH' && !formData.cashRegisterId) {
-        alert('Please select a cash register for cash payments');
+        toast.error('Please select a cash register for cash payments');
         return;
       }
       
       const bankMethods = ['BANK_TRANSFER', 'DEPOSIT', 'CREDIT_CARD', 'DEBIT_CARD', 'BANK_CHEQUE'];
       if (bankMethods.includes(formData.paymentMethod) && !formData.bankAccountId) {
-        alert('Please select a bank account for bank payments');
+        toast.error('Please select a bank account for bank payments');
         return;
       }
       
@@ -352,7 +354,7 @@ const CashRegister = () => {
       (formData.relatedDocumentType === 'AR_COLLECTION' && formData.paymentMethod === 'CASH');
     
     if (needsCashRegister && !formData.cashRegisterId) {
-      alert(t('selectCashRegister') || 'Please select a cash register');
+      toast.error(t('selectCashRegister') || 'Please select a cash register');
       return;
     }
 
@@ -360,42 +362,42 @@ const CashRegister = () => {
       // INFLOW validations - AR_COLLECTION (Credit Sales and Credit Card Sales), CONTRIBUTION, LOAN
       if (formData.relatedDocumentType === 'AR_COLLECTION') {
         if (!formData.customerId) {
-          alert(t('selectCustomer') || 'Please select a customer');
+          toast.error(t('selectCustomer') || 'Please select a customer');
           return;
         }
         // Skip invoice selection validation if coming from AR with pre-selected invoice
         if (selectedInvoices.length === 0 && !location.state?.fromAccountsReceivable) {
-          alert(t('selectInvoices') || 'Please select at least one credit sale invoice');
+          toast.error(t('selectInvoices') || 'Please select at least one credit sale invoice');
           return;
         }
       }
       
       if (formData.relatedDocumentType === 'CONTRIBUTION' || formData.relatedDocumentType === 'LOAN') {
         if (!formData.investmentAgreementId) {
-          alert('Please select an investment/loan agreement');
+          toast.error('Please select an investment/loan agreement');
           return;
         }
       }
 
       // Payment method validations
       if (formData.paymentMethod === 'DEBIT_CARD' && !formData.cardPaymentNetworkId) {
-        alert('Please select a debit card payment network');
+        toast.error('Please select a debit card payment network');
         return;
       }
       
       if (formData.paymentMethod === 'CREDIT_CARD' && !formData.cardPaymentNetworkId) {
-        alert('Please select a credit card payment network');
+        toast.error('Please select a credit card payment network');
         return;
       }
       
       if ((formData.paymentMethod === 'BANK_TRANSFER' || formData.paymentMethod === 'DEPOSIT') && !formData.bankAccountId) {
-        alert('Please select a bank account');
+        toast.error('Please select a bank account');
         return;
       }
     } else if (formData.transactionType === 'OUTFLOW') {
       // OUTFLOW validations - only allow BANK_DEPOSIT or CORRECTION
       if (formData.paymentMethod !== 'BANK_DEPOSIT' && formData.paymentMethod !== 'CORRECTION') {
-        alert('OUTFLOW only allows Bank Deposit or Correction');
+        toast.error('OUTFLOW only allows Bank Deposit or Correction');
         return;
       }
     }
@@ -418,7 +420,7 @@ const CashRegister = () => {
         const outflowAmount = parseFloat(formData.amount);
         
         if (selectedCashRegister && selectedCashRegister.balance < outflowAmount) {
-          alert(
+          toast.error(
             `Insufficient balance in cash register "${selectedCashRegister.name}". ` +
             `Available: ${selectedCashRegister.balance.toFixed(2)}, Required: ${outflowAmount.toFixed(2)}. ` +
             `Cannot perform transaction that would result in negative balance.`
@@ -444,17 +446,18 @@ const CashRegister = () => {
       resetForm();
       
       if (location.state?.fromAccountsReceivable) {
-        alert('Customer invoice collection completed successfully! The Accounts Receivable status has been updated.');
+        toast.success('Customer invoice collection completed successfully! The Accounts Receivable status has been updated.');
         // Navigate back to Accounts Receivable to see the updated status
         setTimeout(() => {
           navigate('/accounts-receivable');
         }, 1000);
       } else {
-        alert(t('transactionCreated') || 'Transaction created successfully!');
+        toast.success(t('transactionCreated') || 'Transaction created successfully!');
       }
     } catch (error: any) {
       console.error('Error saving transaction:', error);
-      alert(error.response?.data?.error || 'Error saving transaction');
+      const errorMessage = extractErrorMessage(error);
+      toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);  // Re-enable button
     }
@@ -489,7 +492,7 @@ const CashRegister = () => {
     // Find the transaction to get its details
     const transaction = transactions.find(t => t.id === id);
     if (!transaction) {
-      alert('Transaction not found');
+      toast.error('Transaction not found');
       return;
     }
 
@@ -561,25 +564,25 @@ const CashRegister = () => {
     resetForm();
     
     if (location.state?.fromAccountsReceivable) {
-      alert('Smart customer payment completed successfully! Credit balances were automatically applied.');
+      toast.success('Smart customer payment completed successfully! Credit balances were automatically applied.');
       setTimeout(() => {
         navigate('/accounts-receivable');
       }, 1000);
     } else {
-      alert('Smart customer payment completed successfully!');
+      toast.success('Smart customer payment completed successfully!');
     }
-  }, [queryClient, formData.customerId, location.state, navigate, fetchCreditPreview, resetForm]);
+  }, [queryClient, formData.customerId, location.state, navigate, fetchCreditPreview, resetForm, refresh]);
 
   const handleDeposit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!depositData.cashRegisterId) {
-      alert(t('selectCashRegister') || 'Please select a cash register');
+      toast.error(t('selectCashRegister') || 'Please select a cash register');
       return;
     }
     
     if (!depositData.bankAccountId) {
-      alert(t('selectBankAccount') || 'Please select a bank account');
+      toast.error(t('selectBankAccount') || 'Please select a bank account');
       return;
     }
     
@@ -598,7 +601,7 @@ const CashRegister = () => {
         transferNumber: depositData.transferNumber || '', // ✅ NEW: Pass transfer number for bank register
       });
       
-      alert('Bank deposit recorded successfully! Cash register balance decreased and bank account increased.');
+      toast.success('Bank deposit recorded successfully! Cash register balance decreased and bank account increased.');
       
       // ✅ OPTIMIZATION: Use React Query cache invalidation and refresh pagination
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashTransactions });
@@ -610,9 +613,10 @@ const CashRegister = () => {
       resetDepositForm();
     } catch (error: any) {
       console.error('Error recording deposit:', error);
-      alert(error.response?.data?.error || 'Error recording deposit');
+      const errorMessage = extractErrorMessage(error);
+      toast.error(errorMessage);
     }
-  }, [depositData, queryClient, t]);
+  }, [depositData, queryClient, t, refresh]);
 
   const resetDepositForm = useCallback(() => {
     setDepositData({

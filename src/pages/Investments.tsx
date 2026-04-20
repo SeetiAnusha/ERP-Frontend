@@ -1,8 +1,12 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { FaPlus, FaEdit, FaTrash, FaChartLine, FaSearch } from 'react-icons/fa';
+import { toast } from 'sonner';
 import axios from '../api/axios';
 import { Investment } from '../types';
+import { extractErrorMessage } from '../utils/errorHandler';
+import { useConfirm } from '../hooks/useConfirm';
+import ConfirmDialog from '../components/common/ConfirmDialog';
 
 const Investments = () => {
   const [investments, setInvestments] = useState<Investment[]>([]);
@@ -10,6 +14,9 @@ const Investments = () => {
   const [editingInvestment, setEditingInvestment] = useState<Investment | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('All');
+
+  // ✅ Confirm Dialog Hook
+  const { confirm, dialogProps } = useConfirm();
 
   const [formData, setFormData] = useState({
     code: '',
@@ -54,26 +61,30 @@ const Investments = () => {
 
       if (editingInvestment) {
         await axios.put(`/investments/${editingInvestment.id}`, data);
+        toast.success('Investment updated successfully');
       } else {
         await axios.post('/investments', data);
+        toast.success('Investment created successfully');
       }
       fetchInvestments();
       resetForm();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving investment:', error);
-      alert('Error saving investment');
+      toast.error(extractErrorMessage(error));
     }
   };
 
   const handleDelete = async (id: number) => {
-    if (window.confirm('Are you sure you want to delete this investment?')) {
-      try {
-        await axios.delete(`/investments/${id}`);
-        fetchInvestments();
-      } catch (error) {
-        console.error('Error deleting investment:', error);
-        alert('Error deleting investment');
-      }
+    const confirmed = await confirm('Are you sure you want to delete this investment?');
+    if (!confirmed) return;
+
+    try {
+      await axios.delete(`/investments/${id}`);
+      toast.success('Investment deleted successfully');
+      fetchInvestments();
+    } catch (error: any) {
+      console.error('Error deleting investment:', error);
+      toast.error(extractErrorMessage(error));
     }
   };
 
@@ -466,6 +477,9 @@ const Investments = () => {
           </motion.div>
         </div>
       )}
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog {...dialogProps} />
     </motion.div>
   );
 };

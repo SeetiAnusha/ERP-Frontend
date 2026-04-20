@@ -6,6 +6,10 @@ import api from '../api/axios';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useFinancers } from '../hooks/queries/useSharedData';
 import { QUERY_KEYS } from '../lib/queryKeys';
+import { useConfirm } from '../hooks/useConfirm';
+import ConfirmDialog from '../components/common/ConfirmDialog';
+import { toast } from 'sonner';
+import { extractErrorMessage } from '../utils/errorHandler';
 
 interface Financer {
   id: number;
@@ -25,6 +29,7 @@ const Financers = () => {
   // ✅ React Query Hooks
   const { data: financers = [], isLoading, isError, refetch } = useFinancers();
   const queryClient = useQueryClient();
+  const { confirm, dialogProps } = useConfirm();
   
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -41,46 +46,14 @@ const Financers = () => {
     status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE',
   });
 
-  // ✅ Memoized: Handle submit
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Prevent double submission
-    if (isSubmitting) return;
-    
-    setIsSubmitting(true);
-    try {
-      if (editingFinancer) {
-        await api.put(`/financers/${editingFinancer.id}`, formData);
-      } else {
-        await api.post('/financers', formData);
-      }
-      // ✅ Invalidate cache
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.financers });
-      refetch();
-      closeModal();
-    } catch (error) {
-      console.error('Error saving financer:', error);
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [isSubmitting, editingFinancer, formData, queryClient, refetch]);
+  // ✅ Memoized: Close modal - DEFINED FIRST
+  const closeModal = useCallback(() => {
+    setShowModal(false);
+    setEditingFinancer(null);
+    setIsSubmitting(false);
+  }, []);
 
-  // ✅ Memoized: Handle delete
-  const handleDelete = useCallback(async (id: number) => {
-    if (window.confirm('Are you sure you want to delete this financer?')) {
-      try {
-        await api.delete(`/financers/${id}`);
-        // ✅ Invalidate cache
-        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.financers });
-        refetch();
-      } catch (error) {
-        console.error('Error deleting financer:', error);
-      }
-    }
-  }, [queryClient, refetch]);
-
-  // ✅ Memoized: Open modal
+  // ✅ Memoized: Open modal - DEFINED SECOND
   const openModal = useCallback((financer?: Financer) => {
     if (financer) {
       setEditingFinancer(financer);
@@ -110,12 +83,57 @@ const Financers = () => {
     setShowModal(true);
   }, []);
 
-  // ✅ Memoized: Close modal
-  const closeModal = useCallback(() => {
-    setShowModal(false);
-    setEditingFinancer(null);
-    setIsSubmitting(false);
-  }, []);
+  // ✅ Memoized: Handle submit - NOW closeModal is available
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Prevent double submission
+    if (isSubmitting) return;
+    
+    setIsSubmitting(true);
+    try {
+      if (editingFinancer) {
+        await api.put(`/financers/${editingFinancer.id}`, formData);
+        toast.success('Financer updated successfully');
+      } else {
+        await api.post('/financers', formData);
+        toast.success('Financer created successfully');
+      }
+      // ✅ Invalidate cache
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.financers });
+      refetch();
+      closeModal();
+    } catch (error: any) {
+      console.error('Error saving financer:', error);
+      toast.error(extractErrorMessage(error));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [isSubmitting, editingFinancer, formData, queryClient, refetch, closeModal]);
+
+  // ✅ Memoized: Handle delete - NO MORE window.confirm!
+  const handleDelete = useCallback(async (id: number) => {
+    const confirmed = await confirm({
+      title: 'Delete Financer',
+      message: 'Are you sure you want to delete this financer? This action cannot be undone.',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      variant: 'danger'
+    });
+
+    if (confirmed) {
+      try {
+        await api.delete(`/financers/${id}`);
+        // ✅ Invalidate cache
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.financers });
+        refetch();
+        toast.success('Financer deleted successfully');
+      } catch (error: any) {
+        console.error('Error deleting financer:', error);
+        toast.error(extractErrorMessage(error));
+      }
+    }
+  }, [queryClient, refetch, confirm]);
 
   // ✅ Memoized: Filtered financers
   const filteredFinancers = useMemo(() => {
@@ -392,6 +410,9 @@ const Financers = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ✅ Confirm Dialog - Replaces window.confirm */}
+      <ConfirmDialog {...dialogProps} />
     </div>
   );
 };

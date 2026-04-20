@@ -1,15 +1,17 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FaBook, FaFilter, FaDownload } from 'react-icons/fa';
+import { FaBook, FaFilter, FaDownload, FaSync } from 'react-icons/fa';
+import { useQueryClient } from '@tanstack/react-query';
 import { useGeneralLedger, useChartOfAccounts } from '../hooks/queries/useAccounting';
 import { formatNumber } from '../utils/formatNumber';
 import Pagination from '../components/common/Pagination';
 import { usePagination } from '../hooks/usePagination';
 
 const GeneralLedger = () => {
+  const queryClient = useQueryClient();
   const [filters, setFilters] = useState({
-    startDate: new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0],
-    endDate: new Date().toISOString().split('T')[0],
+    startDate: '', // ✅ Empty = show all entries by default
+    endDate: '', // ✅ Empty = show all entries by default
     accountCode: '',
     sourceModule: '',
   });
@@ -27,8 +29,8 @@ const GeneralLedger = () => {
     return entries.slice(startIndex, endIndex);
   }, [entries, pagination.page, pagination.limit]);
 
-  // Update pagination metadata when entries change
-  useMemo(() => {
+  // ✅ FIXED: Update pagination metadata when entries change (useEffect for side effects)
+  useEffect(() => {
     const totalPages = Math.ceil(entries.length / pagination.limit);
     const from = entries.length === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1;
     const to = Math.min(pagination.page * pagination.limit, entries.length);
@@ -91,6 +93,10 @@ const GeneralLedger = () => {
 
   const entriesWithBalance = calculateRunningBalance(paginatedData);
 
+  const handleRefresh = async () => {
+    await queryClient.refetchQueries({ queryKey: ['general-ledger'] });
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -116,10 +122,19 @@ const GeneralLedger = () => {
             <p className="text-gray-600 mt-1">Complete transaction history</p>
           </div>
           
-          <button className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2">
-            <FaDownload />
-            Export
-          </button>
+          <div className="flex gap-2">
+            <button 
+              onClick={handleRefresh}
+              className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center gap-2"
+            >
+              <FaSync />
+              Refresh
+            </button>
+            <button className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2">
+              <FaDownload />
+              Export
+            </button>
+          </div>
         </div>
       </div>
 

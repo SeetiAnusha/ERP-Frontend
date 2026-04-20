@@ -9,10 +9,15 @@ import { QUERY_KEYS } from '../lib/queryKeys';
 import { useTableData } from '../hooks/useTableData';
 import { Pagination } from '../components/common/Pagination';
 import SearchBar from '../components/common/SearchBar';
+import { useConfirm } from '../hooks/useConfirm';
+import ConfirmDialog from '../components/common/ConfirmDialog';
+import { toast } from 'sonner';
+import { extractErrorMessage } from '../utils/errorHandler';
 
 const Clients = () => {
   const { t } = useLanguage();
   const queryClient = useQueryClient();
+  const { confirm, dialogProps } = useConfirm();
   
   // ✅ NEW: Use useTableData for pagination
   const {
@@ -41,49 +46,14 @@ const Clients = () => {
     address: '',
   });
 
-  // ✅ MEMOIZED: Handle form submission
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (isSubmitting) return; // Prevent double submission
-    
-    setIsSubmitting(true);
-    
-    try {
-      if (editingClient) {
-        await api.put(`/clients/${editingClient.id}`, formData);
-      } else {
-        await api.post('/clients', formData);
-      }
-      
-      // ✅ REACT QUERY: Cache invalidation for automatic UI updates
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.clients });
-      refresh(); // Refresh pagination data
-      
-      closeModal();
-    } catch (error) {
-      console.error('Error saving client:', error);
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [isSubmitting, editingClient, formData, queryClient]);
+  // ✅ MEMOIZED: Close modal - DEFINED FIRST
+  const closeModal = useCallback(() => {
+    setShowModal(false);
+    setEditingClient(null);
+    setFormData({ code: '', name: '', rncCedula: '', phone: '', address: '' });
+  }, []);
 
-  // ✅ MEMOIZED: Handle delete
-  const handleDelete = useCallback(async (id: number) => {
-    if (window.confirm(t('confirmDelete'))) {
-      try {
-        await api.delete(`/clients/${id}`);
-        
-        // ✅ REACT QUERY: Cache invalidation for automatic UI updates
-        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.clients });
-        refresh(); // Refresh pagination data
-      } catch (error) {
-        console.error('Error deleting client:', error);
-      }
-    }
-  }, [queryClient, t]);
-
-  // ✅ MEMOIZED: Open modal
+  // ✅ MEMOIZED: Open modal - DEFINED SECOND
   const openModal = useCallback((client?: Client) => {
     if (client) {
       setEditingClient(client);
@@ -95,12 +65,60 @@ const Clients = () => {
     setShowModal(true);
   }, []);
 
-  // ✅ MEMOIZED: Close modal
-  const closeModal = useCallback(() => {
-    setShowModal(false);
-    setEditingClient(null);
-    setFormData({ code: '', name: '', rncCedula: '', phone: '', address: '' });
-  }, []);
+  // ✅ MEMOIZED: Handle form submission - NOW closeModal is available
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (isSubmitting) return; // Prevent double submission
+    
+    setIsSubmitting(true);
+    
+    try {
+      if (editingClient) {
+        await api.put(`/clients/${editingClient.id}`, formData);
+        toast.success('Client updated successfully');
+      } else {
+        await api.post('/clients', formData);
+        toast.success('Client created successfully');
+      }
+      
+      // ✅ REACT QUERY: Cache invalidation for automatic UI updates
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.clients });
+      refresh(); // Refresh pagination data
+      
+      closeModal();
+    } catch (error: any) {
+      console.error('Error saving client:', error);
+      toast.error(extractErrorMessage(error));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [isSubmitting, editingClient, formData, queryClient, refresh, closeModal]);
+
+  // ✅ MEMOIZED: Handle delete - NO MORE window.confirm!
+  const handleDelete = useCallback(async (id: number) => {
+    const confirmed = await confirm({
+      title: t('confirmDelete') || 'Delete Client',
+      message: 'Are you sure you want to delete this client? This action cannot be undone.',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      variant: 'danger'
+    });
+
+    if (confirmed) {
+      try {
+        await api.delete(`/clients/${id}`);
+        
+        // ✅ REACT QUERY: Cache invalidation for automatic UI updates
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.clients });
+        refresh(); // Refresh pagination data
+        toast.success('Client deleted successfully');
+      } catch (error: any) {
+        console.error('Error deleting client:', error);
+        toast.error(extractErrorMessage(error));
+      }
+    }
+  }, [queryClient, t, confirm, refresh]);
 
   // ✅ OPTIMIZED: Loading state
   if (loading) {
@@ -298,6 +316,9 @@ const Clients = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ✅ Confirm Dialog - Replaces window.confirm */}
+      <ConfirmDialog {...dialogProps} />
     </div>
   );
 };

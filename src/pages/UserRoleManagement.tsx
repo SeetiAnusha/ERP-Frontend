@@ -1,7 +1,9 @@
 import { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Edit, Trash2, X, Shield, Users } from 'lucide-react';
+import { toast } from 'sonner';
 import api from '../api/axios';
+import { extractErrorMessage } from '../utils/errorHandler';
 // import { useLanguage } from '../contexts/LanguageContext';
 
 interface UserWithRole {
@@ -79,7 +81,8 @@ const UserRoleManagement = () => {
       setAvailableRoles(rolesRes.data.data);
     } catch (error: any) {
       console.error('Error loading data:', error);
-      alert(error.response?.data?.message || 'Failed to load data');
+      const errorMessage = extractErrorMessage(error);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -135,12 +138,13 @@ const UserRoleManagement = () => {
         canDelegate: assignForm.canDelegate,
       });
       
-      alert('Role assigned successfully');
+      toast.success('Role assigned successfully');
       closeAssignModal();
       loadData();
     } catch (error: any) {
       console.error('Error assigning role:', error);
-      alert(error.response?.data?.message || 'Failed to assign role');
+      const errorMessage = extractErrorMessage(error);
+      toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -162,12 +166,13 @@ const UserRoleManagement = () => {
         reason: editLimitForm.reason,
       });
       
-      alert('Approval limit updated successfully');
+      toast.success('Approval limit updated successfully');
       closeEditLimitModal();
       loadData();
     } catch (error: any) {
       console.error('Error updating limit:', error);
-      alert(error.response?.data?.message || 'Failed to update approval limit');
+      const errorMessage = extractErrorMessage(error);
+      toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -176,7 +181,7 @@ const UserRoleManagement = () => {
   // Remove role
   const handleRemoveRole = async (userId: number, roleId: number | null, userName: string) => {
     if (!roleId) {
-      alert('User does not have a role assigned');
+      toast.error('User does not have a role assigned');
       return;
     }
     
@@ -193,11 +198,12 @@ const UserRoleManagement = () => {
         },
       });
       
-      alert('Role removed successfully');
+      toast.success('Role removed successfully');
       loadData();
     } catch (error: any) {
       console.error('Error removing role:', error);
-      alert(error.response?.data?.message || 'Failed to remove role');
+      const errorMessage = extractErrorMessage(error);
+      toast.error(errorMessage);
     }
   };
 
@@ -212,11 +218,12 @@ const UserRoleManagement = () => {
       const response = await api.post('/auth/sync-admin-manager-roles');
       const result = response.data.data;
       
-      alert(`Sync completed!\n\nSynced: ${result.synced}\nSkipped: ${result.skipped}\nErrors: ${result.errors}`);
+      toast.success(`Sync completed!\n\nSynced: ${result.synced}\nSkipped: ${result.skipped}\nErrors: ${result.errors}`);
       loadData();
     } catch (error: any) {
       console.error('Error syncing roles:', error);
-      alert(error.response?.data?.message || 'Failed to sync roles');
+      const errorMessage = extractErrorMessage(error);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -247,7 +254,7 @@ const UserRoleManagement = () => {
   // Open edit limit modal
   const openEditLimitModal = (user: UserWithRole) => {
     if (!user.role_id) {
-      alert('User does not have a role assigned');
+      toast.error('User does not have a role assigned');
       return;
     }
     

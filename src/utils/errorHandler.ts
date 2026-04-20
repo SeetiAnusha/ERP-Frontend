@@ -16,7 +16,7 @@ export interface ApiError {
  * Extract error message from various error formats
  */
 export const extractErrorMessage = (error: any): string => {
-  // Check for API error response
+  // Check for API error response (primary)
   if (error.response?.data?.error) {
     return error.response.data.error;
   }
@@ -25,9 +25,25 @@ export const extractErrorMessage = (error: any): string => {
     return error.response.data.message;
   }
 
-  // Check for validation errors
+  // Check for validation errors (array format)
   if (error.response?.data?.errors && Array.isArray(error.response.data.errors)) {
-    return error.response.data.errors.map((e: any) => e.message).join(', ');
+    return error.response.data.errors.map((e: any) => e.message || e.msg || e).join(', ');
+  }
+
+  // Check for validation errors (object format - express-validator)
+  if (error.response?.data?.errors && typeof error.response.data.errors === 'object') {
+    const errors = Object.values(error.response.data.errors);
+    return errors.map((e: any) => e.message || e.msg || e).join(', ');
+  }
+
+  // Check for details field (some APIs use this)
+  if (error.response?.data?.details) {
+    if (typeof error.response.data.details === 'string') {
+      return error.response.data.details;
+    }
+    if (Array.isArray(error.response.data.details)) {
+      return error.response.data.details.map((e: any) => e.message || e.msg || e).join(', ');
+    }
   }
 
   // Check for network errors
@@ -38,6 +54,36 @@ export const extractErrorMessage = (error: any): string => {
   // Check for timeout errors
   if (error.code === 'ECONNABORTED') {
     return 'Request timeout. Please try again.';
+  }
+
+  // Check for 400 Bad Request with no specific message
+  if (error.response?.status === 400 && !error.response?.data?.message) {
+    return 'Invalid request. Please check your input.';
+  }
+
+  // Check for 401 Unauthorized
+  if (error.response?.status === 401) {
+    return 'Unauthorized. Please login again.';
+  }
+
+  // Check for 403 Forbidden
+  if (error.response?.status === 403) {
+    return 'Access denied. You do not have permission to perform this action.';
+  }
+
+  // Check for 404 Not Found
+  if (error.response?.status === 404) {
+    return 'Resource not found.';
+  }
+
+  // Check for 409 Conflict (duplicate)
+  if (error.response?.status === 409) {
+    return error.response?.data?.message || 'A conflict occurred. This resource may already exist.';
+  }
+
+  // Check for 500 Internal Server Error
+  if (error.response?.status === 500) {
+    return 'Server error. Please try again later.';
   }
 
   // Default error message

@@ -22,10 +22,26 @@ export const useGeneralLedger = (filters?: any) => {
   return useQuery({
     queryKey: ['general-ledger', filters],
     queryFn: async () => {
-      const response = await api.get('/accounting/general-ledger', { params: filters });
-      return Array.isArray(response.data) ? response.data : response.data.data || [];
+      // ✅ FIX: Only send filters if they have values
+      const cleanFilters: any = {};
+      if (filters?.startDate) cleanFilters.startDate = filters.startDate;
+      if (filters?.endDate) cleanFilters.endDate = filters.endDate;
+      if (filters?.accountCode) cleanFilters.accountCode = filters.accountCode;
+      if (filters?.sourceModule) cleanFilters.sourceModule = filters.sourceModule;
+      
+      console.log('🔍 [useGeneralLedger] Fetching with filters:', cleanFilters);
+      
+      const response = await api.get('/accounting/general-ledger', { params: cleanFilters });
+      const data = Array.isArray(response.data) ? response.data : response.data.data || [];
+      
+      console.log(`✅ [useGeneralLedger] Received ${data.length} entries`);
+      
+      return data;
     },
-    ...CACHE_STRATEGIES.FINANCIAL_DATA,
+    staleTime: 0, // ✅ Always fetch fresh data
+    gcTime: 0, // ✅ Don't cache (renamed from cacheTime in React Query v5)
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
     throwOnError: false,
   });
 };

@@ -159,9 +159,10 @@ const AccountsPayablePage = () => {
   }, [navigate, t]);
 
   const handlePaymentSuccess = useCallback(() => {
-    // ✅ FIXED: React Query automatically refetches - no manual calls needed
+    // ✅ FIXED: Refresh table data after payment to update status immediately
+    refresh(); // This will refetch the data and update the UI
     paymentModal.close();
-  }, [paymentModal]);
+  }, [paymentModal, refresh]);
 
   const handleEditDeadline = useCallback((ap: AccountsPayable) => {
     setEditingDeadline(ap.id);

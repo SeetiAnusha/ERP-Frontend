@@ -1,10 +1,14 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { FaPlus, FaEdit, FaTrash, FaDollarSign, FaSearch } from 'react-icons/fa';
+import { toast } from 'sonner';
 import axios from '../api/axios';
 import { Payment, Purchase, Sale, Client, Supplier } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { formatNumber } from '../utils/formatNumber';
+import { extractErrorMessage } from '../utils/errorHandler';
+import { useConfirm } from '../hooks/useConfirm';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 // ✅ REACT QUERY IMPORTS
 import { usePayments } from '../hooks/queries/useFinancial';
@@ -14,6 +18,7 @@ import { useFeatureFlag } from '../lib/featureFlags';
 
 const Payments = () => {
   const { t } = useLanguage();
+  const { confirm, dialogProps } = useConfirm();
   
   // ✅ REACT QUERY FEATURE FLAG
   const useReactQuery = useFeatureFlag('react-query-payments');
@@ -125,7 +130,7 @@ const Payments = () => {
         setOutstandingDocuments(response.data);
         
         if (response.data.length === 0) {
-          alert(t('noOutstandingInvoicesSupplier'));
+          toast.error(t('noOutstandingInvoicesSupplier'));
         }
       } else if (entityType === 'Sale') {
         const response = await axios.get(`/payments/outstanding/sales/${entityId}`);
@@ -133,12 +138,12 @@ const Payments = () => {
         setOutstandingDocuments(response.data);
         
         if (response.data.length === 0) {
-          alert(t('noOutstandingInvoicesClient'));
+          toast.error(t('noOutstandingInvoicesClient'));
         }
       }
     } catch (error) {
       console.error('Error fetching outstanding documents:', error);
-      alert(t('errorLoadingInvoices'));
+      toast.error(t('errorLoadingInvoices'));
     }
   };
 
@@ -147,12 +152,12 @@ const Payments = () => {
     
     // Validation
     if (!formData.relatedEntityId) {
-      alert(t('pleaseSelectEntity'));
+      toast.error(t('pleaseSelectEntity'));
       return;
     }
     
     if (!formData.paymentAmount || parseFloat(formData.paymentAmount) <= 0) {
-      alert(t('enterValidAmount'));
+      toast.error(t('enterValidAmount'));
       return;
     }
     
@@ -173,9 +178,14 @@ const Payments = () => {
 
       // Warning if no invoices selected
       if (invoiceApplications.length === 0 && outstandingDocuments.length > 0) {
-        const confirmNoInvoices = window.confirm(t('warningNoInvoices'));
+        const confirmed = await confirm({
+          title: t('warningNoInvoices') || 'No Invoices Selected',
+          message: 'You have not selected any invoices. The payment will be recorded without invoice application. Continue?',
+          confirmText: 'Continue',
+          cancelText: 'Cancel'
+        });
         
-        if (!confirmNoInvoices) {
+        if (!confirmed) {
           return; // User cancelled, don't submit
         }
       }
@@ -197,9 +207,9 @@ const Payments = () => {
       }
       
       if (invoiceApplications.length > 0) {
-        alert(t('paymentSavedSuccess').replace('{count}', invoiceApplications.length.toString()));
+        toast.success(t('paymentSavedSuccess').replace('{count}', invoiceApplications.length.toString()));
       } else {
-        alert(t('paymentSavedNoInvoices'));
+        toast.success(t('paymentSavedNoInvoices'));
       }
       
       // ✅ CONDITIONAL REFRESH BASED ON FEATURE FLAG
@@ -215,14 +225,23 @@ const Payments = () => {
     } catch (error: any) {
       console.error('Error saving payment:', error);
       console.error('Error response:', error.response?.data);
-      alert(`Error saving payment: ${error.response?.data?.error || error.message}`);
+      const errorMessage = extractErrorMessage(error);
+      toast.error(errorMessage);
     }
   };
 
   const handleDelete = async (id: number) => {
-    if (window.confirm('Are you sure you want to delete this payment?')) {
+    const confirmed = await confirm({
+      title: 'Delete Payment',
+      message: 'Are you sure you want to delete this payment?',
+      confirmText: 'Delete',
+      cancelText: 'Cancel'
+    });
+
+    if (confirmed) {
       try {
         await axios.delete(`/payments/${id}`);
+        toast.success('Payment deleted successfully');
         
         // ✅ CONDITIONAL REFRESH BASED ON FEATURE FLAG
         if (useReactQuery) {
@@ -232,9 +251,10 @@ const Payments = () => {
           // Legacy manual refresh
           fetchPayments();
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error deleting payment:', error);
-        alert('Error deleting payment');
+        const errorMessage = extractErrorMessage(error);
+        toast.error(errorMessage);
       }
     }
   };
@@ -937,6 +957,9 @@ const Payments = () => {
           </motion.div>
         </div>
       )}
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog {...dialogProps} />
     </motion.div>
   );
 };

@@ -1,12 +1,16 @@
 import { useCallback } from 'react';
 import { Plus, History, Edit, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { toast } from 'sonner';
 import { Product } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import PriceHistoryModal from '../components/PriceHistoryModal';
 import { formatNumber } from '../utils/formatNumber';
 import { useQueryClient } from '@tanstack/react-query';
 import { QUERY_KEYS } from '../lib/queryKeys';
+import { extractErrorMessage } from '../utils/errorHandler';
+import { useConfirm } from '../hooks/useConfirm';
+import ConfirmDialog from '../components/common/ConfirmDialog';
 
 // Reusable Components
 import Modal from '../components/common/Modal';
@@ -45,6 +49,9 @@ const validateProduct = (values: any) => {
 const Products = () => {
   const { t, language } = useLanguage();
   const queryClient = useQueryClient();
+  
+  // ✅ Confirm Dialog Hook
+  const { confirm, dialogProps } = useConfirm();
   
   // ✅ NEW: Pagination with useTableData
   const {
@@ -104,16 +111,23 @@ const Products = () => {
         status: 'ACTIVE'
       };
 
-      if (productModal.data) {
-        await updateProductMutation.mutateAsync({ id: productModal.data.id, data: productData });
-      } else {
-        await createProductMutation.mutateAsync(productData);
+      try {
+        if (productModal.data) {
+          await updateProductMutation.mutateAsync({ id: productModal.data.id, data: productData });
+          toast.success('Product updated successfully');
+        } else {
+          await createProductMutation.mutateAsync(productData);
+          toast.success('Product created successfully');
+        }
+        
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.products });
+        refresh(); // ✅ Critical for pagination
+        productModal.close();
+        productForm.reset();
+      } catch (error: any) {
+        console.error('Error saving product:', error);
+        toast.error(extractErrorMessage(error));
       }
-      
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.products });
-      refresh(); // ✅ Critical for pagination
-      productModal.close();
-      productForm.reset();
     }
   });
 
@@ -138,12 +152,24 @@ const Products = () => {
 
   // Handle delete
   const handleDeleteProduct = useCallback(async (product: Product) => {
-    if (window.confirm(`Are you sure you want to delete ${product.name}?`)) {
+    const confirmed = await confirm({
+      title: 'Delete Product',
+      message: `Are you sure you want to delete ${product.name}?`,
+      confirmText: 'Delete',
+      cancelText: 'Cancel'
+    });
+    if (!confirmed) return;
+
+    try {
       await deleteProductMutation.mutateAsync(product.id);
+      toast.success('Product deleted successfully');
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.products });
       refresh(); // ✅ Critical for pagination
+    } catch (error: any) {
+      console.error('Error deleting product:', error);
+      toast.error(extractErrorMessage(error));
     }
-  }, [deleteProductMutation, queryClient, refresh]);
+  }, [confirm, deleteProductMutation, queryClient, refresh]);
 
   return (
     <div>
@@ -403,6 +429,9 @@ const Products = () => {
           onPriceUpdated={refresh}
         />
       )}
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog {...dialogProps} />
     </div>
   );
 };

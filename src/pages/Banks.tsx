@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Building2, TrendingUp, DollarSign, Calendar, MapPin, Phone, Mail, RefreshCw } from 'lucide-react';
+import { toast } from 'sonner';
 import api from '../api/axios';
 import { formatNumber } from '../utils/formatNumber';
+import { extractErrorMessage } from '../utils/errorHandler';
 
 interface Bank {
   id: number;
@@ -62,8 +64,9 @@ const Banks = () => {
       setLoading(true);
       const response = await api.get('/banks');
       setBanks(response.data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching banks:', error);
+      toast.error(extractErrorMessage(error)); // ✅ Use extractErrorMessage
     } finally {
       setLoading(false);
     }
@@ -74,8 +77,9 @@ const Banks = () => {
     try {
       const response = await api.get('/banks/summary/statistics');
       setSummary(response.data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching bank summary:', error);
+      toast.error(extractErrorMessage(error)); // ✅ Use extractErrorMessage
     }
   }, []);
 

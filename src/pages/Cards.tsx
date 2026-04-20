@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Edit2, Trash2, X, CreditCard } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, CreditCard, RefreshCw } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -9,6 +9,11 @@ import { QUERY_KEYS } from '../lib/queryKeys';
 import { useTableData } from '../hooks/useTableData';
 import { Pagination } from '../components/common/Pagination';
 import SearchBar from '../components/common/SearchBar';
+import CreditCardRestoreModal from '../components/CreditCardRestoreModal';
+import { useConfirm } from '../hooks/useConfirm';
+import ConfirmDialog from '../components/common/ConfirmDialog';
+import { toast } from 'sonner';
+import { extractErrorMessage } from '../utils/errorHandler';
 
 interface Card {
   id: number;
@@ -41,6 +46,7 @@ interface Card {
 const Cards = () => {
   const { t } = useLanguage();
   const queryClient = useQueryClient();
+  const { confirm, dialogProps } = useConfirm();
   
   // ✅ NEW: Use useTableData for pagination
   const {
@@ -63,6 +69,8 @@ const Cards = () => {
   
   const isLoading = cardsLoading || accountsLoading;
   const [showModal, setShowModal] = useState(false);
+  const [showRestoreModal, setShowRestoreModal] = useState(false);
+  const [restoringCard, setRestoringCard] = useState<Card | null>(null);
   const [editingCard, setEditingCard] = useState<Card | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
@@ -76,49 +84,14 @@ const Cards = () => {
     status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE',
   });
 
-  // ✅ MEMOIZED: Handle form submission
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Prevent double submission
-    if (isSubmitting) return;
-    
-    setIsSubmitting(true);
-    try {
-      if (editingCard) {
-        await api.put(`/cards/${editingCard.id}`, formData);
-      } else {
-        await api.post('/cards', formData);
-      }
-      
-      // ✅ REACT QUERY: Cache invalidation for automatic UI updates
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cards });
-      refresh(); // Refresh pagination data
-      
-      closeModal();
-    } catch (error) {
-      console.error('Error saving card:', error);
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [isSubmitting, editingCard, formData, queryClient]);
+  // ✅ MEMOIZED: Close modal - DEFINED FIRST
+  const closeModal = useCallback(() => {
+    setShowModal(false);
+    setEditingCard(null);
+    setIsSubmitting(false);
+  }, []);
 
-  // ✅ MEMOIZED: Handle delete
-  const handleDelete = useCallback(async (id: number) => {
-    if (window.confirm('Are you sure you want to delete this card?')) {
-      try {
-        await api.delete(`/cards/${id}`);
-        
-        // ✅ REACT QUERY: Cache invalidation for automatic UI updates
-        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cards });
-        refresh(); // Refresh pagination data
-      } catch (error) {
-        console.error('Error deleting card:', error);
-      }
-    }
-  }, [queryClient]);
-
-  // ✅ MEMOIZED: Open modal
+  // ✅ MEMOIZED: Open modal - DEFINED SECOND
   const openModal = useCallback((card?: Card) => {
     if (card) {
       setEditingCard(card);
@@ -148,18 +121,95 @@ const Cards = () => {
     setShowModal(true);
   }, []);
 
-  // ✅ MEMOIZED: Close modal
-  const closeModal = useCallback(() => {
-    setShowModal(false);
-    setEditingCard(null);
-    setIsSubmitting(false);
+  // ✅ MEMOIZED: Handle form submission - NOW closeModal is available
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Prevent double submission
+    if (isSubmitting) return;
+    
+    setIsSubmitting(true);
+    try {
+      if (editingCard) {
+        await api.put(`/cards/${editingCard.id}`, formData);
+        toast.success('Card updated successfully');
+      } else {
+        await api.post('/cards', formData);
+        toast.success('Card created successfully');
+      }
+      
+      // ✅ REACT QUERY: Cache invalidation for automatic UI updates
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cards });
+      refresh(); // Refresh pagination data
+      
+      closeModal();
+    } catch (error: any) {
+      console.error('Error saving card:', error);
+      toast.error(extractErrorMessage(error));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [isSubmitting, editingCard, formData, queryClient, refresh, closeModal]);
+
+  // ✅ MEMOIZED: Handle delete - NO MORE window.confirm!
+  const handleDelete = useCallback(async (id: number) => {
+    const confirmed = await confirm({
+      title: 'Delete Card',
+      message: 'Are you sure you want to delete this card? This action cannot be undone.',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      variant: 'danger'
+    });
+
+    if (confirmed) {
+      try {
+        await api.delete(`/cards/${id}`);
+        
+        // ✅ REACT QUERY: Cache invalidation for automatic UI updates
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cards });
+        refresh(); // Refresh pagination data
+        toast.success('Card deleted successfully');
+      } catch (error: any) {
+        console.error('Error deleting card:', error);
+        toast.error(extractErrorMessage(error));
+      }
+    }
+  }, [queryClient, confirm, refresh]);
+
+  // ✅ NEW: Close restore modal
+  const closeRestoreModal = useCallback(() => {
+    setShowRestoreModal(false);
+    setRestoringCard(null);
   }, []);
+
+  // ✅ NEW: Open restore modal
+  const openRestoreModal = useCallback((card: Card) => {
+    setRestoringCard(card);
+    setShowRestoreModal(true);
+  }, []);
+
+  // ✅ NEW: Handle restoration success
+  const handleRestoreSuccess = useCallback(async () => {
+    // Invalidate all financial-related caches with aggressive refetching
+    await queryClient.invalidateQueries({ queryKey: ['cards'] });
+    await queryClient.invalidateQueries({ queryKey: ['bank-accounts'] });
+    await queryClient.invalidateQueries({ queryKey: ['general-ledger'] });
+    await queryClient.invalidateQueries({ queryKey: ['trial-balance'] });
+    await queryClient.invalidateQueries({ queryKey: ['credit-card-transactions'] });
+    
+    // Force immediate refetch
+    await queryClient.refetchQueries({ queryKey: ['general-ledger'] });
+    await queryClient.refetchQueries({ queryKey: ['trial-balance'] });
+    
+    refresh();
+    closeRestoreModal();
+  }, [queryClient, refresh, closeRestoreModal]);
 
   // ✅ OPTIMIZED: Loading state
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
         <span className="ml-3 text-gray-600">Loading cards...</span>
       </div>
     );
@@ -169,7 +219,7 @@ const Cards = () => {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold flex items-center gap-2">
-          <CreditCard className="text-purple-600" />
+          <CreditCard className="text-blue-600" />
           {t('cards')}
         </h1>
       </div>
@@ -184,7 +234,7 @@ const Cards = () => {
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => openModal()}
-          className="ml-4 bg-purple-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 hover:bg-purple-700"
+          className="ml-4 bg-blue-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
         >
           <Plus size={20} />
           {t('newCard')}
@@ -220,7 +270,7 @@ const Cards = () => {
                 <td className="px-6 py-4 text-sm">****{card.cardNumberLast4}</td>
                 <td className="px-6 py-4 text-sm">
                   <span className={`px-2 py-1 rounded text-xs font-medium ${
-                    card.cardType === 'CREDIT' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
+                    card.cardType === 'CREDIT' ? 'bg-blue-100 text-blue-800' : 'bg-blue-100 text-blue-800'
                   }`}>
                     {card.cardType}
                   </span>
@@ -235,7 +285,7 @@ const Cards = () => {
                       <span className="text-xs text-gray-500">
                         Acc: {card.BankAccount.accountNumber}
                       </span>
-                      <span className="text-xs text-green-600 font-medium">
+                      <span className="text-xs text-blue-600 font-medium">
                         Balance: ${Number(card.BankAccount.balance).toFixed(2)}
                       </span>
                     </div>
@@ -262,13 +312,22 @@ const Cards = () => {
                 </td>
                 <td className="px-6 py-4 text-center">
                   <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    card.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                    card.status === 'ACTIVE' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
                   }`}>
                     {card.status}
                   </span>
                 </td>
                 <td className="px-6 py-4">
                   <div className="flex gap-2 justify-center">
+                    {card.cardType === 'CREDIT' && Number(card.usedCredit || 0) > 0 && (
+                      <button
+                        onClick={() => openRestoreModal(card)}
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                        title="Restore Money"
+                      >
+                        <RefreshCw size={18} />
+                      </button>
+                    )}
                     <button
                       onClick={() => openModal(card)}
                       className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
@@ -339,7 +398,7 @@ const Cards = () => {
                     required
                     value={formData.bankName}
                     onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                     placeholder="Banco Popular, BHD, etc."
                   />
                 </div>
@@ -351,7 +410,7 @@ const Cards = () => {
                     required
                     value={formData.cardName}
                     onChange={(e) => setFormData({ ...formData, cardName: e.target.value })}
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                     placeholder="John's Business Card, Main Company Card, etc."
                   />
                   <p className="text-xs text-gray-500 mt-1">
@@ -367,7 +426,7 @@ const Cards = () => {
                     maxLength={4}
                     value={formData.cardNumberLast4}
                     onChange={(e) => setFormData({ ...formData, cardNumberLast4: e.target.value.replace(/\D/g, '') })}
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                     placeholder="1234"
                   />
                 </div>
@@ -388,7 +447,7 @@ const Cards = () => {
                         creditLimit: newCardType === 'DEBIT' ? '0' : formData.creditLimit
                       });
                     }}
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="CREDIT">{t('credit')}</option>
                     <option value="DEBIT">Debit</option>
@@ -406,7 +465,7 @@ const Cards = () => {
                     type="text"
                     value={formData.cardBrand}
                     onChange={(e) => setFormData({ ...formData, cardBrand: e.target.value })}
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                     placeholder="Visa, Mastercard, Amex, etc."
                   />
                 </div>
@@ -420,7 +479,7 @@ const Cards = () => {
                     disabled={formData.cardType === 'CREDIT'}
                     value={formData.cardType === 'CREDIT' ? '' : formData.bankAccountId}
                     onChange={(e) => setFormData({ ...formData, bankAccountId: e.target.value })}
-                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 ${
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
                       formData.cardType === 'CREDIT' ? 'bg-gray-100 cursor-not-allowed' : ''
                     }`}
                   >
@@ -455,7 +514,7 @@ const Cards = () => {
                     disabled={formData.cardType === 'DEBIT'}
                     value={formData.cardType === 'DEBIT' ? '0' : formData.creditLimit}
                     onChange={(e) => setFormData({ ...formData, creditLimit: e.target.value })}
-                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 ${
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
                       formData.cardType === 'DEBIT' ? 'bg-gray-100 cursor-not-allowed' : ''
                     }`}
                     placeholder="0.00"
@@ -473,7 +532,7 @@ const Cards = () => {
                     required
                     value={formData.status}
                     onChange={(e) => setFormData({ ...formData, status: e.target.value as 'ACTIVE' | 'INACTIVE' })}
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="ACTIVE">{t('active')}</option>
                     <option value="INACTIVE">{t('inactive')}</option>
@@ -495,7 +554,7 @@ const Cards = () => {
                   type="submit"
                   form="card-form"
                   disabled={isSubmitting}
-                  className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-purple-600"
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-600"
                 >
                   {isSubmitting ? (
                     <div className="flex items-center justify-center gap-2">
@@ -511,6 +570,18 @@ const Cards = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ✅ NEW: Credit Card Restore Modal */}
+      {showRestoreModal && restoringCard && (
+        <CreditCardRestoreModal
+          card={restoringCard}
+          onClose={closeRestoreModal}
+          onSuccess={handleRestoreSuccess}
+        />
+      )}
+
+      {/* ✅ Confirm Dialog - Replaces window.confirm */}
+      <ConfirmDialog {...dialogProps} />
     </div>
   );
 };

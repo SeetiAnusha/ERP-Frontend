@@ -2,8 +2,10 @@ import { useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Search, Eye, TrendingUp, FolderTree, BarChart3, Calendar, X } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import api from '../api/axios';
 import { formatNumber } from '../utils/formatNumber';
+import { extractErrorMessage } from '../utils/errorHandler';
 import ExpenseDashboard from '../components/ExpenseDashboard';
 import SimpleExpenseForm from '../components/SimpleExpenseForm';
 import { QUERY_KEYS } from '../lib/queryKeys';
@@ -172,12 +174,8 @@ const BusinessExpenses = () => {
       console.error('Error handling business expense submission:', error);
       
       // ✅ IMPROVED: Show specific error message from backend
-      const errorMessage = error.response?.data?.message || 
-                          error.response?.data?.error || 
-                          error.message || 
-                          'Failed to create business expense';
-      
-      alert(`Error: ${errorMessage}`);
+      const errorMessage = extractErrorMessage(error);
+      toast.error(errorMessage);
       throw error;
     } finally {
       setIsSubmitting(false);

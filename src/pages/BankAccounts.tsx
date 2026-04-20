@@ -9,6 +9,10 @@ import { QUERY_KEYS } from '../lib/queryKeys';
 import { useTableData } from '../hooks/useTableData';
 import { Pagination } from '../components/common/Pagination';
 import SearchBar from '../components/common/SearchBar';
+import { useConfirm } from '../hooks/useConfirm';
+import ConfirmDialog from '../components/common/ConfirmDialog';
+import { toast } from 'sonner';
+import { extractErrorMessage } from '../utils/errorHandler';
 
 interface BankAccount {
   id: number;
@@ -23,6 +27,7 @@ interface BankAccount {
 const BankAccounts = () => {
   const { t } = useLanguage();
   const queryClient = useQueryClient();
+  const { confirm, dialogProps } = useConfirm();
   
   // ✅ NEW: Use useTableData for pagination
   const {
@@ -51,55 +56,14 @@ const BankAccounts = () => {
     status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE',
   });
 
-  // ✅ MEMOIZED: Handle form submission
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Prevent double submission
-    if (isSubmitting) return;
-    
-    // Validate account number is exactly 4 digits
-    if (!/^\d{4}$/.test(formData.accountNumber)) {
-      alert('Account number must be exactly 4 digits (last 4 digits of your account)');
-      return;
-    }
-    
-    setIsSubmitting(true);
-    try {
-      if (editingAccount) {
-        await api.put(`/bank-accounts/${editingAccount.id}`, formData);
-      } else {
-        await api.post('/bank-accounts', formData);
-      }
-      
-      // ✅ REACT QUERY: Cache invalidation for automatic UI updates
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankAccounts });
-      refresh(); // Refresh pagination data
-      
-      closeModal();
-    } catch (error) {
-      console.error('Error saving bank account:', error);
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [isSubmitting, editingAccount, formData, queryClient]);
+  // ✅ MEMOIZED: Close modal - DEFINED FIRST
+  const closeModal = useCallback(() => {
+    setShowModal(false);
+    setEditingAccount(null);
+    setIsSubmitting(false);
+  }, []);
 
-  // ✅ MEMOIZED: Handle delete
-  const handleDelete = useCallback(async (id: number) => {
-    if (window.confirm('Are you sure you want to delete this bank account?')) {
-      try {
-        await api.delete(`/bank-accounts/${id}`);
-        
-        // ✅ REACT QUERY: Cache invalidation for automatic UI updates
-        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankAccounts });
-        refresh(); // Refresh pagination data
-      } catch (error) {
-        console.error('Error deleting bank account:', error);
-      }
-    }
-  }, [queryClient]);
-
-  // ✅ MEMOIZED: Open modal
+  // ✅ MEMOIZED: Open modal - DEFINED SECOND
   const openModal = useCallback((account?: BankAccount) => {
     if (account) {
       setEditingAccount(account);
@@ -123,12 +87,66 @@ const BankAccounts = () => {
     setShowModal(true);
   }, []);
 
-  // ✅ MEMOIZED: Close modal
-  const closeModal = useCallback(() => {
-    setShowModal(false);
-    setEditingAccount(null);
-    setIsSubmitting(false);
-  }, []);
+  // ✅ MEMOIZED: Handle form submission - NOW closeModal is available
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Prevent double submission
+    if (isSubmitting) return;
+    
+    // Validate account number is exactly 4 digits
+    if (!/^\d{4}$/.test(formData.accountNumber)) {
+      toast.error('Account number must be exactly 4 digits (last 4 digits of your account)');
+      return;
+    }
+    
+    setIsSubmitting(true);
+    try {
+      if (editingAccount) {
+        await api.put(`/bank-accounts/${editingAccount.id}`, formData);
+        toast.success('Bank account updated successfully');
+      } else {
+        await api.post('/bank-accounts', formData);
+        toast.success('Bank account created successfully');
+      }
+      
+      // ✅ REACT QUERY: Cache invalidation for automatic UI updates
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankAccounts });
+      refresh(); // Refresh pagination data
+      
+      closeModal();
+    } catch (error: any) {
+      console.error('Error saving bank account:', error);
+      toast.error(extractErrorMessage(error));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [isSubmitting, editingAccount, formData, queryClient, refresh, closeModal]);
+
+  // ✅ MEMOIZED: Handle delete - NO MORE window.confirm!
+  const handleDelete = useCallback(async (id: number) => {
+    const confirmed = await confirm({
+      title: 'Delete Bank Account',
+      message: 'Are you sure you want to delete this bank account? This action cannot be undone.',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      variant: 'danger'
+    });
+
+    if (confirmed) {
+      try {
+        await api.delete(`/bank-accounts/${id}`);
+        
+        // ✅ REACT QUERY: Cache invalidation for automatic UI updates
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankAccounts });
+        refresh(); // Refresh pagination data
+        toast.success('Bank account deleted successfully');
+      } catch (error: any) {
+        console.error('Error deleting bank account:', error);
+        toast.error(extractErrorMessage(error));
+      }
+    }
+  }, [queryClient, confirm, refresh]);
 
   // ✅ OPTIMIZED: Loading state
   if (loading) {
@@ -370,6 +388,9 @@ const BankAccounts = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ✅ Confirm Dialog - Replaces window.confirm */}
+      <ConfirmDialog {...dialogProps} />
     </div>
   );
 };

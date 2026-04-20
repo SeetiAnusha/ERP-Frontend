@@ -1,14 +1,22 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Search, Edit, Trash2, X } from 'lucide-react';
+import { toast } from 'sonner';
 import api from '../api/axios';
 import { FixedAsset } from '../types';
+import { extractErrorMessage } from '../utils/errorHandler';
+import { useConfirm } from '../hooks/useConfirm';
+import ConfirmDialog from '../components/common/ConfirmDialog';
 
 const FixedAssets = () => {
   const [assets, setAssets] = useState<FixedAsset[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingAsset, setEditingAsset] = useState<FixedAsset | null>(null);
+  
+  // ✅ Confirm Dialog Hook
+  const { confirm, dialogProps } = useConfirm();
+  
   const [formData, setFormData] = useState({
     code: '',
     name: '',
@@ -43,24 +51,30 @@ const FixedAssets = () => {
     try {
       if (editingAsset) {
         await api.put(`/fixed-assets/${editingAsset.id}`, formData);
+        toast.success('Fixed asset updated successfully');
       } else {
         await api.post('/fixed-assets', formData);
+        toast.success('Fixed asset created successfully');
       }
       fetchAssets();
       closeModal();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving fixed asset:', error);
+      toast.error(extractErrorMessage(error));
     }
   };
 
   const handleDelete = async (id: number) => {
-    if (window.confirm('Are you sure you want to delete this fixed asset?')) {
-      try {
-        await api.delete(`/fixed-assets/${id}`);
-        fetchAssets();
-      } catch (error) {
-        console.error('Error deleting fixed asset:', error);
-      }
+    const confirmed = await confirm('Are you sure you want to delete this fixed asset?');
+    if (!confirmed) return;
+
+    try {
+      await api.delete(`/fixed-assets/${id}`);
+      toast.success('Fixed asset deleted successfully');
+      fetchAssets();
+    } catch (error: any) {
+      console.error('Error deleting fixed asset:', error);
+      toast.error(extractErrorMessage(error));
     }
   };
 
@@ -337,6 +351,9 @@ const FixedAssets = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog {...dialogProps} />
     </div>
   );
 };

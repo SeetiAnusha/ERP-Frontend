@@ -26,9 +26,9 @@ import {
   User,
   Shield,
   Trash2,
-  // BookOpen,
-  // Scale,
-  // FileBarChart,
+  BookOpen,
+  Scale,
+  FileBarChart,
 } from 'lucide-react';
 import LanguageSwitcher from './LanguageSwitcher';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -103,12 +103,13 @@ const Layout = ({ children }: LayoutProps) => {
     ] : []),
     { path: '/reports', icon: BarChart3, label: t('reports') },
     // Accounting & Financial Reporting Section
-    // { path: '/accounting/chart-of-accounts', icon: BookOpen, label: 'Chart of Accounts' },
-    // { path: '/accounting/general-ledger', icon: FileText, label: 'General Ledger' },
-    // { path: '/accounting/trial-balance', icon: Scale, label: 'Trial Balance' },
-    // { path: '/accounting/financial-reports', icon: FileBarChart, label: 'Financial Reports' },
-    //  { path: '/investments', icon: Package, label: t('investments') },
-    // { path: '/prepaid-expenses', icon: Package, label: t('prepaidExpenses') },
+    { path: '/accounting/chart-of-accounts', icon: BookOpen, label: 'Chart of Accounts' },
+    { path: '/accounting/general-ledger', icon: FileText, label: 'General Ledger' },
+    { path: '/accounting/trial-balance', icon: Scale, label: 'Trial Balance' },
+    { path: '/accounting/opening-balance', icon: DollarSign, label: 'Opening Balance' },
+    { path: '/accounting/financial-reports', icon: FileBarChart, label: 'Financial Reports' },
+    { path: '/investments', icon: Package, label: t('investments') },
+    { path: '/prepaid-expenses', icon: Package, label: t('prepaidExpenses') },
   ];
 
   return (

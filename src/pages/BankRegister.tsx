@@ -3,9 +3,11 @@ import { motion } from 'framer-motion';
 import { FaPlus, FaTrash, FaUniversity, FaArrowUp, FaArrowDown, FaCreditCard } from 'react-icons/fa';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import axios from '../api/axios';
 import { formatNumber } from '../utils/formatNumber';
 import { useLanguage } from '../contexts/LanguageContext';
+import { extractErrorMessage } from '../utils/errorHandler';
 import OverpaymentAlertModal from '../components/OverpaymentAlertModal';
 import CreditAwarePaymentModal from '../components/CreditAwarePaymentModal';
 import { QUERY_KEYS } from '../lib/queryKeys';
@@ -287,7 +289,7 @@ const BankRegister = () => {
       const outflowAmount = parseFloat(formData.amount);
       
       if (selectedBankAccount && selectedBankAccount.balance < outflowAmount) {
-        alert(
+        toast.error(
           `Insufficient balance in bank account "${selectedBankAccount.bankName} - ${selectedBankAccount.accountNumber}". ` +
           `Available: ${selectedBankAccount.balance.toFixed(2)}, Required: ${outflowAmount.toFixed(2)}. ` +
           `Cannot perform transaction that would result in negative balance.`
@@ -298,7 +300,7 @@ const BankRegister = () => {
     
     // Validation for OUTFLOW with supplier (skip if coming from Accounts Payable with pre-selected invoice)
     if (formData.transactionType === 'OUTFLOW' && formData.supplierId && selectedInvoices.length === 0 && !location.state?.fromAccountsPayable) {
-      alert(t('pleaseSelectAtLeastOneInvoice'));
+      toast.error(t('pleaseSelectAtLeastOneInvoice'));
       return;
     }
     
@@ -342,17 +344,18 @@ const BankRegister = () => {
       resetForm();
       
       if (location.state?.fromAccountsPayable) {
-        alert('Payment completed successfully! The Accounts Payable status has been updated.');
+        toast.success('Payment completed successfully! The Accounts Payable status has been updated.');
         // Navigate back to Accounts Payable to see the updated status
         setTimeout(() => {
           navigate('/accounts-payable');
         }, 1000);
       } else {
-        alert('Transaction created successfully!');
+        toast.success('Transaction created successfully!');
       }
     } catch (error: any) {
       console.error('Error saving transaction:', error);
-      alert(error.response?.data?.message || t('errorSavingTransaction'));
+      const errorMessage = extractErrorMessage(error);
+      toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -384,19 +387,32 @@ const BankRegister = () => {
   }, [overpaymentData]);
 
   const handleDelete = useCallback(async (id: number) => {
-    if (window.confirm(t('deleteTransactionConfirm'))) {
-      try {
-        await axios.delete(`/bank-register/${id}`);
-        
-        // ✅ OPTIMIZATION: Use React Query cache invalidation and refresh pagination
-        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankTransactions });
-        refresh(); // Refresh paginated data
-      } catch (error) {
-        console.error('Error deleting transaction:', error);
-        alert(t('errorDeletingTransaction'));
-      }
+    // Find the transaction to get its details
+    const transaction = transactions.find(t => t.id === id);
+    if (!transaction) {
+      toast.error('Transaction not found');
+      return;
     }
-  }, [t, queryClient, refresh]);
+
+    // Navigate to Transaction Deletion page with bank register details
+    navigate('/transaction-deletion', {
+      state: {
+        transactionType: 'BANK_REGISTER',
+        transactionId: id,
+        transactionDetails: {
+          registrationNumber: transaction.registrationNumber,
+          amount: transaction.amount,
+          description: transaction.description,
+          transactionType: transaction.transactionType,
+          relatedDocumentType: transaction.relatedDocumentType,
+          relatedDocumentNumber: transaction.relatedDocumentNumber,
+          clientName: transaction.clientName,
+          bankAccountName: transaction.bankAccountName,
+          bankAccountNumber: transaction.bankAccountNumber
+        }
+      }
+    });
+  }, [transactions, navigate]);
 
   const resetForm = useCallback(() => {
     setFormData({
@@ -436,12 +452,12 @@ const BankRegister = () => {
     resetForm();
     
     if (location.state?.fromAccountsPayable) {
-      alert('Smart payment completed successfully! Credit balances were automatically applied.');
+      toast.success('Smart payment completed successfully! Credit balances were automatically applied.');
       setTimeout(() => {
         navigate('/accounts-payable');
       }, 1000);
     } else {
-      alert('Smart payment completed successfully!');
+      toast.success('Smart payment completed successfully!');
     }
   }, [queryClient, resetForm, location.state, navigate, refresh]);
 

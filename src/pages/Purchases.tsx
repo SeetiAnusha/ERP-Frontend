@@ -1,11 +1,13 @@
 import { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Eye, CheckCircle, Clock, XCircle, X, Trash2, ShoppingCart, Package, FileText } from 'lucide-react';
+import { toast } from 'sonner';
 import api from '../api/axios';
 import { Purchase, AssociatedInvoice } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { formatNumber } from '../utils/formatNumber';
 import { cleanFormData } from '../utils/cleanFormData';  // Import utility
+import { extractErrorMessage } from '../utils/errorHandler';
 import { useForm } from '../hooks/useForm';
 import { useModal } from '../hooks/useModal';
 import SearchBar from '../components/common/SearchBar';
@@ -270,7 +272,7 @@ const Purchases = () => {
     validate: validatePurchase,
     onSubmit: async (values) => {
       if (purchaseItems.length === 0) {
-        alert('Please add at least one product for goods purchase');
+        toast.error('Please add at least one product for goods purchase');
         return;
       }
       
@@ -356,24 +358,24 @@ const Purchases = () => {
 
   const addAssociatedInvoice = () => {
     if (!newAssociatedInvoice.supplierRnc || !newAssociatedInvoice.supplierName || !newAssociatedInvoice.tax) {
-      alert('Please enter Supplier RNC, Supplier Name, and Tax Amount');
+      toast.error('Please enter Supplier RNC, Supplier Name, and Tax Amount');
       return;
     }
     
     if (!newAssociatedInvoice.paymentType) {
-      alert('Please select a payment type for the invoice');
+      toast.error('Please select a payment type for the invoice');
       return;
     }
     
     // Validate card selection for card payment types
     if ((newAssociatedInvoice.paymentType === 'DEBIT_CARD' || newAssociatedInvoice.paymentType === 'CREDIT_CARD') && !newAssociatedInvoice.cardId) {
-      alert('Please select a card for the selected payment type');
+      toast.error('Please select a card for the selected payment type');
       return;
     }
     
     // Validate bank account selection for bank payment types
     if ((newAssociatedInvoice.paymentType === 'BANK_TRANSFER' || newAssociatedInvoice.paymentType === 'CHEQUE' || newAssociatedInvoice.paymentType === 'DEPOSIT') && !newAssociatedInvoice.bankAccountId) {
-      alert('Please select a bank account for the selected payment type');
+      toast.error('Please select a bank account for the selected payment type');
       return;
     }
     
@@ -409,7 +411,7 @@ const Purchases = () => {
 
   const addProductToPurchase = () => {
     if (!selectedProduct || quantity <= 0 || unitCost <= 0) {
-      alert('Please select a product and enter valid quantity and unit cost');
+      toast.error('Please select a product and enter valid quantity and unit cost');
       return;
     }
     

@@ -3,8 +3,10 @@ import { motion } from 'framer-motion';
 import { DollarSign, CheckCircle, Clock, XCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import api from '../api/axios';
 import { AccountsReceivable } from '../types/accountsTypes';
+import { extractErrorMessage } from '../utils/errorHandler';
 
 import { useLanguage } from '../contexts/LanguageContext';
 import { formatNumber } from '../utils/formatNumber';
@@ -103,19 +105,19 @@ const AccountsReceivablePage = () => {
     if (!selectedAR) return;
 
     if (!paymentAmount) {
-      alert('Please enter payment amount');
+      toast.error('Please enter payment amount');
       return;
     }
 
     const amount = parseFloat(paymentAmount);
     if (amount <= 0) {
-      alert('Payment amount must be greater than 0');
+      toast.error('Payment amount must be greater than 0');
       return;
     }
 
     // For credit card sales, require bank account selection
     if ((selectedAR.type === 'CREDIT_CARD_SALE' || selectedAR.type === 'DEBIT_CARD_SALE') && !selectedBankAccountId) {
-      alert('Please select a bank account for credit card payment');
+      toast.error('Please select a bank account for credit card payment');
       return;
     }
 
@@ -140,7 +142,7 @@ const AccountsReceivablePage = () => {
 
       await api.post(`/accounts-receivable/${selectedAR.id}/record-payment`, paymentData);
       
-      alert('Payment recorded successfully');
+      toast.success('Payment recorded successfully');
       paymentModal.close();
       setPaymentAmount('');
       setSelectedBankAccountId('');
@@ -154,9 +156,9 @@ const AccountsReceivablePage = () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankAccounts });
     } catch (error: any) {
       console.error('Payment error:', error);
-      alert(error.response?.data?.error || 'Failed to record payment');
+      toast.error(extractErrorMessage(error));
     }
-  }, [paymentModal.data, paymentAmount, selectedBankAccountId, collectionDescription, transferReference, expenseCategory, queryClient, paymentModal]);
+  }, [paymentModal.data, paymentAmount, selectedBankAccountId, collectionDescription, transferReference, expenseCategory, queryClient, paymentModal, refresh]);
   // ✅ PRESERVED: Keep original handleCreditSaleCollection exactly as it was
   const handleCreditSaleCollection = useCallback((ar: AccountsReceivable) => {
     // First check if customer has credit balance

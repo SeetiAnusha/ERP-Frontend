@@ -2,9 +2,11 @@ import { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Search, Edit2, Trash2, X, DollarSign } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import api from '../api/axios';
 import { useLanguage } from '../contexts/LanguageContext';
 import { formatNumber } from '../utils/formatNumber';
+import { extractErrorMessage } from '../utils/errorHandler';
 import { useCashRegisters } from '../hooks/queries/useSharedData';
 import { QUERY_KEYS } from '../lib/queryKeys';
 
@@ -45,16 +47,19 @@ const CashRegisterMasters = () => {
     try {
       if (editingRegister) {
         await api.put(`/cash-register-masters/${editingRegister.id}`, formData);
+        toast.success('Cash register updated successfully');
       } else {
         await api.post('/cash-register-masters', formData);
+        toast.success('Cash register created successfully');
       }
       
       // ✅ REACT QUERY: Cache invalidation for automatic UI updates
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashRegisters });
       
       closeModal();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving cash register:', error);
+      toast.error(extractErrorMessage(error)); // ✅ Use extractErrorMessage
     } finally {
       setIsSubmitting(false);
     }
@@ -65,11 +70,13 @@ const CashRegisterMasters = () => {
     if (window.confirm('Are you sure you want to delete this cash register?')) {
       try {
         await api.delete(`/cash-register-masters/${id}`);
+        toast.success('Cash register deleted successfully');
         
         // ✅ REACT QUERY: Cache invalidation for automatic UI updates
         queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashRegisters });
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error deleting cash register:', error);
+        toast.error(extractErrorMessage(error)); // ✅ Use extractErrorMessage
       }
     }
   }, [queryClient]);

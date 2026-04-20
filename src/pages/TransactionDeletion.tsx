@@ -6,6 +6,8 @@ import { Trash2, AlertTriangle, CheckCircle, Clock, Play, Eye, RefreshCw } from 
 import axios from '../api/axios';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { CACHE_STRATEGIES } from '../lib/queryClient';
+import { useConfirm } from '../hooks/useConfirm';
+import ConfirmDialog from '../components/common/ConfirmDialog';
 
 interface DeletionReason {
   id: number;
@@ -86,6 +88,7 @@ interface PendingApproval {
 
 const TransactionDeletion: React.FC = () => {
   const queryClient = useQueryClient();
+  const { confirm, dialogProps } = useConfirm();
   const [activeTab, setActiveTab] = useState('request');
   
   // ✅ React Query hooks for data fetching
@@ -339,12 +342,19 @@ const TransactionDeletion: React.FC = () => {
 
   // ✅ Memoized execute approved deletion handler
   const executeApprovedDeletion = useCallback(async (requestId: number, requestNumber: string) => {
-    if (!window.confirm(`⚠️ Are you sure you want to EXECUTE deletion ${requestNumber}?\n\nThis action is IRREVERSIBLE and will:\n- Create reversal entries\n- Soft delete original records\n- Update all related transactions\n\nClick OK to proceed.`)) {
+    const confirmed = await confirm({
+      title: '⚠️ Execute Deletion',
+      message: `Are you sure you want to EXECUTE deletion ${requestNumber}?\n\nThis action is IRREVERSIBLE and will:\n- Create reversal entries\n- Soft delete original records\n- Update all related transactions`,
+      confirmText: 'Execute Deletion',
+      cancelText: 'Cancel'
+    });
+
+    if (!confirmed) {
       return;
     }
 
     executeDeletionMutation.mutate(requestId);
-  }, [executeDeletionMutation]);
+  }, [executeDeletionMutation, confirm]);
 
   // ✅ Memoized helper functions
   const getDisplayStatus = useCallback((request: ApprovalRequest): string => {
@@ -913,6 +923,9 @@ const TransactionDeletion: React.FC = () => {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog {...dialogProps} />
     </div>
   );
 };

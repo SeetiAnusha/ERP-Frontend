@@ -2,12 +2,16 @@ import { useState, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { FaPlus, FaEdit, FaTrash, FaFileInvoice, FaSearch } from 'react-icons/fa';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import axios from '../api/axios';
 import { Adjustment } from '../types';
 import { useAdjustments } from '../hooks/queries/useSharedData';
 import { useProducts } from '../hooks/queries/useProducts';
 import { usePurchases } from '../hooks/queries/usePurchases';
 import { useSales } from '../hooks/queries/useSales';
+import { extractErrorMessage } from '../utils/errorHandler';
+import { useConfirm } from '../hooks/useConfirm';
+import ConfirmDialog from '../components/common/ConfirmDialog';
 
 interface AdjustmentItem {
   productCode: string;
@@ -22,6 +26,9 @@ interface AdjustmentItem {
 
 const Adjustments = () => {
   const queryClient = useQueryClient();
+  
+  // ✅ Confirm Dialog Hook
+  const { confirm, dialogProps } = useConfirm();
   
   // ✅ REACT QUERY: Replace manual API calls with hooks
   const { data: adjustments = [], isLoading: isLoadingAdjustments } = useAdjustments();
@@ -144,13 +151,15 @@ const Adjustments = () => {
 
       if (editingAdjustment) {
         await updateMutation.mutateAsync({ id: editingAdjustment.id, data: adjustmentData });
+        toast.success('Adjustment updated successfully');
       } else {
         await createMutation.mutateAsync(adjustmentData);
+        toast.success('Adjustment created successfully');
       }
       resetForm();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving adjustment:', error);
-      alert('Error saving adjustment');
+      toast.error(extractErrorMessage(error));
     } finally {
       setIsSubmitting(false);
     }
@@ -158,15 +167,17 @@ const Adjustments = () => {
 
   // ✅ MEMOIZATION: Memoize delete handler
   const handleDelete = useCallback(async (id: number) => {
-    if (window.confirm('Are you sure you want to delete this adjustment?')) {
-      try {
-        await deleteMutation.mutateAsync(id);
-      } catch (error) {
-        console.error('Error deleting adjustment:', error);
-        alert('Error deleting adjustment');
-      }
+    const confirmed = await confirm('Are you sure you want to delete this adjustment?');
+    if (!confirmed) return;
+
+    try {
+      await deleteMutation.mutateAsync(id);
+      toast.success('Adjustment deleted successfully');
+    } catch (error: any) {
+      console.error('Error deleting adjustment:', error);
+      toast.error(extractErrorMessage(error));
     }
-  }, [deleteMutation]);
+  }, [confirm, deleteMutation]);
 
   // ✅ MEMOIZATION: Memoize edit handler
   const handleEdit = useCallback((adjustment: Adjustment) => {
@@ -673,6 +684,9 @@ const Adjustments = () => {
       )}
         </>
       )}
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog {...dialogProps} />
     </motion.div>
   );
 };
