@@ -8,7 +8,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { formatNumber } from '../utils/formatNumber';
 import { extractErrorMessage } from '../utils/errorHandler';
 import { useConfirm } from '../hooks/useConfirm';
-import ConfirmDialog from '../components/ConfirmDialog';
+import ConfirmDialog from '../components/common/ConfirmDialog';
 
 // ✅ REACT QUERY IMPORTS
 import { usePayments } from '../hooks/queries/useFinancial';

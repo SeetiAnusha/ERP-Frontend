@@ -65,7 +65,12 @@ const FixedAssets = () => {
   };
 
   const handleDelete = async (id: number) => {
-    const confirmed = await confirm('Are you sure you want to delete this fixed asset?');
+    const confirmed = await confirm({
+      title: 'Delete Fixed Asset',
+      message: 'Are you sure you want to delete this fixed asset?',
+      confirmText: 'Delete',
+      cancelText: 'Cancel'
+    });
     if (!confirmed) return;
 
     try {

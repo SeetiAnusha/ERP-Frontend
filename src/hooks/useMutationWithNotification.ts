@@ -11,9 +11,9 @@
  * - Production-ready logging
  */
 
-import { useMutation, useQueryClient, UseMutationOptions } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { notify } from '../utils/notifications';
-import { logger } from '../utils/logger';
+// import { logger } from '../utils/logger'; // Commented out - not critical for functionality
 
 interface MutationConfig<TData, TVariables> {
   mutationFn: (variables: TVariables) => Promise<TData>;
@@ -51,7 +51,9 @@ export function useMutationWithNotification<TData = any, TVariables = any>({
       }
       
       // Log success (only in development)
-      logger.info('Mutation successful', { successMessage });
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Mutation successful', { successMessage });
+      }
       
       // Call custom onSuccess handler
       onSuccess?.(data, variables);
@@ -68,7 +70,9 @@ export function useMutationWithNotification<TData = any, TVariables = any>({
       notify.error('Error', message);
       
       // Log error (only in development, or send to error tracking in production)
-      logger.error('Mutation failed', error);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Mutation failed', error);
+      }
       
       // Call custom onError handler
       onError?.(error, variables);

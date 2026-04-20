@@ -75,7 +75,12 @@ const Investments = () => {
   };
 
   const handleDelete = async (id: number) => {
-    const confirmed = await confirm('Are you sure you want to delete this investment?');
+    const confirmed = await confirm({
+      title: 'Delete Investment',
+      message: 'Are you sure you want to delete this investment?',
+      confirmText: 'Delete',
+      cancelText: 'Cancel'
+    });
     if (!confirmed) return;
 
     try {

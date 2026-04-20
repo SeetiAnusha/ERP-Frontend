@@ -167,7 +167,12 @@ const Adjustments = () => {
 
   // ✅ MEMOIZATION: Memoize delete handler
   const handleDelete = useCallback(async (id: number) => {
-    const confirmed = await confirm('Are you sure you want to delete this adjustment?');
+    const confirmed = await confirm({
+      title: 'Delete Adjustment',
+      message: 'Are you sure you want to delete this adjustment?',
+      confirmText: 'Delete',
+      cancelText: 'Cancel'
+    });
     if (!confirmed) return;
 
     try {
