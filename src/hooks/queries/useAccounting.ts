@@ -241,9 +241,12 @@ export const useCloseFiscalPeriod = () => {
     },
     onSuccess: () => {
       notify.success('Success', 'Fiscal period closed successfully');
-      queryClient.invalidateQueries({ queryKey: ['fiscal-periods'] });
-      queryClient.invalidateQueries({ queryKey: ['general-ledger'] });
-      queryClient.invalidateQueries({ queryKey: ['trial-balance'] });
+      // ✅ PERFORMANCE FIX: Parallel cache invalidation
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['fiscal-periods'] }),
+        queryClient.invalidateQueries({ queryKey: ['general-ledger'] }),
+        queryClient.invalidateQueries({ queryKey: ['trial-balance'] }),
+      ]);
     },
   });
 };

@@ -101,12 +101,15 @@ const CardPaymentModal = ({
         description
       });
 
-      // ✅ CRITICAL: Invalidate all related caches after payment
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.sales });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashRegisters });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cards });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.clients });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.accountsReceivable });
+      // ✅ CRITICAL: Invalidate all related caches after payment (parallel execution)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.sale(saleId) }),
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashRegisters }),
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cards }),
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.clients }),
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.accountsReceivable }),
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.creditCardTransactions }), // ✅ FIX: Invalidate credit card register
+      ]);
 
       notify.success('Card payment processed successfully!');
       onPaymentSuccess();

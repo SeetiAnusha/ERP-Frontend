@@ -49,7 +49,7 @@ const CreditCardFeesDashboard = () => {
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => navigate('/credit-card-fees')}
+            onClick={() => navigate('/expenses/credit-card-fees')}
             className="px-6 py-3 bg-white text-purple-600 rounded-xl hover:bg-gray-100 transition flex items-center gap-2 font-semibold shadow-lg"
           >
             <FaArrowLeft />

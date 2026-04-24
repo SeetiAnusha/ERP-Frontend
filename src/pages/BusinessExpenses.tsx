@@ -158,16 +158,17 @@ const BusinessExpenses = () => {
     try {
       await api.post('/business-expenses', expenseData);
       
-      // ✅ OPTIMIZATION: Use React Query cache invalidation
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.businessExpenses });
-      queryClient.invalidateQueries({ queryKey: ['recent-activity'] });
-      // ✅ FIX: Invalidate dashboard cache to refresh dashboard data
-      queryClient.invalidateQueries({ queryKey: ['business-expenses', 'dashboard'] });
-      
-      // ✅ TASK 2: Invalidate bank accounts and cards cache to update balances
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankAccounts });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cards });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.suppliers });
+      // ✅ OPTIMIZATION: Use React Query cache invalidation (parallel execution)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.businessExpenses }),
+        queryClient.invalidateQueries({ queryKey: ['recent-activity'] }),
+        queryClient.invalidateQueries({ queryKey: ['business-expenses', 'dashboard'] }),
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankAccounts }),
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cards }),
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.suppliers }),
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.creditCardTransactions }), // ✅ FIX: Invalidate credit card register
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankRegisters }), // ✅ FIX: Invalidate bank register
+      ]);
       
       setShowModal(false);
     } catch (error: any) {

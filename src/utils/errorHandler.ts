@@ -16,13 +16,13 @@ export interface ApiError {
  * Extract error message from various error formats
  */
 export const extractErrorMessage = (error: any): string => {
-  // Check for API error response (primary)
-  if (error.response?.data?.error) {
-    return error.response.data.error;
-  }
-
+  // Check for API error response - prioritize detailed message over generic error title
   if (error.response?.data?.message) {
     return error.response.data.message;
+  }
+
+  if (error.response?.data?.error) {
+    return error.response.data.error;
   }
 
   // Check for validation errors (array format)

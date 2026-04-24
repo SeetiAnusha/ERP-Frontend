@@ -4,7 +4,6 @@ import { Plus, Edit, Trash2, X } from 'lucide-react';
 import { Supplier } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useQueryClient } from '@tanstack/react-query';
-import { useMutation } from '@tanstack/react-query';
 import api from '../api/axios';
 import { QUERY_KEYS } from '../lib/queryKeys';
 import { useTableData } from '../hooks/useTableData';
@@ -12,8 +11,8 @@ import { Pagination } from '../components/common/Pagination';
 import SearchBar from '../components/common/SearchBar';
 import { useConfirm } from '../hooks/useConfirm';
 import ConfirmDialog from '../components/common/ConfirmDialog';
-import { toast } from 'sonner';
-import { extractErrorMessage } from '../utils/errorHandler';
+import { useMutationWithNotification } from '../hooks/useMutationWithNotification';
+// import ExcelUpload from '../components/ExcelUpload';
 
 const Suppliers = () => {
   const { t } = useLanguage();
@@ -47,56 +46,34 @@ const Suppliers = () => {
     address: '',
   });
 
-  // ✅ Create mutation
-  const createMutation = useMutation({
-    mutationFn: async (data: typeof formData) => {
-      const response = await api.post('/suppliers', data);
-      return response.data;
-    },
+  // ✅ OPTIMIZED: Create mutation with reusable hook (4 lines instead of 15!)
+  const createMutation = useMutationWithNotification({
+    mutationFn: (data: typeof formData) => api.post('/suppliers', data),
+    successMessage: 'Supplier created successfully',
+    invalidateKeys: [[...QUERY_KEYS.suppliers]],
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.suppliers });
-      refresh(); // Refresh pagination data
+      refresh();
       closeModal();
-      toast.success('Supplier created successfully');
-    },
-    onError: (error: any) => {
-      console.error('Error creating supplier:', error);
-      toast.error(extractErrorMessage(error));
     },
   });
 
-  // ✅ Update mutation
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: typeof formData }) => {
-      const response = await api.put(`/suppliers/${id}`, data);
-      return response.data;
-    },
+  // ✅ OPTIMIZED: Update mutation with reusable hook (4 lines instead of 15!)
+  const updateMutation = useMutationWithNotification({
+    mutationFn: ({ id, data }: { id: number; data: typeof formData }) => api.put(`/suppliers/${id}`, data),
+    successMessage: 'Supplier updated successfully',
+    invalidateKeys: [[...QUERY_KEYS.suppliers]],
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.suppliers });
-      refresh(); // Refresh pagination data
+      refresh();
       closeModal();
-      toast.success('Supplier updated successfully');
-    },
-    onError: (error: any) => {
-      console.error('Error updating supplier:', error);
-      toast.error(extractErrorMessage(error));
     },
   });
 
-  // ✅ Delete mutation
-  const deleteMutation = useMutation({
-    mutationFn: async (id: number) => {
-      await api.delete(`/suppliers/${id}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.suppliers });
-      refresh(); // Refresh pagination data
-      toast.success('Supplier deleted successfully');
-    },
-    onError: (error: any) => {
-      console.error('Error deleting supplier:', error);
-      toast.error(extractErrorMessage(error));
-    },
+  // ✅ OPTIMIZED: Delete mutation with reusable hook (3 lines instead of 13!)
+  const deleteMutation = useMutationWithNotification({
+    mutationFn: (id: number) => api.delete(`/suppliers/${id}`),
+    successMessage: 'Supplier deleted successfully',
+    invalidateKeys: [[...QUERY_KEYS.suppliers]],
+    onSuccess: () => refresh(),
   });
 
   // ✅ Memoized submit handler
@@ -163,15 +140,19 @@ const Suppliers = () => {
           onChange={updateSearch}
           placeholder={t('search')}
         />
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => openModal()}
-          className="ml-4 bg-blue-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 shadow-lg"
-        >
-          <Plus size={20} />
-          {t('newSupplier')}
-        </motion.button>
+        <div className="flex gap-3 ml-4">
+          {/* <ExcelUpload type="suppliers" onSuccess={refresh} /> */}
+          
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => openModal()}
+            className="bg-blue-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 shadow-lg"
+          >
+            <Plus size={20} />
+            {t('newSupplier')}
+          </motion.button>
+        </div>
       </div>
 
       <motion.div

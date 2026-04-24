@@ -11,8 +11,8 @@ import { Pagination } from '../components/common/Pagination';
 import SearchBar from '../components/common/SearchBar';
 import { useConfirm } from '../hooks/useConfirm';
 import ConfirmDialog from '../components/common/ConfirmDialog';
-import { toast } from 'sonner';
-import { extractErrorMessage } from '../utils/errorHandler';
+import { useMutationWithNotification } from '../hooks/useMutationWithNotification';
+// import ExcelUpload from '../components/ExcelUpload';
 
 const Clients = () => {
   const { t } = useLanguage();
@@ -65,6 +65,34 @@ const Clients = () => {
     setShowModal(true);
   }, []);
 
+  // ✅ OPTIMIZED: Create/Update mutations with reusable hook
+  const createClientMutation = useMutationWithNotification({
+    mutationFn: (data: typeof formData) => api.post('/clients', data),
+    successMessage: 'Client created successfully',
+    invalidateKeys: [[...QUERY_KEYS.clients]],
+    onSuccess: () => {
+      refresh();
+      closeModal();
+    },
+  });
+
+  const updateClientMutation = useMutationWithNotification({
+    mutationFn: ({ id, data }: { id: number; data: typeof formData }) => api.put(`/clients/${id}`, data),
+    successMessage: 'Client updated successfully',
+    invalidateKeys: [[...QUERY_KEYS.clients]],
+    onSuccess: () => {
+      refresh();
+      closeModal();
+    },
+  });
+
+  const deleteClientMutation = useMutationWithNotification({
+    mutationFn: (id: number) => api.delete(`/clients/${id}`),
+    successMessage: 'Client deleted successfully',
+    invalidateKeys: [[...QUERY_KEYS.clients]],
+    onSuccess: () => refresh(),
+  });
+
   // ✅ MEMOIZED: Handle form submission - NOW closeModal is available
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,25 +103,16 @@ const Clients = () => {
     
     try {
       if (editingClient) {
-        await api.put(`/clients/${editingClient.id}`, formData);
-        toast.success('Client updated successfully');
+        await updateClientMutation.mutateAsync({ id: editingClient.id, data: formData });
       } else {
-        await api.post('/clients', formData);
-        toast.success('Client created successfully');
+        await createClientMutation.mutateAsync(formData);
       }
-      
-      // ✅ REACT QUERY: Cache invalidation for automatic UI updates
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.clients });
-      refresh(); // Refresh pagination data
-      
-      closeModal();
-    } catch (error: any) {
-      console.error('Error saving client:', error);
-      toast.error(extractErrorMessage(error));
+    } catch (error) {
+      // Error handled by mutation hook
     } finally {
       setIsSubmitting(false);
     }
-  }, [isSubmitting, editingClient, formData, queryClient, refresh, closeModal]);
+  }, [isSubmitting, editingClient, formData, createClientMutation, updateClientMutation]);
 
   // ✅ MEMOIZED: Handle delete - NO MORE window.confirm!
   const handleDelete = useCallback(async (id: number) => {
@@ -106,19 +125,9 @@ const Clients = () => {
     });
 
     if (confirmed) {
-      try {
-        await api.delete(`/clients/${id}`);
-        
-        // ✅ REACT QUERY: Cache invalidation for automatic UI updates
-        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.clients });
-        refresh(); // Refresh pagination data
-        toast.success('Client deleted successfully');
-      } catch (error: any) {
-        console.error('Error deleting client:', error);
-        toast.error(extractErrorMessage(error));
-      }
+      await deleteClientMutation.mutateAsync(id);
     }
-  }, [queryClient, t, confirm, refresh]);
+  }, [t, confirm, deleteClientMutation]);
 
   // ✅ OPTIMIZED: Loading state
   if (loading) {
@@ -138,15 +147,19 @@ const Clients = () => {
           onChange={updateSearch}
           placeholder={t('search')}
         />
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => openModal()}
-          className="ml-4 bg-blue-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 shadow-lg"
-        >
-          <Plus size={20} />
-          {t('newClient')}
-        </motion.button>
+        <div className="flex gap-3 ml-4">
+           {/* <ExcelUpload type="clients" onSuccess={refresh} /> */}
+          
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => openModal()}
+            className="bg-blue-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 shadow-lg"
+          >
+            <Plus size={20} />
+            {t('newClient')}
+          </motion.button>
+        </div>
       </div>
 
       <motion.div

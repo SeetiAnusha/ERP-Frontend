@@ -113,17 +113,39 @@ const Products = () => {
 
       try {
         if (productModal.data) {
-          await updateProductMutation.mutateAsync({ id: productModal.data.id, data: productData });
-          toast.success('Product updated successfully');
+          // ✅ PERFORMANCE FIX: Use mutate instead of mutateAsync (non-blocking)
+          updateProductMutation.mutate({ id: productModal.data.id, data: productData }, {
+            onSuccess: () => {
+              // ✅ Hook already shows success notification
+              // ✅ Hook already invalidates cache
+              refresh(); // ✅ Refresh pagination data
+              productModal.close();
+              productForm.reset();
+            },
+            onError: (error: any) => {
+              console.error('Error updating product:', error);
+              toast.error(extractErrorMessage(error));
+            }
+          });
         } else {
-          await createProductMutation.mutateAsync(productData);
-          toast.success('Product created successfully');
+          // ✅ PERFORMANCE FIX: Use mutate instead of mutateAsync (non-blocking)
+          createProductMutation.mutate(productData, {
+            onSuccess: () => {
+              // ✅ Hook already shows success notification
+              // ✅ Hook already invalidates cache
+              refresh(); // ✅ Refresh pagination data
+              productModal.close();
+              productForm.reset();
+            },
+            onError: (error: any) => {
+              console.error('Error creating product:', error);
+              toast.error(extractErrorMessage(error));
+            }
+          });
         }
         
-        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.products });
-        refresh(); // ✅ Critical for pagination
-        productModal.close();
-        productForm.reset();
+        // ❌ REMOVED: Duplicate invalidation (hook already does this in onSettled)
+        // ❌ REMOVED: Duplicate toast (hook already shows notification in onSuccess)
       } catch (error: any) {
         console.error('Error saving product:', error);
         toast.error(extractErrorMessage(error));
@@ -160,16 +182,27 @@ const Products = () => {
     });
     if (!confirmed) return;
 
+    // ✅ PROFESSIONAL: Proper error handling with try-catch + mutation callbacks
     try {
-      await deleteProductMutation.mutateAsync(product.id);
-      toast.success('Product deleted successfully');
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.products });
-      refresh(); // ✅ Critical for pagination
+      // ✅ PERFORMANCE FIX: Use mutate instead of mutateAsync (non-blocking)
+      // ✅ SAFETY: Wrapped in try-catch to handle synchronous errors
+      deleteProductMutation.mutate(product.id, {
+        onSuccess: () => {
+          // ✅ Hook already shows success notification
+          // ✅ Hook already invalidates cache
+          refresh(); // ✅ Refresh pagination data
+        },
+        onError: (error: any) => {
+          console.error('❌ Error deleting product:', error);
+          toast.error(extractErrorMessage(error));
+        }
+      });
     } catch (error: any) {
-      console.error('Error deleting product:', error);
-      toast.error(extractErrorMessage(error));
+      // ✅ CRITICAL: Catch synchronous errors (validation, unexpected errors)
+      console.error('❌ Synchronous error before mutation:', error);
+      toast.error(error.message || 'Unexpected error occurred');
     }
-  }, [confirm, deleteProductMutation, queryClient, refresh]);
+  }, [confirm, deleteProductMutation, refresh]);
 
   return (
     <div>

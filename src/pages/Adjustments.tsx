@@ -143,11 +143,43 @@ const Adjustments = () => {
     setIsSubmitting(true);
     try {
       const totals = calculateTotals();
+      
+      // ✅ FIX: Use products total if items exist, otherwise use manual amount
+      let finalAmount = totals.total;
+      
+      // If no products added, use manual amount from form
+      if (adjustmentItems.length === 0) {
+        finalAmount = parseFloat(formData.adjustmentAmount) || 0;
+      }
+      
+      // ✅ VALIDATION: Ensure amount is greater than 0
+      if (finalAmount <= 0) {
+        toast.error('Adjustment amount must be greater than 0. Please add products or enter an amount.');
+        setIsSubmitting(false);
+        return;
+      }
+      
+      // ✅ NEW: Prepare items data for backend
+      const itemsData = adjustmentItems.map(item => ({
+        productCode: item.productCode,
+        productName: item.productName,
+        productId: products.find(p => p.code === item.productCode)?.id || 0,
+        quantity: item.quantity,
+        unitOfMeasurement: item.unitOfMeasurement,
+        unitCost: item.unitCost,
+        subtotal: item.subtotal,
+        tax: item.tax,
+        total: item.total,
+      }));
+      
       const adjustmentData = {
         ...formData,
         relatedEntityId: parseInt(formData.relatedEntityId),
-        adjustmentAmount: totals.total,
+        adjustmentAmount: finalAmount,
+        items: itemsData, // ✅ Include line items
       };
+      
+      console.log('📤 Sending adjustment data:', adjustmentData);
 
       if (editingAdjustment) {
         await updateMutation.mutateAsync({ id: editingAdjustment.id, data: adjustmentData });
@@ -156,14 +188,36 @@ const Adjustments = () => {
         await createMutation.mutateAsync(adjustmentData);
         toast.success('Adjustment created successfully');
       }
-      resetForm();
+      
+      // ✅ FIX: Inline reset instead of calling resetForm
+      setFormData({
+        registrationDate: new Date().toISOString().split('T')[0],
+        type: 'Debit Note',
+        relatedDocumentType: 'Purchase',
+        relatedDocumentNumber: '',
+        relatedEntityType: 'Supplier',
+        relatedEntityId: '',
+        supplierRnc: '',
+        supplierName: '',
+        clientRnc: '',
+        clientName: '',
+        ncf: '',
+        date: new Date().toISOString().split('T')[0],
+        reason: '',
+        adjustmentAmount: '',
+        notes: '',
+      });
+      setAdjustmentItems([]);
+      setEditingAdjustment(null);
+      setShowModal(false);
+      
     } catch (error: any) {
       console.error('Error saving adjustment:', error);
       toast.error(extractErrorMessage(error));
     } finally {
       setIsSubmitting(false);
     }
-  }, [isSubmitting, formData, editingAdjustment, calculateTotals, createMutation, updateMutation]);
+  }, [isSubmitting, formData, adjustmentItems, products, editingAdjustment, calculateTotals, createMutation, updateMutation]);
 
   // ✅ MEMOIZATION: Memoize delete handler
   const handleDelete = useCallback(async (id: number) => {
@@ -634,6 +688,34 @@ const Adjustments = () => {
                         </tr>
                       </tfoot>
                     </table>
+                  </div>
+                )}
+
+                {/* ✅ NEW: Manual Amount Entry (when no products added) */}
+                {adjustmentItems.length === 0 && (
+                  <div className="border-2 border-dashed border-blue-300 rounded-lg p-6 bg-blue-50">
+                    <h4 className="font-semibold text-blue-900 mb-3">💰 Adjustment Amount</h4>
+                    <p className="text-sm text-blue-700 mb-4">
+                      Enter the adjustment amount manually, or add products above to calculate automatically.
+                    </p>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Amount *
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        required
+                        value={formData.adjustmentAmount}
+                        onChange={(e) => setFormData({ ...formData, adjustmentAmount: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="Enter adjustment amount (e.g., 100.00)"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        This amount will be used for the adjustment. You can also add products above instead.
+                      </p>
+                    </div>
                   </div>
                 )}
 

@@ -107,9 +107,11 @@ const InvestmentAgreements = () => {
         terms: '',
         notes: '',
       });
-      // ✅ Invalidate cache
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.investmentAgreements });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.investmentSummary });
+      // ✅ Invalidate cache (parallel execution)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.investmentAgreements }),
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.investmentSummary })
+      ]);
       refetchAgreements();
       refetchSummary();
     } catch (error: any) {

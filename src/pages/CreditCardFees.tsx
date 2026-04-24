@@ -45,7 +45,7 @@ const CreditCardFees = () => {
     endDate: ''
   });
 
-  // Use generic table data hook with pagination
+  // ✅ FIX: Use generic table data hook with pagination - MUST be called before any conditional returns
   const {
     data: fees,
     loading,
@@ -63,29 +63,7 @@ const CreditCardFees = () => {
     initialSortOrder: 'DESC'
   });
 
-  // Debug logging
-  console.log('🔍 Credit Card Fees Debug:', {
-    feesCount: fees?.length || 0,
-    feesIsArray: Array.isArray(fees),
-    loading,
-    error,
-    pagination,
-    fees: fees?.slice(0, 2) // Show first 2 records
-  });
-
-  // Show error if exists
-  if (error) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="text-red-600 text-xl mb-2">❌</div>
-          <p className="text-red-600 font-semibold">Error loading credit card fees</p>
-          <p className="text-gray-600 text-sm mt-1">{error}</p>
-        </div>
-      </div>
-    );
-  }
-
+  // ✅ FIX: Define all callbacks BEFORE any conditional returns (React hooks rule)
   const getStatusBadge = useCallback((status: string) => {
     const styles = {
       'RECORDED': 'bg-yellow-100 text-yellow-800',
@@ -121,6 +99,30 @@ const CreditCardFees = () => {
 
   const shouldFilterByDate = tableDateRange.startDate && tableDateRange.endDate;
 
+  // Debug logging
+  console.log('🔍 Credit Card Fees Debug:', {
+    feesCount: fees?.length || 0,
+    feesIsArray: Array.isArray(fees),
+    loading,
+    error,
+    pagination,
+    fees: fees?.slice(0, 2) // Show first 2 records
+  });
+
+  // ✅ FIX: Show error AFTER all hooks are called
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="text-red-600 text-xl mb-2">❌</div>
+          <p className="text-red-600 font-semibold">Error loading credit card fees</p>
+          <p className="text-gray-600 text-sm mt-1">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ✅ FIX: Show loading AFTER all hooks are called
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">

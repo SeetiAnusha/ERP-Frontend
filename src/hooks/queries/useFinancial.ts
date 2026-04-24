@@ -162,11 +162,13 @@ export const useProcessPayment = () => {
     },
     onSuccess: () => {
       notify.success('Success', 'Payment processed successfully');
-      // Invalidate related financial queries
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.accountsPayable });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.accountsReceivable });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankTransactions });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashTransactions });
+      // ✅ PERFORMANCE FIX: Parallel cache invalidation
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.accountsPayable }),
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.accountsReceivable }),
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankTransactions }),
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashTransactions }),
+      ]);
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.payments });
       queryClient.invalidateQueries({ queryKey: ['recent-activity'] });
     },

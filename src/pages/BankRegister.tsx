@@ -83,7 +83,7 @@ const BankRegister = () => {
   
   // ✅ NEW: Use pagination hook for transactions
   const {
-    data: transactions,
+    data: transactions = [], // ✅ FIX: Add default empty array
     loading: transactionsLoading,
     pagination,
     search: searchTerm,
@@ -96,18 +96,20 @@ const BankRegister = () => {
     firstPage,
     lastPage,
     changeLimit,
-    refresh
+    refresh,
+    error: tableError // ✅ FIX: Capture error from hook
   } = useTableData<BankTransaction>({
     endpoint: 'bank-register',  // ✅ FIXED: No leading slash (baseURL already has /api)
     initialLimit: 50,
     initialFilters: {
       transactionType: 'All'
-    }
+    },
+    autoFetch: true // ✅ FIX: Explicitly enable auto-fetch
   });
   
   // ✅ Keep React Query hooks for bank accounts and suppliers (not paginated)
-  const { data: bankAccounts = [], isLoading: bankAccountsLoading } = useBankAccounts();
-  const { data: suppliers = [], isLoading: suppliersLoading } = useSuppliers();
+  const { data: bankAccounts = [], isLoading: bankAccountsLoading, error: bankAccountsError } = useBankAccounts();
+  const { data: suppliers = [], isLoading: suppliersLoading, error: suppliersError } = useSuppliers();
   
   // ✅ PRESERVED: Keep all original state variables exactly as they were
   const [showModal, setShowModal] = useState(false);
@@ -347,7 +349,7 @@ const BankRegister = () => {
         toast.success('Payment completed successfully! The Accounts Payable status has been updated.');
         // Navigate back to Accounts Payable to see the updated status
         setTimeout(() => {
-          navigate('/accounts-payable');
+          navigate('/transactions/accounts-payable');
         }, 1000);
       } else {
         toast.success('Transaction created successfully!');
@@ -395,7 +397,7 @@ const BankRegister = () => {
     }
 
     // Navigate to Transaction Deletion page with bank register details
-    navigate('/transaction-deletion', {
+    navigate('/administration/transaction-deletion', {
       state: {
         transactionType: 'BANK_REGISTER',
         transactionId: id,
@@ -454,7 +456,7 @@ const BankRegister = () => {
     if (location.state?.fromAccountsPayable) {
       toast.success('Smart payment completed successfully! Credit balances were automatically applied.');
       setTimeout(() => {
-        navigate('/accounts-payable');
+        navigate('/transactions/accounts-payable');
       }, 1000);
     } else {
       toast.success('Smart payment completed successfully!');

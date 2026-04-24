@@ -150,7 +150,8 @@ const AccountsPayablePage = () => {
     };
     
     // Navigate to Bank Register with state
-    navigate('/bank-register', { 
+    // ✅ FIX: Use correct path /transactions/bank-register
+    navigate('/transactions/bank-register', { 
       state: { 
         prefilledData: paymentData,
         fromAccountsPayable: true 

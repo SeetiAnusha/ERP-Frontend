@@ -4,6 +4,8 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import api from '../api/axios'; // ✅ FIX: Use axios instead of fetch
+import { toast } from 'sonner'; // ✅ FIX: Add toast notifications
 
 interface ClassificationSummary {
   classification: string;
@@ -45,48 +47,56 @@ const DataClassification: React.FC = () => {
   // Fetch dashboard data
   const fetchDashboardData = async () => {
     try {
-      const response = await fetch('/api/data-classification/dashboard');
-      const result = await response.json();
+      const response = await api.get('/data-classification/dashboard'); // ✅ FIX: Use axios
       
-      if (result.success) {
-        setDashboardData(result.data);
+      if (response.data.success) {
+        setDashboardData(response.data.data);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to fetch dashboard data:', error);
+      toast.error('Failed to load dashboard data', {
+        description: error.response?.data?.message || error.message
+      });
     }
   };
 
   // Fetch expiring data
   const fetchExpiringData = async () => {
     try {
-      const response = await fetch('/api/data-classification/expiring?withinDays=90');
-      const result = await response.json();
+      const response = await api.get('/data-classification/expiring', {
+        params: { withinDays: 90 }
+      }); // ✅ FIX: Use axios
       
-      if (result.success) {
-        setExpiringData(result.data);
+      if (response.data.success) {
+        setExpiringData(response.data.data);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to fetch expiring data:', error);
+      toast.error('Failed to load expiring data', {
+        description: error.response?.data?.message || error.message
+      });
     }
   };
 
   // Fetch classifications
   const fetchClassifications = async () => {
     try {
-      const params = new URLSearchParams({
-        page: '1',
-        limit: '50',
-        ...filters
-      });
-
-      const response = await fetch(`/api/data-classification/classifications?${params}`);
-      const result = await response.json();
+      const response = await api.get('/data-classification/classifications', {
+        params: {
+          page: 1,
+          limit: 50,
+          ...filters
+        }
+      }); // ✅ FIX: Use axios
       
-      if (result.success) {
-        setClassifications(result.data.classifications);
+      if (response.data.success) {
+        setClassifications(response.data.data.classifications);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to fetch classifications:', error);
+      toast.error('Failed to load classifications', {
+        description: error.response?.data?.message || error.message
+      });
     }
   };
 
@@ -94,23 +104,27 @@ const DataClassification: React.FC = () => {
   const toggleSystem = async (enable: boolean) => {
     try {
       const endpoint = enable ? 'enable' : 'disable';
-      const response = await fetch(`/api/data-classification/${endpoint}`, {
-        method: 'POST'
-      });
+      await api.post(`/data-classification/${endpoint}`); // ✅ FIX: Use axios
       
-      if (response.ok) {
-        fetchDashboardData();
-      }
-    } catch (error) {
+      toast.success(`Data classification system ${enable ? 'enabled' : 'disabled'} successfully`);
+      fetchDashboardData();
+    } catch (error: any) {
       console.error('Failed to toggle system:', error);
+      toast.error(`Failed to ${enable ? 'enable' : 'disable'} system`, {
+        description: error.response?.data?.message || error.message
+      });
     }
   };
 
   // Download compliance report
   const downloadReport = async () => {
     try {
-      const response = await fetch('/api/data-classification/compliance-report?format=csv');
-      const blob = await response.blob();
+      const response = await api.get('/data-classification/compliance-report', {
+        params: { format: 'csv' },
+        responseType: 'blob' // ✅ FIX: Handle blob response
+      });
+      
+      const blob = new Blob([response.data], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -119,8 +133,13 @@ const DataClassification: React.FC = () => {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-    } catch (error) {
+      
+      toast.success('Compliance report downloaded successfully');
+    } catch (error: any) {
       console.error('Failed to download report:', error);
+      toast.error('Failed to download report', {
+        description: error.response?.data?.message || error.message
+      });
     }
   };
 

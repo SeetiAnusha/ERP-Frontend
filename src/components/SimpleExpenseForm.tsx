@@ -366,7 +366,7 @@ const SimpleExpenseForm = ({
                     <option value="BANK_TRANSFER">Bank Transfer</option>
                     <option value="CHEQUE">Cheque</option>
                     <option value="CHECK">Check</option>
-                    <option value="DEPOSIT">Bank Deposit</option>
+                    {/* <option value="DEPOSIT">Bank Deposit</option> */}
                   </optgroup>
                   <optgroup label="Card Payments">
                     <option value="DEBIT_CARD">Debit Card (Immediate)</option>

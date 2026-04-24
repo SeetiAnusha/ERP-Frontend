@@ -196,38 +196,50 @@ const Sales = () => {
         })),
       };
       
-      // ✅ FIXED: Proper error handling like Purchases - DON'T close modal until backend responds
+      // ✅ PROFESSIONAL: Proper error handling with try-catch + mutation callbacks
       try {
         console.log('🚀 FRONTEND - Submitting sale data:', saleData);
         
-        // ✅ CRITICAL: Wait for backend response before closing modal (like Purchases)
-        await createSaleMutation.mutateAsync(saleData);
-        
-        // ✅ Refresh pagination data
-        refresh();
-        
-        // ✅ Only close modal and reset form AFTER successful backend response
-        salesModal.close();
-        salesForm.reset();
-        setSaleItems([]);
-        
-        // ✅ Success notification
-        notify.success('Sale Created', 'Sale has been created successfully');
-        
+        // ✅ PERFORMANCE FIX: Use mutate instead of mutateAsync (non-blocking UI)
+        // ✅ SAFETY: Wrapped in try-catch to handle synchronous errors
+        createSaleMutation.mutate(saleData, {
+          onSuccess: () => {
+            // ✅ Refresh pagination data
+            refresh();
+            
+            // ✅ Only close modal and reset form AFTER successful backend response
+            salesModal.close();
+            salesForm.reset(); // ✅ This resets isSubmitting
+            setSaleItems([]);
+            
+            // ✅ Success notification
+            notify.success('Sale Created', 'Sale has been created successfully');
+          },
+          onError: (error: any) => {
+            console.error('❌ Error creating sale:', error);
+            console.error('❌ Error response:', error.response?.data);
+            
+            // ✅ CRITICAL: Handle backend errors with popup messages
+            const errorMessage = error.response?.data?.message || 
+                               error.response?.data?.error || 
+                               error.message || 
+                               'Error creating sale';
+            
+            // ✅ Show backend error in popup
+            notify.error('Sale Creation Failed', errorMessage);
+            
+            // ✅ CRITICAL FIX: Reset isSubmitting on error to allow retry
+            salesForm.setIsSubmitting(false);
+            
+            // ✅ IMPORTANT: Keep modal open so user can fix the issue
+          }
+        });
       } catch (error: any) {
-        console.error('Error creating sale:', error);
-        console.error('Error response:', error.response?.data);
-        
-        // ✅ CRITICAL: Handle backend errors with popup messages (like Purchases)
-        const errorMessage = error.response?.data?.error || 
-                           error.response?.data?.message || 
-                           error.message || 
-                           'Error creating sale';
-        
-        // ✅ Show backend error in popup (like Purchases)
-        notify.error('Sale Creation Failed', errorMessage);
-        
-        // ✅ IMPORTANT: Keep modal open so user can fix the issue
+        // ✅ CRITICAL: Catch synchronous errors (validation, unexpected errors)
+        console.error('❌ Synchronous error before mutation:', error);
+        notify.error('Sale Creation Failed', error.message || 'Unexpected error occurred');
+        // ✅ CRITICAL FIX: Reset isSubmitting on synchronous error
+        salesForm.setIsSubmitting(false);
       }
     }
   });

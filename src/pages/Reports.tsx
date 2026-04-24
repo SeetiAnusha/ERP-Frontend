@@ -263,7 +263,7 @@ const Reports = () => {
           </button>
 
           <button
-            onClick={() => navigate('/inventory')}
+            onClick={() => navigate('/master-data/inventory')}
             className="p-4 bg-purple-50 hover:bg-purple-100 rounded-lg border-2 border-purple-200 transition text-left"
           >
             <FaFileAlt className="text-2xl text-purple-600 mb-2" />

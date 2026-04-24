@@ -44,10 +44,12 @@ const OpeningBalance = () => {
       const response = await api.post('/accounting/opening-balances', data);
       return response.data;
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       notify.success('Success', `Opening balances created: ${data.entryNumber}`);
-      queryClient.invalidateQueries({ queryKey: ['general-ledger'] });
-      queryClient.invalidateQueries({ queryKey: ['trial-balance'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['general-ledger'] }),
+        queryClient.invalidateQueries({ queryKey: ['trial-balance'] })
+      ]);
       // Reset form
       setEntries([{ accountCode: '', amount: 0, entryType: 'DEBIT' }]);
     },

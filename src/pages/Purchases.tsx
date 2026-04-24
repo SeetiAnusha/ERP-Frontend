@@ -180,59 +180,75 @@ const Purchases = () => {
 
   // ✅ Form validation function - FRONTEND: Only static field validation
   const validatePurchase = useCallback((values: any) => {
+    console.log('🔍 VALIDATION STARTED');
+    console.log('📋 Validating values:', values);
+    
     const errors: any = {};
     
     // ✅ FRONTEND: Required field validations only
     if (!values.supplierId?.trim()) {
       errors.supplierId = 'Supplier is required';
+      console.log('❌ Validation error: supplierId missing');
     }
     
     if (!values.date?.trim()) {
       errors.date = 'Date is required';
+      console.log('❌ Validation error: date missing');
     }
     
     if (!values.purchaseType?.trim()) {
       errors.purchaseType = 'Purchase type is required';
+      console.log('❌ Validation error: purchaseType missing');
     }
     
     if (!values.paymentType?.trim()) {
       errors.paymentType = 'Payment type is required';
+      console.log('❌ Validation error: paymentType missing');
     }
     
     // ✅ FRONTEND: Payment method requirements validation (NO balance checks)
     if (values.paymentType === 'CHEQUE') {
       if (!values.bankAccountId?.trim()) {
         errors.bankAccountId = 'Bank account is required for cheque payments';
+        console.log('❌ Validation error: bankAccountId missing for CHEQUE');
       }
       if (!values.chequeNumber?.trim()) {
         errors.chequeNumber = 'Cheque number is required';
+        console.log('❌ Validation error: chequeNumber missing');
       }
       if (!values.chequeDate?.trim()) {
         errors.chequeDate = 'Cheque date is required';
+        console.log('❌ Validation error: chequeDate missing');
       }
     }
     
     if (values.paymentType === 'BANK_TRANSFER') {
       if (!values.bankAccountId?.trim()) {
         errors.bankAccountId = 'Bank account is required for transfers';
+        console.log('❌ Validation error: bankAccountId missing for BANK_TRANSFER');
       }
       if (!values.transferNumber?.trim()) {
         errors.transferNumber = 'Transfer number is required';
+        console.log('❌ Validation error: transferNumber missing');
       }
       if (!values.transferDate?.trim()) {
         errors.transferDate = 'Transfer date is required';
+        console.log('❌ Validation error: transferDate missing');
       }
     }
     
     if (values.paymentType === 'DEBIT_CARD' || values.paymentType === 'CREDIT_CARD') {
       if (!values.cardId?.trim()) {
         errors.cardId = 'Card selection is required';
+        console.log('❌ Validation error: cardId missing for card payment');
       }
       if (!values.paymentReference?.trim()) {
         errors.paymentReference = 'Payment reference is required';
+        console.log('❌ Validation error: paymentReference missing');
       }
       if (!values.voucherDate?.trim()) {
         errors.voucherDate = 'Voucher date is required';
+        console.log('❌ Validation error: voucherDate missing');
       }
       
       // ❌ REMOVED: All balance validation - Backend handles with real-time data
@@ -243,6 +259,9 @@ const Purchases = () => {
       
       // Backend will validate credit limits and account balances with accurate, real-time data
     }
+    
+    console.log('📊 Validation errors:', errors);
+    console.log(Object.keys(errors).length === 0 ? '✅ VALIDATION PASSED' : '❌ VALIDATION FAILED');
     
     return errors;
   }, [purchaseItems, associatedInvoices]); // ✅ CORRECTED: Only static dependencies, removed cards and totals
@@ -270,13 +289,22 @@ const Purchases = () => {
     },
     validate: validatePurchase,
     onSubmit: async (values) => {
+      console.log('🔍 FORM SUBMISSION STARTED');
+      console.log('📋 Form values:', values);
+      console.log('📦 Purchase items:', purchaseItems);
+      console.log('📄 Associated invoices:', associatedInvoices);
+      
       if (purchaseItems.length === 0) {
+        console.error('❌ No purchase items');
         toast.error('Please add at least one product for goods purchase');
         return;
       }
       
       // ✅ Use memoized totals instead of recalculating
       const paidAmount = values.paymentType === 'CREDIT' ? 0 : totals.grandTotal;
+      
+      console.log('💰 Totals:', totals);
+      console.log('💵 Paid amount:', paidAmount);
       
       const cleanedData = cleanFormData(
         {
@@ -303,40 +331,53 @@ const Purchases = () => {
         ['supplierId', 'bankAccountId', 'cardId']
       );
       
-      // ✅ FIXED: Proper error handling like old code - DON'T close modal until backend responds
+      console.log('🧹 Cleaned data:', cleanedData);
+      
+      // ✅ PROFESSIONAL: Proper error handling with try-catch + mutation callbacks
       try {
-        console.log('🚀 FRONTEND - Submitting purchase data:', cleanedData);
+        console.log('🚀 FRONTEND - Submitting purchase data to backend...');
         
-        // ✅ CRITICAL: Wait for backend response before closing modal (like old code)
-        await createPurchaseMutation.mutateAsync(cleanedData as any);
-        
-        // ✅ Only close modal and reset form AFTER successful backend response
-        purchaseModal.close();
-        purchaseForm.reset();
-        setPurchaseItems([]);
-        setAssociatedInvoices([]);
-        
-        // ✅ Refresh pagination data
-        refresh();
-        
-        // ✅ Success notification
-        notify.success('Purchase Created', 'Purchase has been created successfully');
-        
+        // ✅ PERFORMANCE FIX: Use mutate instead of mutateAsync (non-blocking UI)
+        // ✅ SAFETY: Wrapped in try-catch to handle synchronous errors
+        createPurchaseMutation.mutate(cleanedData as any, {
+          onSuccess: (result) => {
+            console.log('✅ Backend response:', result);
+            
+            // ✅ Only close modal and reset form AFTER successful backend response
+            purchaseModal.close();
+            purchaseForm.reset();
+            setPurchaseItems([]);
+            setAssociatedInvoices([]);
+            
+            // ✅ Refresh pagination data
+            refresh();
+            
+            // ✅ Success notification
+            notify.success('Purchase Created', 'Purchase has been created successfully');
+          },
+          onError: (error: any) => {
+            console.error('❌ Error creating purchase:', error);
+            console.error('❌ Error response:', error.response?.data);
+            console.error('❌ Error message:', error.message);
+            
+            // ✅ CRITICAL: Handle backend errors with popup messages (like old code)
+            const errorMessage = error.response?.data?.message || 
+                               error.response?.data?.error || 
+                               error.message || 
+                               'Error creating purchase';
+            
+            console.error('❌ Displaying error to user:', errorMessage);
+            
+            // ✅ Show backend error in popup (like old alert in old code)
+            notify.error('Purchase Creation Failed', errorMessage);
+            
+            // ✅ IMPORTANT: Keep modal open so user can fix the issue
+          }
+        });
       } catch (error: any) {
-        console.error('Error creating purchase:', error);
-        console.error('Error response:', error.response?.data);
-        
-        // ✅ CRITICAL: Handle backend errors with popup messages (like old code)
-        const errorMessage = error.response?.data?.error || 
-                           error.response?.data?.message || 
-                           error.message || 
-                           'Error creating purchase';
-        
-        // ✅ Show backend error in popup (like old alert in old code)
-        notify.error('Purchase Creation Failed', errorMessage);
-        
-        // ✅ IMPORTANT: Keep modal open so user can fix the issue
-        // Modal stays open, user can see the error and make corrections
+        // ✅ CRITICAL: Catch synchronous errors (validation, unexpected errors)
+        console.error('❌ Synchronous error before mutation:', error);
+        notify.error('Purchase Creation Failed', error.message || 'Unexpected error occurred');
       }
     }
   });

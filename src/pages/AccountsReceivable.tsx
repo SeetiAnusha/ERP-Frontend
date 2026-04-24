@@ -182,7 +182,8 @@ const AccountsReceivablePage = () => {
     };
     
     // Navigate to Cash Register with state
-    navigate('/cash-register', { 
+    // ✅ FIX: Use correct path /transactions/cash-register
+    navigate('/transactions/cash-register', { 
       state: { 
         prefilledData: collectionData,
         fromAccountsReceivable: true 

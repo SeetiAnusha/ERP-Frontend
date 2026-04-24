@@ -431,11 +431,13 @@ const CashRegister = () => {
       
       await axios.post('/cash-register', cleanedData);
       
-      // ✅ OPTIMIZATION: Use React Query cache invalidation and refresh pagination
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashTransactions });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashRegisters });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankAccounts });
-      queryClient.invalidateQueries({ queryKey: ['recent-activity'] });
+      // ✅ OPTIMIZATION: Use React Query cache invalidation and refresh pagination (parallel execution)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashTransactions }),
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashRegisters }),
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankAccounts }),
+        queryClient.invalidateQueries({ queryKey: ['recent-activity'] })
+      ]);
       refresh(); // Refresh paginated data
       
       // Refresh credit preview after AR collection payment
@@ -449,7 +451,7 @@ const CashRegister = () => {
         toast.success('Customer invoice collection completed successfully! The Accounts Receivable status has been updated.');
         // Navigate back to Accounts Receivable to see the updated status
         setTimeout(() => {
-          navigate('/accounts-receivable');
+          navigate('/transactions/accounts-receivable');
         }, 1000);
       } else {
         toast.success(t('transactionCreated') || 'Transaction created successfully!');
@@ -497,7 +499,7 @@ const CashRegister = () => {
     }
 
     // Navigate to Transaction Deletion page with cash register details
-    navigate('/transaction-deletion', {
+    navigate('/administration/transaction-deletion', {
       state: {
         transactionType: 'CASH_REGISTER',
         transactionId: id,
@@ -549,11 +551,13 @@ const CashRegister = () => {
   }, [location.state]);
 
   // ✅ MEMOIZED: Customer credit-aware payment success handler
-  const handleCustomerCreditAwarePaymentSuccess = useCallback(() => {
-    // ✅ OPTIMIZATION: Use React Query cache invalidation and refresh pagination
-    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashTransactions });
-    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashRegisters });
-    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.clients });
+  const handleCustomerCreditAwarePaymentSuccess = useCallback(async () => {
+    // ✅ OPTIMIZATION: Use React Query cache invalidation and refresh pagination (parallel execution)
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashTransactions }),
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashRegisters }),
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.clients })
+    ]);
     refresh(); // Refresh paginated data
     
     // 🔥 FIX: Refresh credit preview to show updated credit balance
@@ -566,7 +570,7 @@ const CashRegister = () => {
     if (location.state?.fromAccountsReceivable) {
       toast.success('Smart customer payment completed successfully! Credit balances were automatically applied.');
       setTimeout(() => {
-        navigate('/accounts-receivable');
+        navigate('/transactions/accounts-receivable');
       }, 1000);
     } else {
       toast.success('Smart customer payment completed successfully!');
@@ -603,11 +607,13 @@ const CashRegister = () => {
       
       toast.success('Bank deposit recorded successfully! Cash register balance decreased and bank account increased.');
       
-      // ✅ OPTIMIZATION: Use React Query cache invalidation and refresh pagination
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashTransactions });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashRegisters });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankAccounts });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankTransactions });
+      // ✅ OPTIMIZATION: Use React Query cache invalidation and refresh pagination (parallel execution)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashTransactions }),
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashRegisters }),
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankAccounts }),
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankTransactions })
+      ]);
       refresh(); // Refresh paginated data
       
       resetDepositForm();

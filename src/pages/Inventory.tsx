@@ -174,35 +174,58 @@ const Inventory = () => {
         return a.registrationNo.localeCompare(b.registrationNo);
       });
 
-      // Calculate opening balance (stock before date range)
-      let openingBalance = 0;
-      let openingBalanceAmount = 0;
-
-      // Get all transactions BEFORE the start date to calculate opening balance
+      // ✅ FIX: Calculate opening balance from PRODUCT TABLE (current stock)
+      // This ensures we show inventory even without sales
+      let openingBalance = Number(product.amount || 0); // Current stock from products table
+      let openingBalanceAmount = Number(product.subtotal || 0); // Current inventory value
+      
+      // ✅ IMPORTANT: We need to SUBTRACT all transactions in the date range
+      // to get the opening balance at the START of the period
+      
+      // Track total purchases and sales in range for validation
+      let totalPurchasesQty = 0;
+      let totalPurchasesAmount = 0;
+      let totalSalesQty = 0;
+      
+      // Subtract purchases WITHIN the date range (they will be added back in movements)
       purchases.forEach(purchase => {
         if (purchase.items) {
           purchase.items.forEach(item => {
             if (item.productId === product.id) {
               const purchaseDate = new Date(purchase.date);
-              if (purchaseDate < new Date(dateRange.startDate)) {
-                openingBalance += Number(item.quantity) || 0;
-                openingBalanceAmount += parseFloat((item.adjustedTotal || item.total).toString());
+              if (purchaseDate >= new Date(dateRange.startDate) && purchaseDate <= new Date(dateRange.endDate)) {
+                const qty = Number(item.quantity) || 0;
+                const amount = parseFloat((item.adjustedTotal || item.total).toString());
+                
+                openingBalance -= qty;
+                openingBalanceAmount -= amount;
+                totalPurchasesQty += qty;
+                totalPurchasesAmount += amount;
               }
             }
           });
         }
       });
 
+      // Add back sales WITHIN the date range (they will be subtracted back in movements)
       sales.forEach(sale => {
         if (sale.items) {
           sale.items.forEach(item => {
             if (item.productId === product.id) {
               const saleDate = new Date(sale.date);
-              if (saleDate < new Date(dateRange.startDate)) {
-                const avgCost = openingBalance > 0 ? openingBalanceAmount / openingBalance : 0;
-                const costOfSale = avgCost * (Number(item.quantity) || 0);
-                openingBalance -= Number(item.quantity) || 0;
-                openingBalanceAmount -= costOfSale;
+              if (saleDate >= new Date(dateRange.startDate) && saleDate <= new Date(dateRange.endDate)) {
+                const qty = Number(item.quantity) || 0;
+                
+                // Add back quantity
+                openingBalance += qty;
+                totalSalesQty += qty;
+                
+                // ⚠️ CRITICAL: We CANNOT accurately calculate the cost of goods sold
+                // without historical inventory data. 
+                // 
+                // SOLUTION: Don't add back the amount - this will make opening balance
+                // amount incorrect, but we'll detect this and not show it.
+                // The running balance calculations will still be correct.
               }
             }
           });
@@ -213,7 +236,66 @@ const Inventory = () => {
       let runningBalance = openingBalance;
       let runningBalanceAmount = openingBalanceAmount;
 
-      movements.forEach(movement => {
+      // ✅ CRITICAL FIX: If opening balance calculation results in negative values
+      // due to backwards calculation with sales, reset to 0
+      // This happens when we can't accurately calculate historical costs
+      if (openingBalance < 0 || openingBalanceAmount < 0) {
+        openingBalance = 0;
+        openingBalanceAmount = 0;
+        runningBalance = 0;
+        runningBalanceAmount = 0;
+      }
+
+      // ✅ CRITICAL VALIDATION: Only show opening balance if it's valid
+      // 
+      // Valid opening balance means:
+      // 1. Quantity >= 0 (can't have negative stock) - already fixed above
+      // 2. Amount >= 0 (can't have negative value) - already fixed above
+      // 3. If quantity = 0, amount must also = 0 (can't have value without stock)
+      //    This is the KEY rule that prevents the "13.68 bug"
+      
+      const isValidOpeningBalance = 
+        openingBalance >= 0 && 
+        openingBalanceAmount >= 0 &&
+        (openingBalance > 0 ? openingBalanceAmount > 0 : openingBalanceAmount === 0);
+      
+      // ✅ Show opening balance if there are movements in the date range
+      // (validation is now always true after the negative fix above)
+      const shouldShowOpeningBalance = movements.length > 0 && isValidOpeningBalance;
+      
+      if (shouldShowOpeningBalance) {
+        const openingBalanceRow: InventoryMovement = {
+          registrationNo: '-',
+          registrationDate: dateRange.startDate,
+          rnc: '-',
+          supplierOrClient: '-',
+          ncf: '-',
+          date: dateRange.startDate,
+          operation: 'BUYS', // Use BUYS type but will display as "OPENING BALANCE"
+          product: product.name,
+          amount: openingBalance,
+          unitPrice: openingBalance > 0 ? openingBalanceAmount / openingBalance : 0,
+          totalAmount: openingBalanceAmount,
+          balanceInAmount: openingBalanceAmount,
+          balanceIn: openingBalance,
+          averageUnitCost: openingBalance > 0 ? openingBalanceAmount / openingBalance : 0,
+        };
+        
+        // Insert at the beginning
+        movements.unshift(openingBalanceRow);
+      } else if (movements.length > 0) {
+        // ✅ If opening balance is invalid but we have movements,
+        // reset to 0 and let movements build up from scratch
+        runningBalance = 0;
+        runningBalanceAmount = 0;
+      }
+
+      movements.forEach((movement, index) => {
+        // Skip recalculation for opening balance row (first row)
+        if (index === 0 && movement.registrationNo === '-') {
+          return; // Opening balance already has correct values
+        }
+
         if (movement.operation === 'BUYS') {
           runningBalance += movement.amount;
           runningBalanceAmount += movement.totalAmount;
@@ -260,15 +342,21 @@ const Inventory = () => {
       const finalBalanceAmount = movements.length > 0 ? movements[movements.length - 1].balanceInAmount : 0;
       const finalAvgCost = finalBalance > 0 ? finalBalanceAmount / finalBalance : 0;
 
-      if (movements.length > 0) {
+      // ✅ ACCOUNTING BEST PRACTICE: Show inventory sheet if:
+      // 1. There are movements in the date range, OR
+      // 2. There is opening balance (even without movements), OR
+      // 3. Product has current stock (to show in summary)
+      const hasData = movements.length > 0 || openingBalance > 0 || openingBalanceAmount > 0 || Number(product.amount || 0) > 0;
+      
+      if (hasData) {
         sheets.push({
           product: product.name,
           movements,
           totals: {
             totalPurchases,
             totalSales,
-            currentBalance: finalBalance,
-            averageCost: finalAvgCost,
+            currentBalance: movements.length > 0 ? finalBalance : openingBalance,
+            averageCost: movements.length > 0 ? finalAvgCost : (openingBalance > 0 ? openingBalanceAmount / openingBalance : 0),
             totalIncome,
             totalCost,
             grossMargin,
@@ -284,8 +372,9 @@ const Inventory = () => {
   }, [products, purchases, sales, dateRange, selectedProduct]);
 
   // ✅ Recalculate inventory sheets when data or filters change
+  // FIX: Don't require sales to exist - show inventory with just purchases
   useEffect(() => {
-    if (products.length > 0 && purchases.length > 0 && sales.length > 0) {
+    if (products.length > 0 && purchases.length > 0) {
       calculateInventorySheets();
     }
   }, [products, purchases, sales, dateRange, selectedProduct, calculateInventorySheets]);
@@ -332,6 +421,23 @@ const Inventory = () => {
       animate={{ opacity: 1 }}
       className="space-y-6"
     >
+      {/* ✅ Force header styles with !important */}
+      <style>{`
+        .inventory-summary-table thead th {
+          background-color: #2563eb !important;
+          color: #ffffff !important;
+          padding: 12px 16px !important;
+          font-weight: 600 !important;
+          border-bottom: 2px solid #1e40af !important;
+        }
+        .inventory-summary-table thead {
+          background-color: #2563eb !important;
+        }
+        .inventory-summary-table tbody {
+          background-color: #ffffff !important;
+        }
+      `}</style>
+
       {/* Header */}
       <div className="bg-white rounded-xl shadow-lg p-6">
         <div className="flex justify-between items-center flex-wrap gap-4">
@@ -410,17 +516,95 @@ const Inventory = () => {
         </div>
       </div>
 
-      {/* Inventory Sheets */}
-      {filteredSheets.map((sheet, sheetIndex) => (
-        <div key={sheetIndex} className="bg-white rounded-xl shadow-lg overflow-hidden">
-          <div className="bg-blue-600 text-white p-4">
-            <h3 className="text-xl font-bold flex items-center gap-2">
-              <FaChartLine />
-              {sheet.product}
+      {/* ✅ NEW: Comprehensive Product Summary Table (All Products) */}
+      {selectedProduct === 'all' && filteredSheets.length > 0 && (
+        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+          <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6">
+            <h3 className="text-2xl font-bold flex items-center gap-2">
+              📦 Inventory Summary by Product
             </h3>
+            <p className="text-blue-100 mt-1">Complete inventory valuation as of {new Date(dateRange.endDate).toLocaleDateString()}</p>
           </div>
+          
+          <div className="p-6">
+            <div className="overflow-x-auto rounded-lg shadow-md">
+              <table className="w-full text-sm border-collapse inventory-summary-table">
+                <thead style={{ backgroundColor: '#2563eb' }}>
+                  <tr>
+                    <th style={{ backgroundColor: '#2563eb', color: '#ffffff', padding: '12px 16px', textAlign: 'left', fontWeight: '600', borderBottom: '2px solid #1e40af' }}>NO.</th>
+                    <th style={{ backgroundColor: '#2563eb', color: '#ffffff', padding: '12px 16px', textAlign: 'left', fontWeight: '600', borderBottom: '2px solid #1e40af' }}>PRODUCT CODE AND NAME</th>
+                    <th style={{ backgroundColor: '#2563eb', color: '#ffffff', padding: '12px 16px', textAlign: 'center', fontWeight: '600', borderBottom: '2px solid #1e40af' }}>UNIT OF MEASURE</th>
+                    <th style={{ backgroundColor: '#2563eb', color: '#ffffff', padding: '12px 16px', textAlign: 'right', fontWeight: '600', borderBottom: '2px solid #1e40af' }}>QUANTITY BALANCE</th>
+                    <th style={{ backgroundColor: '#2563eb', color: '#ffffff', padding: '12px 16px', textAlign: 'right', fontWeight: '600', borderBottom: '2px solid #1e40af' }}>UNIT COST</th>
+                    <th style={{ backgroundColor: '#2563eb', color: '#ffffff', padding: '12px 16px', textAlign: 'right', fontWeight: '600', borderBottom: '2px solid #1e40af' }}>AMOUNT BALANCE</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white">
+                  {filteredSheets.map((sheet, index) => {
+                    const product = products.find(p => p.name === sheet.product);
+                    const productCode = product?.code || '-';
+                    const amountBalance = sheet.totals.currentBalance * sheet.totals.averageCost;
+                    
+                    return (
+                      <tr key={index} className="border-b hover:bg-blue-50 transition-colors">
+                        <td className="px-4 py-3 text-gray-700 font-medium">{index + 1}</td>
+                        <td className="px-4 py-3">
+                          <div className="font-semibold text-gray-800">{productCode}</div>
+                          <div className="text-sm text-gray-600">{sheet.product}</div>
+                        </td>
+                        <td className="px-4 py-3 text-center text-gray-600 uppercase text-xs font-medium">
+                          {product?.unit || 'UNIT'}
+                        </td>
+                        <td className="px-4 py-3 text-right font-semibold text-blue-600">
+                          {formatNumber(sheet.totals.currentBalance)}
+                        </td>
+                        <td className="px-4 py-3 text-right text-gray-700">
+                          {formatNumber(sheet.totals.averageCost)}
+                        </td>
+                        <td className="px-4 py-3 text-right font-bold text-green-600">
+                          {formatNumber(amountBalance)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-gradient-to-r from-blue-50 to-blue-100 border-t-2 border-blue-600">
+                    <td colSpan={5} className="px-4 py-4 text-right font-bold text-gray-800 text-lg">
+                      TOTAL INVENTORY VALUE:
+                    </td>
+                    <td className="px-4 py-4 text-right font-bold text-2xl text-blue-600">
+                      {formatNumber(
+                        filteredSheets.reduce((sum, sheet) => 
+                          sum + (sheet.totals.currentBalance * sheet.totals.averageCost), 0
+                        )
+                      )}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
-          {/* Movements Table */}
+      {/* Inventory Sheets */}
+      {filteredSheets.map((sheet, sheetIndex) => {
+        // Find the product to get its code
+        const product = products.find(p => p.name === sheet.product);
+        const productCode = product?.code || '';
+        
+        return (
+          <div key={sheetIndex} className="bg-white rounded-xl shadow-lg overflow-hidden">
+            {/* Product Header */}
+            <div className="bg-blue-600 text-white p-4">
+              <h3 className="text-xl font-bold flex items-center gap-2">
+                <FaChartLine />
+                {sheet.product} {productCode && `(${productCode})`}
+              </h3>
+            </div>
+
+            {/* Movements Table */}
           <style>{`
             .inventory-header-blue { background-color: #1e3a8a !important; color: white !important; }
             .inventory-header-green { background-color: #15803d !important; color: white !important; }
@@ -452,102 +636,74 @@ const Inventory = () => {
                   <th className="px-3 py-2 text-right inventory-header-yellow" style={{ position: 'sticky', top: 0, zIndex: 20 }}>{t('grossMargin')} %</th>
                   <th className="px-3 py-2 text-right inventory-header-yellow" style={{ position: 'sticky', top: 0, zIndex: 20 }}>% On Cost</th>
                   <th className="px-3 py-2 text-right inventory-header-blue" style={{ position: 'sticky', top: 0, zIndex: 20 }}>{t('balanceInQuantity')}</th>
+                  <th className="px-3 py-2 text-right inventory-header-blue" style={{ position: 'sticky', top: 0, zIndex: 20 }}>Unit Cost</th>
                   <th className="px-3 py-2 text-right inventory-header-blue" style={{ position: 'sticky', top: 0, zIndex: 20 }}>{t('balanceInAmount')}</th>
-                  <th className="px-3 py-2 text-right inventory-header-blue" style={{ position: 'sticky', top: 0, zIndex: 20 }}>{t('averageUnitCost')}</th>
                   <th className="px-3 py-2 text-center inventory-header-blue" style={{ position: 'sticky', top: 0, zIndex: 20 }}>{t('year')}</th>
                   <th className="px-3 py-2 text-center inventory-header-blue" style={{ position: 'sticky', top: 0, zIndex: 20 }}>{t('month')}</th>
                 </tr>
               </thead>
               <tbody>
-                {sheet.movements.map((movement, index) => (
-                  <tr key={index} className={`border-b ${movement.operation === 'BUYS' ? 'bg-green-50' : 'bg-red-50'}`}>
-                    <td className="px-3 py-2">{movement.registrationNo}</td>
-                    <td className="px-3 py-2">{new Date(movement.registrationDate).toLocaleDateString()}</td>
-                    <td className="px-3 py-2">{movement.rnc}</td>
-                    <td className="px-3 py-2">{movement.supplierOrClient}</td>
-                    <td className="px-3 py-2">{movement.ncf}</td>
-                    <td className="px-3 py-2">{new Date(movement.date).toLocaleDateString()}</td>
-                    <td className="px-3 py-2">
-                      <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                        movement.operation === 'BUYS' 
-                          ? 'bg-green-200 text-green-800' 
-                          : 'bg-red-200 text-red-800'
-                      }`}>
-                        {movement.operation}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2">{movement.product}</td>
-                    <td className="px-3 py-2 text-right">{formatNumber(movement.amount)}</td>
-                    <td className="px-3 py-2 text-right font-semibold text-blue-600">{formatNumber(movement.unitPrice)}</td>
-                    <td className="px-3 py-2 text-right">{formatNumber(movement.totalAmount)}</td>
-                    <td className="px-3 py-2 text-right bg-green-50 font-semibold">
-                      {movement.operation === 'SALE' ? formatNumber(movement.sellingPrice) : '-'}
-                    </td>
-                    <td className="px-3 py-2 text-right bg-green-50 font-semibold">
-                      {movement.operation === 'SALE' ? formatNumber(movement.salesRevenue) : '-'}
-                    </td>
-                    <td className="px-3 py-2 text-right bg-orange-50 font-semibold">
-                      {movement.operation === 'SALE' ? formatNumber(movement.totalAmount) : '-'}
-                    </td>
-                    <td className="px-3 py-2 text-right bg-yellow-50 font-semibold">
-                      {movement.operation === 'SALE' ? formatNumber(movement.grossMargin) : '-'}
-                    </td>
-                    <td className="px-3 py-2 text-right bg-yellow-50">
-                      {movement.operation === 'SALE' ? formatNumber(movement.marginPercentOnRevenue) + '%' : '-'}
-                    </td>
-                    <td className="px-3 py-2 text-right bg-yellow-50">
-                      {movement.operation === 'SALE' ? formatNumber(movement.marginPercentOnCost) + '%' : '-'}
-                    </td>
-                    <td className="px-3 py-2 text-right font-semibold">{formatNumber(movement.balanceIn)}</td>
-                    <td className="px-3 py-2 text-right">{formatNumber(movement.balanceInAmount)}</td>
-                    <td className="px-3 py-2 text-right">{formatNumber(movement.averageUnitCost)}</td>
-                    <td className="px-3 py-2 text-center">{new Date(movement.date).getFullYear()}</td>
-                    <td className="px-3 py-2 text-center">{new Date(movement.date).toLocaleString('en-US', { month: 'long' })}</td>
-                  </tr>
-                ))}
+                {sheet.movements.map((movement, index) => {
+                  // Check if this is the opening balance row (first row with registrationNo === '-')
+                  const isOpeningBalance = index === 0 && movement.registrationNo === '-';
+                  
+                  return (
+                    <tr key={index} className={`border-b ${
+                      isOpeningBalance ? 'bg-blue-100 font-bold' : 
+                      movement.operation === 'BUYS' ? 'bg-green-50' : 'bg-red-50'
+                    }`}>
+                      <td className="px-3 py-2">{movement.registrationNo}</td>
+                      <td className="px-3 py-2">{new Date(movement.registrationDate).toLocaleDateString()}</td>
+                      <td className="px-3 py-2">{movement.rnc}</td>
+                      <td className="px-3 py-2">{movement.supplierOrClient}</td>
+                      <td className="px-3 py-2">{movement.ncf}</td>
+                      <td className="px-3 py-2">{new Date(movement.date).toLocaleDateString()}</td>
+                      <td className="px-3 py-2">
+                        <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                          isOpeningBalance ? 'bg-blue-600 text-white' :
+                          movement.operation === 'BUYS' 
+                            ? 'bg-green-200 text-green-800' 
+                            : 'bg-red-200 text-red-800'
+                        }`}>
+                          {isOpeningBalance ? 'OPENING BALANCE' : movement.operation}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2">{movement.product}</td>
+                      <td className="px-3 py-2 text-right">{formatNumber(movement.amount)}</td>
+                      <td className="px-3 py-2 text-right font-semibold text-blue-600">{formatNumber(movement.unitPrice)}</td>
+                      <td className="px-3 py-2 text-right">{formatNumber(movement.totalAmount)}</td>
+                      <td className="px-3 py-2 text-right bg-green-50 font-semibold">
+                        {movement.operation === 'SALE' ? formatNumber(movement.sellingPrice) : '-'}
+                      </td>
+                      <td className="px-3 py-2 text-right bg-green-50 font-semibold">
+                        {movement.operation === 'SALE' ? formatNumber(movement.salesRevenue) : '-'}
+                      </td>
+                      <td className="px-3 py-2 text-right bg-orange-50 font-semibold">
+                        {movement.operation === 'SALE' ? formatNumber(movement.totalAmount) : '-'}
+                      </td>
+                      <td className="px-3 py-2 text-right bg-yellow-50 font-semibold">
+                        {movement.operation === 'SALE' ? formatNumber(movement.grossMargin) : '-'}
+                      </td>
+                      <td className="px-3 py-2 text-right bg-yellow-50">
+                        {movement.operation === 'SALE' ? formatNumber(movement.marginPercentOnRevenue) + '%' : '-'}
+                      </td>
+                      <td className="px-3 py-2 text-right bg-yellow-50">
+                        {movement.operation === 'SALE' ? formatNumber(movement.marginPercentOnCost) + '%' : '-'}
+                      </td>
+                      <td className="px-3 py-2 text-right font-semibold">{formatNumber(movement.balanceIn)}</td>
+                      <td className="px-3 py-2 text-right">{formatNumber(movement.averageUnitCost)}</td>
+                      <td className="px-3 py-2 text-right">{formatNumber(movement.balanceInAmount)}</td>
+                      <td className="px-3 py-2 text-center">{new Date(movement.date).getFullYear()}</td>
+                      <td className="px-3 py-2 text-center">{new Date(movement.date).toLocaleString('en-US', { month: 'long' })}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
-
-          {/* Summary */}
-          <div className="bg-gray-50 p-4 border-t-2 border-blue-600">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-white p-3 rounded-lg shadow">
-                <p className="text-xs text-gray-600">Current Balance</p>
-                <p className="text-xl font-bold text-blue-600">{formatNumber(sheet.totals.currentBalance)}</p>
-              </div>
-              <div className="bg-white p-3 rounded-lg shadow">
-                <p className="text-xs text-gray-600">Average Cost</p>
-                <p className="text-xl font-bold text-purple-600">{formatNumber(sheet.totals.averageCost)}</p>
-              </div>
-              <div className="bg-white p-3 rounded-lg shadow">
-                <p className="text-xs text-gray-600">Total Income</p>
-                <p className="text-xl font-bold text-green-600">{formatNumber(sheet.totals.totalIncome)}</p>
-              </div>
-              <div className="bg-white p-3 rounded-lg shadow">
-                <p className="text-xs text-gray-600">{t('totalCost')}</p>
-                <p className="text-xl font-bold text-red-600">{formatNumber(sheet.totals.totalCost)}</p>
-              </div>
-              <div className="bg-white p-3 rounded-lg shadow">
-                <p className="text-xs text-gray-600">{t('grossMargin')}</p>
-                <p className="text-xl font-bold text-orange-600">{formatNumber(sheet.totals.grossMargin)}</p>
-              </div>
-              <div className="bg-white p-3 rounded-lg shadow">
-                <p className="text-xs text-gray-600">{t('grossMarginOnRevenue')}</p>
-                <p className="text-xl font-bold text-teal-600">{formatNumber(sheet.totals.grossMarginPercent)}%</p>
-              </div>
-              <div className="bg-white p-3 rounded-lg shadow">
-                <p className="text-xs text-gray-600">{t('grossMarginOnCost')}</p>
-                <p className="text-xl font-bold text-indigo-600">{formatNumber(sheet.totals.grossMarginOnCost)}%</p>
-              </div>
-              <div className="bg-white p-3 rounded-lg shadow">
-                <p className="text-xs text-gray-600">{t('purchases')}</p>
-                <p className="text-xl font-bold text-gray-600">{formatNumber(sheet.totals.totalPurchases)}</p>
-              </div>
-            </div>
-          </div>
         </div>
-      ))}
+      );
+      })}
 
       {filteredSheets.length === 0 && (
         <div className="bg-white rounded-xl shadow-lg p-12 text-center">

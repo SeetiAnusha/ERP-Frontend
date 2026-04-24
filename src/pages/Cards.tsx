@@ -190,16 +190,20 @@ const Cards = () => {
 
   // ✅ NEW: Handle restoration success
   const handleRestoreSuccess = useCallback(async () => {
-    // Invalidate all financial-related caches with aggressive refetching
-    await queryClient.invalidateQueries({ queryKey: ['cards'] });
-    await queryClient.invalidateQueries({ queryKey: ['bank-accounts'] });
-    await queryClient.invalidateQueries({ queryKey: ['general-ledger'] });
-    await queryClient.invalidateQueries({ queryKey: ['trial-balance'] });
-    await queryClient.invalidateQueries({ queryKey: ['credit-card-transactions'] });
+    // Invalidate all financial-related caches with aggressive refetching (parallel execution)
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['cards'] }),
+      queryClient.invalidateQueries({ queryKey: ['bank-accounts'] }),
+      queryClient.invalidateQueries({ queryKey: ['general-ledger'] }),
+      queryClient.invalidateQueries({ queryKey: ['trial-balance'] }),
+      queryClient.invalidateQueries({ queryKey: ['credit-card-transactions'] })
+    ]);
     
-    // Force immediate refetch
-    await queryClient.refetchQueries({ queryKey: ['general-ledger'] });
-    await queryClient.refetchQueries({ queryKey: ['trial-balance'] });
+    // Force immediate refetch (parallel execution)
+    await Promise.all([
+      queryClient.refetchQueries({ queryKey: ['general-ledger'] }),
+      queryClient.refetchQueries({ queryKey: ['trial-balance'] })
+    ]);
     
     refresh();
     closeRestoreModal();

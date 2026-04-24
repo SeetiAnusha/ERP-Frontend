@@ -7,9 +7,18 @@ import { AuthProvider } from './contexts/AuthContext';
 import { queryClient } from './lib/queryClient';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
-import Dashboard from './pages/Dashboard';
+import ModuleDashboard from './pages/ModuleDashboard';
 import Products from './pages/Products';
 import Inventory from './pages/Inventory';
+import InventoryAssistant from './pages/InventoryAssistant';
+// Module Pages
+import MasterDataModule from './pages/modules/MasterDataModule';
+import TransactionsModule from './pages/modules/TransactionsModule';
+import ExpensesModule from './pages/modules/ExpensesModule';
+import AccountingModule from './pages/modules/AccountingModule';
+import AdministrationModule from './pages/modules/AdministrationModule';
+import AssetsModule from './pages/modules/AssetsModule';
+import ReportsModule from './pages/modules/ReportsModule';
 import Sales from './pages/Sales';
 import Clients from './pages/Clients';
 import Purchases from './pages/Purchases';
@@ -92,56 +101,96 @@ function App() {
               path="/*" 
               element={
                 <ProtectedRoute requireAuth={true}>
-                  <Layout>
-                    <Routes>
-                      <Route path="/" element={<Dashboard />} />
-                      <Route path="/products" element={<Products />} />
-                      <Route path="/inventory" element={<Inventory />} />
-                      <Route path="/sales" element={<Sales />} />
-                      <Route path="/clients" element={<Clients />} />
-                      <Route path="/purchases" element={<Purchases />} />
-                      <Route path="/suppliers" element={<Suppliers />} />
-                      {/* Expense Management Routes */}
-                      <Route path="/business-expenses" element={<BusinessExpenses />} />
-                      <Route path="/expense-categories" element={<ExpenseCategories />} />
-                      <Route path="/fixed-assets" element={<FixedAssets />} />
-                      <Route path="/investments" element={<Investments />} /> 
-                      <Route path="/prepaid-expenses" element={<PrepaidExpenses />} /> 
-                      {/* <Route path="/payments" element={<Payments />} /> */}
-                      <Route path="/cash-register" element={<CashRegister />} />
-                      <Route path="/bank-register" element={<BankRegister />} />
-                      <Route path="/credit-card-register" element={<CreditCardRegister />} />
-                      <Route path="/adjustments" element={<Adjustments />} /> 
-                      <Route path="/reports" element={<Reports />} />
-                      <Route path="/reports/ppe" element={<PPEReport />} />
-                      <Route path="/reports/investments" element={<InvestmentReport />} />
-                      <Route path="/accounts-receivable" element={<AccountsReceivable />} />
-                      <Route path="/accounts-payable" element={<AccountsPayable />} />
-                      <Route path="/bank-accounts" element={<BankAccounts />} />
-                      <Route path="/cash-register-masters" element={<CashRegisterMasters />} />
-                      <Route path="/cards" element={<Cards />} />
-                      <Route path="/financers" element={<Financers />} />
-                      <Route path="/investors" element={<Investors />} />
-                      <Route path="/banks" element={<Banks />} />
-                      <Route path="/recent-activity" element={<RecentActivity />} />
-                      <Route path="/investment-agreements" element={<InvestmentAgreements />} />
-                      <Route path="/card-payment-networks" element={<CardPaymentNetworks />} />
-                      <Route path="/credit-balances" element={<CreditBalances />} />
-                      <Route path="/data-classification" element={<DataClassification />} />
-                      <Route path="/transaction-deletion" element={<TransactionDeletion />} />
-                      <Route path="/user-roles" element={<UserRoleManagement />} />
-                      <Route path="/expense-debug" element={<ExpenseDebug />} />
-                      {/* Accounting & Financial Reporting Routes */}
-                      <Route path="/accounting/chart-of-accounts" element={<ChartOfAccounts />} />
-                      <Route path="/accounting/general-ledger" element={<GeneralLedger />} />
-                      <Route path="/accounting/trial-balance" element={<TrialBalance />} />
-                      <Route path="/accounting/opening-balance" element={<OpeningBalance />} />
-                      <Route path="/accounting/financial-reports" element={<FinancialReports />} />
-                      {/* Credit Card Fees Routes */}
-                      <Route path="/credit-card-fees" element={<CreditCardFees />} />
-                      <Route path="/credit-card-fees/dashboard" element={<CreditCardFeesDashboard />} />
-                    </Routes>
-                  </Layout>
+                  <Routes>
+                    {/* Module Dashboard - No Layout */}
+                    <Route path="/" element={<ModuleDashboard />} />
+                    
+                    {/* Master Data Module Routes - No Layout */}
+                    <Route path="/master-data" element={<MasterDataModule />}>
+                      <Route index element={<div />} />
+                      <Route path="products" element={<Products />} />
+                      <Route path="inventory" element={<Inventory />} />
+                      <Route path="inventory-assistant" element={<InventoryAssistant />} />
+                      <Route path="suppliers" element={<Suppliers />} />
+                      <Route path="clients" element={<Clients />} />
+                      <Route path="bank-accounts" element={<BankAccounts />} />
+                      <Route path="cards" element={<Cards />} />
+                      <Route path="cash-registers" element={<CashRegisterMasters />} />
+                      <Route path="financers" element={<Financers />} />
+                      <Route path="card-networks" element={<CardPaymentNetworks />} />
+                    </Route>
+
+                    {/* Transactions Module Routes - No Layout */}
+                    <Route path="/transactions" element={<TransactionsModule />}>
+                      <Route index element={<div />} />
+                      <Route path="sales" element={<Sales />} />
+                      <Route path="purchases" element={<Purchases />} />
+                      <Route path="accounts-receivable" element={<AccountsReceivable />} />
+                      <Route path="accounts-payable" element={<AccountsPayable />} />
+                      <Route path="cash-register" element={<CashRegister />} />
+                      <Route path="bank-register" element={<BankRegister />} />
+                      <Route path="credit-card-register" element={<CreditCardRegister />} />
+                      <Route path="adjustments" element={<Adjustments />} />
+                    </Route>
+
+                    {/* Expenses Module Routes - No Layout */}
+                    <Route path="/expenses" element={<ExpensesModule />}>
+                      <Route index element={<div />} />
+                      <Route path="business-expenses" element={<BusinessExpenses />} />
+                      <Route path="credit-card-fees" element={<CreditCardFees />} />
+                      <Route path="expense-categories" element={<ExpenseCategories />} />
+                      <Route path="credit-balances" element={<CreditBalances />} />
+                    </Route>
+
+                    {/* Accounting Module Routes - No Layout */}
+                    <Route path="/accounting" element={<AccountingModule />}>
+                      <Route index element={<div />} />
+                      <Route path="chart-of-accounts" element={<ChartOfAccounts />} />
+                      <Route path="general-ledger" element={<GeneralLedger />} />
+                      <Route path="trial-balance" element={<TrialBalance />} />
+                      <Route path="opening-balance" element={<OpeningBalance />} />
+                      <Route path="financial-reports" element={<FinancialReports />} />
+                    </Route>
+
+                    {/* Administration Module Routes - No Layout (Admin/Manager only) */}
+                    <Route path="/administration" element={<AdministrationModule />}>
+                      <Route index element={<div />} />
+                      <Route path="user-roles" element={<UserRoleManagement />} />
+                      <Route path="data-classification" element={<DataClassification />} />
+                      <Route path="transaction-deletion" element={<TransactionDeletion />} />
+                    </Route>
+
+                    {/* Assets & Financing Module Routes - No Layout */}
+                    <Route path="/assets" element={<AssetsModule />}>
+                      <Route index element={<div />} />
+                      <Route path="fixed-assets" element={<FixedAssets />} />
+                      <Route path="investments" element={<Investments />} />
+                      <Route path="prepaid-expenses" element={<PrepaidExpenses />} />
+                      <Route path="investors" element={<Investors />} />
+                      <Route path="loans" element={<Banks />} />
+                      <Route path="investment-agreements" element={<InvestmentAgreements />} />
+                      <Route path="activity" element={<RecentActivity />} />
+                      <Route path="reports" element={<Reports />} />
+                    </Route>
+
+                    {/* Reports Module Routes - No Layout */}
+                    <Route path="/reports" element={<ReportsModule />}>
+                      <Route index element={<div />} />
+                      <Route path="general" element={<Reports />} />
+                      <Route path="ppe" element={<PPEReport />} />
+                      <Route path="investments" element={<InvestmentReport />} />
+                    </Route>
+
+                    {/* Legacy Routes with Layout (for debugging only) */}
+                    <Route path="/legacy/*" element={
+                      <Layout>
+                        <Routes>
+                          <Route path="expense-debug" element={<ExpenseDebug />} />
+                          <Route path="credit-card-fees/dashboard" element={<CreditCardFeesDashboard />} />
+                        </Routes>
+                      </Layout>
+                    } />
+                  </Routes>
                 </ProtectedRoute>
               } 
             />

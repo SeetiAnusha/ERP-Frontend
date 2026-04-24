@@ -124,9 +124,11 @@ export const useUpdateProduct = () => {
       notify.success('Success', 'Product updated successfully');
     },
     onSettled: (_data, _error, { id }) => {
-      // Always refetch after error or success
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.products });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.product(Number(id)) });
+      // ✅ PERFORMANCE FIX: Parallel cache invalidation
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.products }),
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.product(Number(id)) }),
+      ]);
     },
   });
 };

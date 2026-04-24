@@ -149,6 +149,11 @@ const ExpenseCategories = () => {
       await api.post('/expenses/types', submitData);
       toast.success('Expense type added successfully');
       
+      // ✅ FIX: Invalidate categories cache to update the count
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenseCategories });
+      refetch();
+      
+      // Refresh the types list in the modal
       fetchExpenseTypes(selectedCategory.id);
       setNewTypeData({ name: '', code: '', description: '', isActive: true });
       setShowAddTypeForm(false);
@@ -156,7 +161,7 @@ const ExpenseCategories = () => {
       console.error('Error adding expense type:', error);
       toast.error(extractErrorMessage(error));
     }
-  }, [newTypeData, selectedCategory, fetchExpenseTypes]);
+  }, [newTypeData, selectedCategory, fetchExpenseTypes, queryClient, refetch]);
 
   // ✅ Memoized: Handle delete category
   const handleDeleteCategory = useCallback(async (id: number) => {

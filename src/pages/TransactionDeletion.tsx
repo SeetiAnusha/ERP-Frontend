@@ -223,11 +223,13 @@ const TransactionDeletion: React.FC = () => {
         notes: notes?.trim() || undefined
       });
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       setSuccess(`✅ Approval step processed successfully`);
-      // Invalidate both queries
-      queryClient.invalidateQueries({ queryKey: ['pending-deletion-approvals'] });
-      queryClient.invalidateQueries({ queryKey: ['my-deletion-requests'] });
+      // Invalidate both queries (parallel execution)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['pending-deletion-approvals'] }),
+        queryClient.invalidateQueries({ queryKey: ['my-deletion-requests'] })
+      ]);
       setError(null);
     },
     onError: (error: any) => {

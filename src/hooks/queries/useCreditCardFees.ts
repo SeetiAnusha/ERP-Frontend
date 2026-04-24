@@ -65,8 +65,11 @@ export const useRecordFee = () => {
     },
     onSuccess: () => {
       notify.success('Success', 'Credit card fee recorded successfully');
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.creditCardFees });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.feeStatistics });
+      // ✅ PERFORMANCE FIX: Parallel cache invalidation
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.creditCardFees }),
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.feeStatistics }),
+      ]);
     },
     onError: (error: any) => {
       notify.error('Error', error.response?.data?.error || 'Failed to record fee');
@@ -104,8 +107,11 @@ export const useDeleteFee = () => {
     },
     onSuccess: () => {
       notify.success('Success', 'Credit card fee deleted successfully');
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.creditCardFees });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.feeStatistics });
+      // ✅ PERFORMANCE FIX: Parallel cache invalidation
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.creditCardFees }),
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.feeStatistics }),
+      ]);
     },
     onError: (error: any) => {
       notify.error('Error', error.response?.data?.error || 'Failed to delete fee');

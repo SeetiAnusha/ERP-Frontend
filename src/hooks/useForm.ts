@@ -38,7 +38,11 @@ export function useForm<T extends Record<string, any>>({
       e.preventDefault();
     }
 
-    if (isSubmitting) return;
+    // ✅ CRITICAL: Prevent duplicate submissions
+    if (isSubmitting) {
+      console.warn('⚠️ Form submission already in progress, ignoring duplicate click');
+      return;
+    }
 
     // Validate if validator provided
     if (validate) {
@@ -54,12 +58,21 @@ export function useForm<T extends Record<string, any>>({
     
     try {
       await onSubmit(values);
+      // ✅ IMPORTANT: Keep isSubmitting=true until mutation completes
+      // The onSubmit callback will handle resetting via onSuccess/onError
     } catch (error) {
       console.error('Form submission error:', error);
-    } finally {
+      // ✅ CRITICAL: Reset isSubmitting on synchronous errors only
       setIsSubmitting(false);
     }
+    // ✅ REMOVED: finally block that resets isSubmitting too early
+    // Forms must manually reset via salesForm.reset() or updateSubmitting(false)
   }, [values, validate, onSubmit, isSubmitting]);
+
+  // ✅ NEW: Manual control over isSubmitting for async mutations
+  const updateSubmitting = useCallback((value: boolean) => {
+    setIsSubmitting(value);
+  }, []);
 
   return {
     values,
@@ -67,6 +80,7 @@ export function useForm<T extends Record<string, any>>({
     isSubmitting,
     setValue,
     setValues: updateValues,
+    updateSubmitting,
     reset,
     handleSubmit
   };

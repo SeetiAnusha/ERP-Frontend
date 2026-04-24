@@ -122,7 +122,7 @@ const CreditBalanceSummaryWidget: React.FC = () => {
           Credit Balances Overview
         </h3>
         <button
-          onClick={() => navigate('/credit-balances')}
+          onClick={() => navigate('/expenses/credit-balances')}
           className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-sm font-medium"
         >
           <Eye size={14} />
@@ -192,7 +192,7 @@ const CreditBalanceSummaryWidget: React.FC = () => {
       {/* Action Button */}
       <div className="mt-4 pt-4 border-t border-gray-200">
         <button
-          onClick={() => navigate('/credit-balances')}
+          onClick={() => navigate('/expenses/credit-balances')}
           className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
         >
           Manage Credit Balances
