@@ -225,21 +225,21 @@ const Sales = () => {
                                error.message || 
                                'Error creating sale';
             
-            // ✅ Show backend error in popup
+            // Show backend error in popup
             notify.error('Sale Creation Failed', errorMessage);
             
-            // ✅ CRITICAL FIX: Reset isSubmitting on error to allow retry
-            salesForm.setIsSubmitting(false);
+            // CRITICAL FIX: Reset isSubmitting on error to allow retry
+            salesForm.updateSubmitting(false);
             
-            // ✅ IMPORTANT: Keep modal open so user can fix the issue
+            // IMPORTANT: Keep modal open so user can fix the issue
           }
         });
       } catch (error: any) {
-        // ✅ CRITICAL: Catch synchronous errors (validation, unexpected errors)
+        // CRITICAL: Catch synchronous errors (validation, unexpected errors)
         console.error('❌ Synchronous error before mutation:', error);
         notify.error('Sale Creation Failed', error.message || 'Unexpected error occurred');
-        // ✅ CRITICAL FIX: Reset isSubmitting on synchronous error
-        salesForm.setIsSubmitting(false);
+        // CRITICAL FIX: Reset isSubmitting on synchronous error
+        salesForm.updateSubmitting(false);
       }
     }
   });

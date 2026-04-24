@@ -96,20 +96,19 @@ const BankRegister = () => {
     firstPage,
     lastPage,
     changeLimit,
-    refresh,
-    error: tableError // ✅ FIX: Capture error from hook
+    refresh
   } = useTableData<BankTransaction>({
-    endpoint: 'bank-register',  // ✅ FIXED: No leading slash (baseURL already has /api)
+    endpoint: 'bank-register',
     initialLimit: 50,
     initialFilters: {
       transactionType: 'All'
     },
-    autoFetch: true // ✅ FIX: Explicitly enable auto-fetch
+    autoFetch: true
   });
   
-  // ✅ Keep React Query hooks for bank accounts and suppliers (not paginated)
-  const { data: bankAccounts = [], isLoading: bankAccountsLoading, error: bankAccountsError } = useBankAccounts();
-  const { data: suppliers = [], isLoading: suppliersLoading, error: suppliersError } = useSuppliers();
+  // Keep React Query hooks for bank accounts and suppliers (not paginated)
+  const { data: bankAccounts = [], isLoading: bankAccountsLoading } = useBankAccounts();
+  const { data: suppliers = [], isLoading: suppliersLoading } = useSuppliers();
   
   // ✅ PRESERVED: Keep all original state variables exactly as they were
   const [showModal, setShowModal] = useState(false);

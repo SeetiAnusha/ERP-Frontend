@@ -6,8 +6,6 @@ import { Product } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import PriceHistoryModal from '../components/PriceHistoryModal';
 import { formatNumber } from '../utils/formatNumber';
-import { useQueryClient } from '@tanstack/react-query';
-import { QUERY_KEYS } from '../lib/queryKeys';
 import { extractErrorMessage } from '../utils/errorHandler';
 import { useConfirm } from '../hooks/useConfirm';
 import ConfirmDialog from '../components/common/ConfirmDialog';
@@ -48,9 +46,8 @@ const validateProduct = (values: any) => {
 
 const Products = () => {
   const { t, language } = useLanguage();
-  const queryClient = useQueryClient();
   
-  // ✅ Confirm Dialog Hook
+  // Confirm Dialog Hook
   const { confirm, dialogProps } = useConfirm();
   
   // ✅ NEW: Pagination with useTableData

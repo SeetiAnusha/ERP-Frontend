@@ -54,6 +54,7 @@ export const QUERY_KEYS = {
   cards: ['cards'] as const,
   cashRegisters: ['cash-registers'] as const,
   bankAccounts: ['bank-accounts'] as const,
+  bankRegisters: ['bank-registers'] as const,
   paymentNetworks: ['payment-networks'] as const,
   
   // ✅ NEW: Credit & Financial Data

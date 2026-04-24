@@ -1,7 +1,6 @@
 import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Edit, Trash2, X } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
 import { Client } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -12,11 +11,9 @@ import SearchBar from '../components/common/SearchBar';
 import { useConfirm } from '../hooks/useConfirm';
 import ConfirmDialog from '../components/common/ConfirmDialog';
 import { useMutationWithNotification } from '../hooks/useMutationWithNotification';
-// import ExcelUpload from '../components/ExcelUpload';
 
 const Clients = () => {
   const { t } = useLanguage();
-  const queryClient = useQueryClient();
   const { confirm, dialogProps } = useConfirm();
   
   // ✅ NEW: Use useTableData for pagination

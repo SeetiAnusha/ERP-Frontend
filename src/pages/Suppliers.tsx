@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Edit, Trash2, X } from 'lucide-react';
 import { Supplier } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
-import { useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
 import { QUERY_KEYS } from '../lib/queryKeys';
 import { useTableData } from '../hooks/useTableData';
@@ -12,11 +11,9 @@ import SearchBar from '../components/common/SearchBar';
 import { useConfirm } from '../hooks/useConfirm';
 import ConfirmDialog from '../components/common/ConfirmDialog';
 import { useMutationWithNotification } from '../hooks/useMutationWithNotification';
-// import ExcelUpload from '../components/ExcelUpload';
 
 const Suppliers = () => {
   const { t } = useLanguage();
-  const queryClient = useQueryClient();
   const { confirm, dialogProps } = useConfirm();
   
   // ✅ NEW: Use useTableData for pagination
