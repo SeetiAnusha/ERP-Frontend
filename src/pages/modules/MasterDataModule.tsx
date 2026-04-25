@@ -81,7 +81,7 @@ const MasterDataModule = () => {
     { 
       path: '/master-data/card-networks', 
       icon: CreditCard, 
-      label: 'Card Payment Networks',
+      label: 'Credit Card Red',
       description: 'Manage credit card payment networks'
     },
   ];
