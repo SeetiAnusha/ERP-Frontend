@@ -168,7 +168,7 @@ const ModuleDashboard = () => {
   const navigate = useNavigate();
   const [isCustomizing, setIsCustomizing] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const saveTimeoutRef = useRef<number | null>(null);
 
   const handleLogout = () => {
     logout();
@@ -298,7 +298,7 @@ const ModuleDashboard = () => {
           console.error('Failed to save dashboard preferences:', error);
         }
       }
-    }, 300); // 300ms debounce
+    }, 500) as unknown as number;
   }, [user]);
 
   // Save preferences with debouncing

@@ -39,7 +39,7 @@ const isValidPreferences = (prefs: any): prefs is ModulePreferences => {
  */
 export const useModulePreferences = (moduleName: string, menuItems: MenuItem[]) => {
   const { user } = useAuth();
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const saveTimeoutRef = useRef<number | null>(null);
 
   // Create Map for O(1) lookups - DSA optimization
   const menuMap = useMemo(() => 
@@ -90,7 +90,7 @@ export const useModulePreferences = (moduleName: string, menuItems: MenuItem[]) 
           console.error(`Failed to save ${moduleName} preferences:`, error);
         }
       }
-    }, 300); // 300ms debounce
+    }, 300) as unknown as number; // 300ms debounce
   }, [user, moduleName]);
 
   // Save preferences with debouncing
