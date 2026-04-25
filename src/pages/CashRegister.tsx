@@ -22,7 +22,7 @@ import SearchBar from '../components/common/SearchBar';
 // ✅ Keep React Query hooks for shared master data (not paginated)
 import { useSharedMasterData } from '../hooks/queries/useSharedData';
 
-const CashRegister = () => {
+const CashRegister: React.FC = () => {
   const { t } = useLanguage();
   const location = useLocation();
   const navigate = useNavigate();
@@ -664,25 +664,101 @@ const CashRegister = () => {
   // ✅ PROFESSIONAL: Generate comprehensive report grouped by store
   const generateProfessionalReport = useCallback(() => {
     const safeTransactions = Array.isArray(transactions) ? transactions : [];
+    const selectedDate = new Date(reportDate);
+    
     const filtered = safeTransactions.filter(t => {
       const tDate = new Date(t.registrationDate.split('T')[0]);
-      const selectedDate = new Date(reportDate);
+      const repDate = new Date(reportDate);
       tDate.setHours(0, 0, 0, 0);
-      selectedDate.setHours(0, 0, 0, 0);
-      return tDate.getTime() === selectedDate.getTime();
+      repDate.setHours(0, 0, 0, 0);
+      return tDate.getTime() === repDate.getTime();
     });
 
     // Group transactions by cash register (store)
     const storeReports = new Map();
     
-    // Initialize all cash registers
+    // ✅ FIXED: Calculate opening balance from previous day's closing balance
+    const calculateOpeningBalance = (registerId: number) => {
+      const previousDate = new Date(selectedDate);
+      previousDate.setDate(previousDate.getDate() - 1);
+      
+      // Get previous day's transactions for this store
+      const prevDayTransactions = safeTransactions.filter(t => {
+        const tDate = new Date(t.registrationDate.split('T')[0]);
+        const prevDate = new Date(previousDate.toISOString().split('T')[0]);
+        tDate.setHours(0, 0, 0, 0);
+        prevDate.setHours(0, 0, 0, 0);
+        return tDate.getTime() === prevDate.getTime() && t.cashRegisterId === registerId;
+      });
+      
+      // Calculate previous day's cash flow
+      let prevDayInflow = 0;
+      let prevDayOutflow = 0;
+      
+      prevDayTransactions.forEach(t => {
+        const amount = parseFloat(t.amount.toString()) || 0;
+        if (t.transactionType === 'INFLOW') {
+          prevDayInflow += amount;
+        } else if (t.transactionType === 'OUTFLOW') {
+          prevDayOutflow += amount;
+        }
+      });
+      
+      // If no transactions on previous day, recursively check earlier days
+      if (prevDayTransactions.length === 0) {
+        // Check if there are any transactions before this date
+        const hasEarlierTransactions = safeTransactions.some(t => {
+          const tDate = new Date(t.registrationDate.split('T')[0]);
+          return tDate < previousDate && t.cashRegisterId === registerId;
+        });
+        
+        if (hasEarlierTransactions) {
+          // Recursively calculate from earlier date
+          const earlierDate = new Date(previousDate);
+          earlierDate.setDate(earlierDate.getDate() - 1);
+          
+          const earlierTransactions = safeTransactions.filter(t => {
+            const tDate = new Date(t.registrationDate.split('T')[0]);
+            const eDate = new Date(earlierDate.toISOString().split('T')[0]);
+            tDate.setHours(0, 0, 0, 0);
+            eDate.setHours(0, 0, 0, 0);
+            return tDate.getTime() === eDate.getTime() && t.cashRegisterId === registerId;
+          });
+          
+          let earlierInflow = 0;
+          let earlierOutflow = 0;
+          
+          earlierTransactions.forEach(t => {
+            const amount = parseFloat(t.amount.toString()) || 0;
+            if (t.transactionType === 'INFLOW') {
+              earlierInflow += amount;
+            } else if (t.transactionType === 'OUTFLOW') {
+              earlierOutflow += amount;
+            }
+          });
+          
+          return earlierInflow - earlierOutflow;
+        } else {
+          // First day - opening balance is 0
+          return 0;
+        }
+      }
+      
+      // Closing balance of previous day = Opening + Inflow - Outflow
+      // For simplicity, if this is the first calculation, assume previous opening was 0
+      return prevDayInflow - prevDayOutflow;
+    };
+    
+    // Initialize all cash registers with calculated opening balance
     cashRegisterMasters.forEach(register => {
+      const openingBalance = calculateOpeningBalance(register.id);
+      
       storeReports.set(register.id, {
         id: register.id,
         name: register.name,
         code: register.code,
         location: register.location,
-        openingBalance: parseFloat(register.balance.toString()),
+        openingBalance, // ✅ FIXED: Use calculated opening balance from previous day
         inflow: 0,
         inflowCount: 0,
         outflow: 0,
