@@ -8,7 +8,6 @@ import {
   CreditCard,
   DollarSign,
   Landmark,
-  Star,
 } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useModulePreferences, MenuItem } from '../../hooks/useModulePreferences';

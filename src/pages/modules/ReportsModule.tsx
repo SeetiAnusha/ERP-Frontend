@@ -2,7 +2,6 @@ import { useMemo } from 'react';
 import { useLocation, Outlet } from 'react-router-dom';
 import {
   BarChart3,
-  FileText,
   TrendingUp,
   Building,
 } from 'lucide-react';

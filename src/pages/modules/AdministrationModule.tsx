@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { useLocation, Outlet } from 'react-router-dom';
 import {
-  Shield,
   Users,
   Settings,
   Trash2,
