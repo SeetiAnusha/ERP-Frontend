@@ -97,13 +97,6 @@ const MasterDataModule = () => {
 
   const isModuleHome = location.pathname === '/master-data';
 
-  const stats = [
-    { label: 'Total Items', value: menuItems.length, icon: Box, color: 'border-green-500' },
-    { label: 'Categories', value: 3, icon: Package, color: 'border-blue-500' },
-    { label: 'Favorites', value: favoriteItems.length, icon: Star, color: 'border-purple-500' },
-    { label: 'Configured', value: '100%', icon: Building2, color: 'border-orange-500' },
-  ];
-
   return (
     <div className="flex h-screen bg-gray-50">
       {/* Sortable Sidebar */}
@@ -129,7 +122,6 @@ const MasterDataModule = () => {
           <ModuleHomeContent
             title="Master Data Management"
             description="Configure and manage your core business data. Select an option from the sidebar to get started."
-            stats={stats}
             favoriteItems={favoriteItems}
             regularItems={regularItems}
             isFavorite={isFavorite}

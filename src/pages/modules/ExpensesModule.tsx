@@ -55,13 +55,6 @@ const ExpensesModule = () => {
 
   const isModuleHome = location.pathname === '/expenses';
 
-  const stats = [
-    { label: 'Total Expenses', value: '$0', icon: TrendingUp, color: 'border-orange-500' },
-    { label: 'Card Fees', value: '$0', icon: CreditCard, color: 'border-red-500' },
-    { label: 'Categories', value: 0, icon: FolderTree, color: 'border-purple-500' },
-    { label: 'Credit Balance', value: '$0', icon: Receipt, color: 'border-green-500' },
-  ];
-
   return (
     <div className="flex h-screen bg-gray-50">
       <SortableModuleSidebar
@@ -85,7 +78,6 @@ const ExpensesModule = () => {
           <ModuleHomeContent
             title="Expense Management"
             description="Track and manage all your business expenses. Select an option from the sidebar to get started."
-            stats={stats}
             favoriteItems={favoriteItems}
             regularItems={regularItems}
             isFavorite={isFavorite}

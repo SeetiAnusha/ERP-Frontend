@@ -84,13 +84,6 @@ const TransactionsModule = () => {
 
   const isModuleHome = location.pathname === '/transactions';
 
-  const stats = [
-    { label: "Today's Sales", value: 0, icon: ShoppingCart, color: 'border-green-500' },
-    { label: "Today's Purchases", value: 0, icon: ShoppingBag, color: 'border-orange-500' },
-    { label: 'Pending Receivables', value: 0, icon: FileText, color: 'border-blue-500' },
-    { label: 'Pending Payables', value: 0, icon: CreditCard, color: 'border-red-500' },
-  ];
-
   return (
     <div className="flex h-screen bg-gray-50">
       <SortableModuleSidebar
@@ -114,7 +107,6 @@ const TransactionsModule = () => {
           <ModuleHomeContent
             title="Transaction Management"
             description="Record and manage all your business transactions. Select an option from the sidebar to get started."
-            stats={stats}
             favoriteItems={favoriteItems}
             regularItems={regularItems}
             isFavorite={isFavorite}

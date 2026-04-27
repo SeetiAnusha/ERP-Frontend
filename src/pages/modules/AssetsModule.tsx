@@ -83,13 +83,6 @@ const AssetsModule = () => {
 
   const isModuleHome = location.pathname === '/assets';
 
-  const stats = [
-    { label: 'Fixed Assets', value: '$0', icon: Building, color: 'border-indigo-500' },
-    { label: 'Investments', value: '$0', icon: TrendingUp, color: 'border-purple-500' },
-    { label: 'Total Loans', value: '$0', icon: Landmark, color: 'border-blue-500' },
-    { label: 'Prepaid Exp', value: '$0', icon: Clock, color: 'border-green-500' },
-  ];
-
   return (
     <div className="flex h-screen bg-gray-50">
       <SortableModuleSidebar
@@ -113,7 +106,6 @@ const AssetsModule = () => {
           <ModuleHomeContent
             title="Assets & Financing Management"
             description="Manage fixed assets, investments, financing, and generate asset reports. Select an option from the sidebar to get started."
-            stats={stats}
             favoriteItems={favoriteItems}
             regularItems={regularItems}
             isFavorite={isFavorite}

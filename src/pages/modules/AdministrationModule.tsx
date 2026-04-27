@@ -62,12 +62,6 @@ const AdministrationModule = () => {
 
   const isModuleHome = location.pathname === '/administration';
 
-  const stats = [
-    { label: 'Total Users', value: 0, icon: Users, color: 'border-red-500' },
-    { label: 'Active Roles', value: 0, icon: Shield, color: 'border-orange-500' },
-    { label: 'Configurations', value: 3, icon: Settings, color: 'border-purple-500' },
-  ];
-
   return (
     <div className="flex h-screen bg-gray-50">
       <SortableModuleSidebar
@@ -95,7 +89,6 @@ const AdministrationModule = () => {
                 ? 'Manage users, roles, permissions, and system configuration. Select an option from the sidebar to get started.'
                 : 'Manage data classification and transaction deletion requests. Select an option from the sidebar to get started.'
             }
-            stats={stats}
             favoriteItems={favoriteItems}
             regularItems={regularItems}
             isFavorite={isFavorite}

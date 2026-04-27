@@ -62,13 +62,6 @@ const AccountingModule = () => {
 
   const isModuleHome = location.pathname === '/accounting';
 
-  const stats = [
-    { label: 'Total Assets', value: '$0', icon: BookOpen, color: 'border-green-500' },
-    { label: 'Total Liabilities', value: '$0', icon: FileText, color: 'border-red-500' },
-    { label: 'Equity', value: '$0', icon: Scale, color: 'border-blue-500' },
-    { label: 'Net Income', value: '$0', icon: DollarSign, color: 'border-purple-500' },
-  ];
-
   return (
     <div className="flex h-screen bg-gray-50">
       <SortableModuleSidebar
@@ -92,7 +85,6 @@ const AccountingModule = () => {
           <ModuleHomeContent
             title="Accounting & Financial Management"
             description="Manage your financial records and generate reports. Select an option from the sidebar to get started."
-            stats={stats}
             favoriteItems={favoriteItems}
             regularItems={regularItems}
             isFavorite={isFavorite}

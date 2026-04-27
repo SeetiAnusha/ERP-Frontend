@@ -13,7 +13,7 @@ interface StatCard {
 interface ModuleHomeContentProps {
   title: string;
   description: string;
-  stats: StatCard[];
+  stats?: StatCard[];
   favoriteItems: MenuItem[];
   regularItems: MenuItem[];
   isFavorite: (path: string) => boolean;
@@ -42,23 +42,25 @@ export const ModuleHomeContent = ({
         <h1 className="text-4xl font-bold text-gray-800 mb-2">{title}</h1>
         <p className="text-gray-600 text-lg mb-8">{description}</p>
 
-        {/* Quick Stats */}
-        <div className={`grid grid-cols-1 md:grid-cols-${Math.min(stats.length, 4)} gap-6 mb-8`}>
-          {stats.map((stat, index) => {
-            const Icon = stat.icon;
-            return (
-              <div key={index} className={`bg-white rounded-xl shadow-lg p-6 border-l-4 ${stat.color}`}>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-gray-600 text-sm">{stat.label}</p>
-                    <p className="text-3xl font-bold text-gray-800">{stat.value}</p>
+        {/* Quick Stats - Only show if stats are provided */}
+        {stats && stats.length > 0 && (
+          <div className={`grid grid-cols-1 md:grid-cols-${Math.min(stats.length, 4)} gap-6 mb-8`}>
+            {stats.map((stat, index) => {
+              const Icon = stat.icon;
+              return (
+                <div key={index} className={`bg-white rounded-xl shadow-lg p-6 border-l-4 ${stat.color}`}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-gray-600 text-sm">{stat.label}</p>
+                      <p className="text-3xl font-bold text-gray-800">{stat.value}</p>
+                    </div>
+                    <Icon className={stat.color.replace('border-', 'text-')} size={40} />
                   </div>
-                  <Icon className={stat.color.replace('border-', 'text-')} size={40} />
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Favorites Section */}
         {favoriteItems.length > 0 && (

@@ -49,12 +49,6 @@ const ReportsModule = () => {
 
   const isModuleHome = location.pathname === '/reports';
 
-  const stats = [
-    { label: 'Available Reports', value: 3, icon: BarChart3, color: 'border-pink-500' },
-    { label: 'Generated Today', value: 0, icon: FileText, color: 'border-purple-500' },
-    { label: 'Report Types', value: 3, icon: TrendingUp, color: 'border-blue-500' },
-  ];
-
   return (
     <div className="flex h-screen bg-gray-50">
       <SortableModuleSidebar
@@ -78,7 +72,6 @@ const ReportsModule = () => {
           <ModuleHomeContent
             title="Reports & Analytics"
             description="Generate business intelligence reports and analytics. Select an option from the sidebar to get started."
-            stats={stats}
             favoriteItems={favoriteItems}
             regularItems={regularItems}
             isFavorite={isFavorite}
