@@ -14,6 +14,7 @@ import { useConfirm } from '../hooks/useConfirm';
 import ConfirmDialog from '../components/common/ConfirmDialog';
 import { toast } from 'sonner';
 import { extractErrorMessage } from '../utils/errorHandler';
+import { formatNumber } from '../utils/formatNumber';
 
 interface Card {
   id: number;
@@ -290,7 +291,7 @@ const Cards = () => {
                         Acc: {card.BankAccount.accountNumber}
                       </span>
                       <span className="text-xs text-blue-600 font-medium">
-                        Balance: ${Number(card.BankAccount.balance).toFixed(2)}
+                        Balance: ${formatNumber(Number(card.BankAccount.balance))}
                       </span>
                     </div>
                   ) : (
@@ -301,13 +302,13 @@ const Cards = () => {
                   {card.cardType === 'CREDIT' ? (
                     <div className="text-right">
                       <div className="font-semibold text-blue-600">
-                        Limit: ${Number(card.creditLimit).toFixed(2)}
+                        Limit: ${formatNumber(Number(card.creditLimit))}
                       </div>
                       <div className="text-sm text-red-600">
-                        Used: ${Number(card.usedCredit || 0).toFixed(2)}
+                        Used: ${formatNumber(Number(card.usedCredit || 0))}
                       </div>
                       <div className="text-sm text-green-600 font-medium">
-                        Available: ${(Number(card.creditLimit) - Number(card.usedCredit || 0)).toFixed(2)}
+                        Available: ${formatNumber(Number(card.creditLimit) - Number(card.usedCredit || 0))}
                       </div>
                     </div>
                   ) : (
@@ -495,7 +496,7 @@ const Cards = () => {
                     </option>
                     {formData.cardType === 'DEBIT' && bankAccounts.map(account => (
                       <option key={account.id} value={account.id}>
-                        {account.bankName} - {account.accountNumber} (Balance: ${Number(account.balance).toFixed(2)})
+                        {account.bankName} - {account.accountNumber} (Balance: ${formatNumber(Number(account.balance))})
                       </option>
                     ))}
                   </select>

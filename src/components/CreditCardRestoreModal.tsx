@@ -15,6 +15,7 @@ import { X, RefreshCw, AlertCircle } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
 import { useBankAccounts } from '../hooks/queries/useSharedData';
+import { formatNumber } from '../utils/formatNumber';
 
 interface Card {
   id: number;
@@ -61,7 +62,7 @@ const CreditCardRestoreModal = ({ card, onClose, onSuccess }: CreditCardRestoreM
     }
     
     if (amount > usedCredit) {
-      setError(`Amount cannot exceed used credit of $${usedCredit.toFixed(2)}`);
+      setError(`Amount cannot exceed used credit of $${formatNumber(usedCredit)}`);
       return;
     }
     
@@ -162,15 +163,15 @@ const CreditCardRestoreModal = ({ card, onClose, onSuccess }: CreditCardRestoreM
             <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-white/20">
               <div>
                 <div className="text-xs opacity-75">Credit Limit</div>
-                <div className="font-bold">${Number(card.creditLimit).toFixed(2)}</div>
+                <div className="font-bold">${formatNumber(Number(card.creditLimit))}</div>
               </div>
               <div>
                 <div className="text-xs opacity-75">Used Credit</div>
-                <div className="font-bold text-red-200">${usedCredit.toFixed(2)}</div>
+                <div className="font-bold text-red-200">${formatNumber(usedCredit)}</div>
               </div>
               <div>
                 <div className="text-xs opacity-75">Available</div>
-                <div className="font-bold text-blue-200">${availableCredit.toFixed(2)}</div>
+                <div className="font-bold text-blue-200">${formatNumber(availableCredit)}</div>
               </div>
             </div>
           </div>
@@ -199,7 +200,7 @@ const CreditCardRestoreModal = ({ card, onClose, onSuccess }: CreditCardRestoreM
                 placeholder="0.00"
               />
               <p className="text-xs text-gray-500 mt-1">
-                Maximum: ${usedCredit.toFixed(2)} (current used credit)
+                Maximum: ${formatNumber(usedCredit)} (current used credit)
               </p>
             </div>
 
@@ -240,7 +241,7 @@ const CreditCardRestoreModal = ({ card, onClose, onSuccess }: CreditCardRestoreM
                   <option value="">Select Bank Account</option>
                   {bankAccounts.map(account => (
                     <option key={account.id} value={account.id}>
-                      {account.bankName} - {account.accountNumber} (Balance: ${Number(account.balance).toFixed(2)})
+                      {account.bankName} - {account.accountNumber} (Balance: ${formatNumber(Number(account.balance))})
                     </option>
                   ))}
                 </select>

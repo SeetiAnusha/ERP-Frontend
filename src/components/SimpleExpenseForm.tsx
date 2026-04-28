@@ -4,6 +4,7 @@ import { X, Receipt, DollarSign, Calendar, FileText } from 'lucide-react';
 import { Supplier } from '../types';
 import ExpenseCategoryDropdown from './ExpenseCategoryDropdown';
 import ExpenseTypeDropdown from './ExpenseTypeDropdown';
+import { formatNumber } from '../utils/formatNumber';
 
 // ✅ OPTIMIZATION: Use React Query hooks
 import { useBankAccounts, useCards } from '../hooks/queries/useSharedData';
@@ -108,7 +109,7 @@ const SimpleExpenseForm = ({
         const grandTotal = calculateTotal();
         
         if (availableBalance < grandTotal) {
-          alert(`Insufficient balance in ${selectedBankAccount.bankName} (${selectedBankAccount.accountNumber}). Available: ₹${availableBalance.toFixed(2)}, Required: ₹${grandTotal.toFixed(2)}`);
+          alert(`Insufficient balance in ${selectedBankAccount.bankName} (${selectedBankAccount.accountNumber}). Available: ₹${formatNumber(availableBalance)}, Required: ₹${formatNumber(grandTotal)}`);
           return false;
         }
       }
@@ -139,7 +140,7 @@ const SimpleExpenseForm = ({
           const grandTotal = calculateTotal();
           
           if (availableCredit < grandTotal) {
-            alert(`Insufficient credit limit on ${selectedCard.cardName || 'Credit Card'}. Available: ₹${availableCredit.toFixed(2)}, Required: ₹${grandTotal.toFixed(2)}`);
+            alert(`Insufficient credit limit on ${selectedCard.cardName || 'Credit Card'}. Available: ₹${formatNumber(availableCredit)}, Required: ₹${formatNumber(grandTotal)}`);
             return false;
           }
         }
@@ -535,7 +536,7 @@ const SimpleExpenseForm = ({
               <div className="p-4 bg-gray-50 rounded-lg">
                 <div className="flex justify-between items-center text-lg font-semibold">
                   <span>Grand Total:</span>
-                  <span className="text-green-600">₹{calculateTotal().toFixed(2)}</span>
+                  <span className="text-green-600">₹{formatNumber(calculateTotal())}</span>
                 </div>
               </div>
             )}

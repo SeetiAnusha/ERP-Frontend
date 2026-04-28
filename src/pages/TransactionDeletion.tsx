@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { CACHE_STRATEGIES } from '../lib/queryClient';
 import { useConfirm } from '../hooks/useConfirm';
 import ConfirmDialog from '../components/common/ConfirmDialog';
+import { formatNumber } from '../utils/formatNumber';
 
 interface DeletionReason {
   id: number;
@@ -510,7 +511,7 @@ const TransactionDeletion: React.FC = () => {
                     <option value="">Select a transaction to delete</option>
                     {availableTransactions.map((transaction) => (
                       <option key={transaction.id} value={transaction.id}>
-                        ID: {transaction.id} ({transaction.registration_number}) - ${transaction.amount.toFixed(2)} - {transaction.entity_name}
+                        ID: {transaction.id} ({transaction.registration_number}) - ${formatNumber(transaction.amount)} - {transaction.entity_name}
                       </option>
                     ))}
                   </select>
@@ -526,7 +527,7 @@ const TransactionDeletion: React.FC = () => {
                 
                 {selectedTransaction && (
                   <div className="mt-2 text-sm text-blue-600 bg-blue-50 p-3 rounded">
-                    <strong>✅ Selected:</strong> {selectedTransaction.registration_number} - ${selectedTransaction.amount.toFixed(2)}
+                    <strong>✅ Selected:</strong> {selectedTransaction.registration_number} - ${formatNumber(selectedTransaction.amount)}
                     <br />
                     <strong>Entity:</strong> {selectedTransaction.entity_name}
                   </div>

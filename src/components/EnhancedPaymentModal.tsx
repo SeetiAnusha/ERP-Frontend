@@ -7,6 +7,7 @@ import { notify } from '../utils/notifications';
 import { QUERY_KEYS } from '../lib/queryKeys';
 import OverpaymentAlertModal from './OverpaymentAlertModal';
 import CreditBalanceDisplay from './CreditBalanceDisplay';
+import { formatNumber } from '../utils/formatNumber';
 
 // ✅ Import shared components for Phase 1 refactoring
 import { BankAccountSelector, CardSelector } from './shared';
@@ -183,7 +184,7 @@ const EnhancedPaymentModal: React.FC<PaymentModalProps> = ({
       
       // Handle success response
       if (response.data.overpaymentAmount > 0) {
-        notify.success(response.data.message || `Payment processed. Credit balance of ₹${response.data.overpaymentAmount.toFixed(2)} created.`);
+        notify.success(response.data.message || `Payment processed. Credit balance of ₹${formatNumber(response.data.overpaymentAmount)} created.`);
       } else {
         notify.success('Payment processed successfully');
       }
@@ -282,15 +283,15 @@ const EnhancedPaymentModal: React.FC<PaymentModalProps> = ({
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Total Amount:</span>
-                    <span className="font-medium">₹{transaction.amount.toFixed(2)}</span>
+                    <span className="font-medium">₹{formatNumber(transaction.amount)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Already {transaction.type === 'AP' ? 'Paid' : 'Received'}:</span>
-                    <span className="font-medium text-green-600">₹{transaction.paidAmount.toFixed(2)}</span>
+                    <span className="font-medium text-green-600">₹{formatNumber(transaction.paidAmount)}</span>
                   </div>
                   <div className="flex justify-between border-t pt-2">
                     <span className="text-gray-600 font-medium">Outstanding Balance:</span>
-                    <span className="font-bold text-red-600">₹{transaction.balanceAmount.toFixed(2)}</span>
+                    <span className="font-bold text-red-600">₹{formatNumber(transaction.balanceAmount)}</span>
                   </div>
                 </div>
               </div>
@@ -326,7 +327,7 @@ const EnhancedPaymentModal: React.FC<PaymentModalProps> = ({
                   <div className="mt-2 p-2 bg-orange-50 border border-orange-200 rounded flex items-center gap-2">
                     <AlertTriangle size={16} className="text-orange-600" />
                     <span className="text-sm text-orange-700">
-                      Overpayment of ₹{(parseFloat(paymentAmount || '0') - transaction.balanceAmount).toFixed(2)} will create credit balance
+                      Overpayment of ₹{formatNumber(parseFloat(paymentAmount || '0') - transaction.balanceAmount)} will create credit balance
                     </span>
                   </div>
                 )}

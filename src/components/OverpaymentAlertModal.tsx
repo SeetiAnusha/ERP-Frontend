@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { AlertTriangle, DollarSign, CreditCard, User } from 'lucide-react';
+import { formatNumber } from '../utils/formatNumber';
 
 interface OverpaymentAlertModalProps {
   isOpen: boolean;
@@ -69,20 +70,20 @@ const OverpaymentAlertModal: React.FC<OverpaymentAlertModalProps> = ({
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-600">Outstanding Balance:</span>
               <span className="font-semibold text-gray-900">
-                ₹{data.outstandingBalance.toFixed(2)}
+                ₹{formatNumber(data.outstandingBalance)}
               </span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-600">Payment Amount:</span>
               <span className="font-semibold text-blue-600">
-                ₹{data.paymentAmount.toFixed(2)}
+                ₹{formatNumber(data.paymentAmount)}
               </span>
             </div>
             <div className="border-t pt-2">
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium text-orange-600">Overpayment:</span>
                 <span className="font-bold text-orange-600">
-                  ₹{data.overpaymentAmount.toFixed(2)}
+                  ₹{formatNumber(data.overpaymentAmount)}
                 </span>
               </div>
             </div>
@@ -96,13 +97,13 @@ const OverpaymentAlertModal: React.FC<OverpaymentAlertModalProps> = ({
             <div className="flex items-start gap-2">
               <DollarSign size={16} className="mt-0.5 flex-shrink-0" />
               <span>
-                ₹{data.outstandingBalance.toFixed(2)} will be applied to the outstanding balance
+                ₹{formatNumber(data.outstandingBalance)} will be applied to the outstanding balance
               </span>
             </div>
             <div className="flex items-start gap-2">
               <CreditCard size={16} className="mt-0.5 flex-shrink-0" />
               <span>
-                ₹{data.overpaymentAmount.toFixed(2)} will be created as a credit balance for future use
+                ₹{formatNumber(data.overpaymentAmount)} will be created as a credit balance for future use
               </span>
             </div>
           </div>
