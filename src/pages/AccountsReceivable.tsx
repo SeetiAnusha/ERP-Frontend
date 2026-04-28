@@ -596,11 +596,15 @@ const AccountsReceivablePage = () => {
 
       {/* ✅ PRESERVED: Payment Modal exactly as original */}
       {paymentModal.isOpen && paymentModal.data && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          onClick={paymentModal.close}
+        >
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             className="bg-white rounded-xl p-6 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-xl font-bold mb-4">
               {(paymentModal.data.type === 'CREDIT_CARD_SALE' || paymentModal.data.type === 'DEBIT_CARD_SALE') 

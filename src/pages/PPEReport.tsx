@@ -246,8 +246,14 @@ const PPEReport = () => {
 
       {/* Depreciation Schedule Modal */}
       {showSchedule && scheduleData && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowSchedule(false)}
+        >
+          <div 
+            className="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="bg-blue-600 text-white p-6">
               <h3 className="text-2xl font-bold">Depreciation Schedule</h3>
               <p className="mt-1">{scheduleData.asset.name} ({scheduleData.asset.code})</p>

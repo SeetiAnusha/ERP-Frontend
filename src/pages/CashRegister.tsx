@@ -1148,11 +1148,15 @@ const CashRegister: React.FC = () => {
 
       {/* Transaction Modal - Phase 3 Updated */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={resetForm}
+        >
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
           >
             <div className="p-6">
               <h3 className="text-2xl font-bold mb-6">
@@ -1761,11 +1765,15 @@ const CashRegister: React.FC = () => {
 
       {/* Bank Deposit Modal - Phase 3 Updated */}
       {showDepositModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={resetDepositForm}
+        >
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
           >
             <div className="p-6">
               <h3 className="text-2xl font-bold mb-6 text-green-600">{t('bankDeposit')}</h3>
@@ -1882,11 +1890,15 @@ const CashRegister: React.FC = () => {
         const report = generateProfessionalReport();
         
         return (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto"
+            onClick={() => setShowReportModal(false)}
+          >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               className="bg-white rounded-xl shadow-2xl max-w-6xl w-full my-8"
+              onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
               <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6 rounded-t-xl">
