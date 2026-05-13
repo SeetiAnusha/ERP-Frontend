@@ -9,6 +9,8 @@ import { formatNumber } from '../utils/formatNumber';
 import { extractErrorMessage } from '../utils/errorHandler';
 import { useCashRegisters } from '../hooks/queries/useSharedData';
 import { QUERY_KEYS } from '../lib/queryKeys';
+import { useConfirm } from '../hooks/useConfirm';
+import ConfirmDialog from '../components/common/ConfirmDialog';
 
 interface CashRegisterMaster {
   id: number;
@@ -22,6 +24,7 @@ interface CashRegisterMaster {
 const CashRegisterMasters = () => {
   const { t } = useLanguage();
   const queryClient = useQueryClient();
+  const { confirm, dialogProps } = useConfirm();
   
   // ✅ REACT QUERY: Use shared data hook instead of local state
   const { data: registers = [], isLoading, isError } = useCashRegisters();
@@ -47,10 +50,10 @@ const CashRegisterMasters = () => {
     try {
       if (editingRegister) {
         await api.put(`/cash-register-masters/${editingRegister.id}`, formData);
-        toast.success('Cash register updated successfully');
+        toast.success(t('cashRegisterUpdatedSuccess'));
       } else {
         await api.post('/cash-register-masters', formData);
-        toast.success('Cash register created successfully');
+        toast.success(t('cashRegisterCreatedSuccess'));
       }
       
       // ✅ REACT QUERY: Cache invalidation for automatic UI updates
@@ -65,12 +68,20 @@ const CashRegisterMasters = () => {
     }
   }, [isSubmitting, editingRegister, formData, queryClient]);
 
-  // ✅ MEMOIZED: Handle delete
+  // ✅ MEMOIZED: Handle delete - NO MORE window.confirm!
   const handleDelete = useCallback(async (id: number) => {
-    if (window.confirm('Are you sure you want to delete this cash register?')) {
+    const confirmed = await confirm({
+      title: t('confirmDelete') || 'Delete Cash Register',
+      message: 'Are you sure you want to delete this cash register? This action cannot be undone.',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      variant: 'danger'
+    });
+
+    if (confirmed) {
       try {
         await api.delete(`/cash-register-masters/${id}`);
-        toast.success('Cash register deleted successfully');
+        toast.success(t('cashRegisterDeletedSuccess'));
         
         // ✅ REACT QUERY: Cache invalidation for automatic UI updates
         queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashRegisters });
@@ -79,7 +90,7 @@ const CashRegisterMasters = () => {
         toast.error(extractErrorMessage(error)); // ✅ Use extractErrorMessage
       }
     }
-  }, [queryClient]);
+  }, [t, confirm, queryClient]);
 
   // ✅ MEMOIZED: Open modal
   const openModal = useCallback((register?: CashRegisterMaster) => {
@@ -121,7 +132,7 @@ const CashRegisterMasters = () => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
         <span className="ml-3 text-gray-600">Loading cash registers...</span>
       </div>
     );
@@ -136,7 +147,7 @@ const CashRegisterMasters = () => {
           <p className="text-gray-600 mb-4">Error loading cash registers</p>
           <button 
             onClick={() => window.location.reload()} 
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
           >
             Retry
           </button>
@@ -149,7 +160,7 @@ const CashRegisterMasters = () => {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold flex items-center gap-2">
-          <DollarSign className="text-green-600" />
+          <DollarSign className="text-blue-600" />
           {t('cashRegisters')}
         </h1>
       </div>
@@ -162,14 +173,14 @@ const CashRegisterMasters = () => {
             placeholder={t('search')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
           />
         </div>
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => openModal()}
-          className="ml-4 bg-green-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700"
+          className="ml-4 bg-blue-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
         >
           <Plus size={20} />
           {t('newCashRegister')}
@@ -261,7 +272,7 @@ const CashRegisterMasters = () => {
                     required
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                     placeholder="Main Register, Store 1, etc."
                   />
                 </div>
@@ -272,7 +283,7 @@ const CashRegisterMasters = () => {
                     type="text"
                     value={formData.location}
                     onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                     placeholder="Front desk, Store 2, etc."
                   />
                 </div>
@@ -283,7 +294,7 @@ const CashRegisterMasters = () => {
                     required
                     value={formData.status}
                     onChange={(e) => setFormData({ ...formData, status: e.target.value as 'ACTIVE' | 'INACTIVE' })}
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="ACTIVE">{t('active')}</option>
                     <option value="INACTIVE">{t('inactive')}</option>
@@ -302,7 +313,7 @@ const CashRegisterMasters = () => {
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-green-600"
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-600"
                   >
                     {isSubmitting ? (
                       <div className="flex items-center justify-center gap-2">
@@ -319,6 +330,9 @@ const CashRegisterMasters = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog {...dialogProps} />
     </div>
   );
 };

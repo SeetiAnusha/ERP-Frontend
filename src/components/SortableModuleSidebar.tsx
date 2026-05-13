@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft,
   Star,
@@ -9,7 +9,10 @@ import {
   GripVertical,
   Settings,
   RotateCcw,
+  Menu,
+  X,
 } from 'lucide-react';
+import { useLanguage } from '../contexts/LanguageContext';
 import {
   DndContext,
   closestCenter,
@@ -37,6 +40,7 @@ interface SortableMenuItemProps {
   isFavorite: boolean;
   onToggleFavorite: (path: string) => void;
   onHide: (path: string) => void;
+  onClose?: () => void;
 }
 
 // Sortable Menu Item Component
@@ -47,6 +51,7 @@ const SortableMenuItem = ({
   isFavorite,
   onToggleFavorite,
   onHide,
+  onClose,
 }: SortableMenuItemProps) => {
   const {
     attributes,
@@ -130,7 +135,7 @@ const SortableMenuItem = ({
       {isCustomizing ? (
         content
       ) : (
-        <Link to={item.path}>{content}</Link>
+        <Link to={item.path} onClick={onClose}>{content}</Link>
       )}
     </div>
   );
@@ -166,8 +171,10 @@ export const SortableModuleSidebar = ({
   onReset,
 }: SortableModuleSidebarProps) => {
   const location = useLocation();
+  const { t } = useLanguage();
   const [isCustomizing, setIsCustomizing] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   // No search - show all items
   const filteredItems = orderedMenuItems;
@@ -215,17 +222,60 @@ export const SortableModuleSidebar = ({
   );
 
   return (
-    <motion.aside
-      initial={{ x: -250 }}
-      animate={{ x: 0 }}
-      className="w-64 bg-gradient-to-b from-blue-600 to-blue-800 text-white shadow-xl overflow-y-auto flex flex-col"
-    >
+    <>
+      {/* ✅ Mobile hamburger button — only visible on mobile (hidden on md+) */}
+      <button
+        onClick={() => setMobileOpen(true)}
+        className="md:hidden fixed top-4 left-4 z-50 p-2 bg-blue-600 text-white rounded-lg shadow-lg"
+        aria-label={t('openMenu')}
+      >
+        <Menu size={22} />
+      </button>
+
+      {/* ✅ Mobile overlay — only on mobile */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-40"
+            onClick={() => setMobileOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* ✅ Sidebar:
+          - Desktop (md+): always visible, w-64, static position — UNCHANGED
+          - Mobile: hidden by default, slides in when mobileOpen=true */}
+      <motion.aside
+        initial={{ x: -250 }}
+        animate={{ x: 0 }}
+        className={`
+          bg-gradient-to-b from-blue-600 to-blue-800 text-white shadow-xl overflow-y-auto flex flex-col
+          w-64
+          fixed md:relative
+          top-0 left-0 h-full
+          z-50 md:z-auto
+          transition-transform duration-300
+          ${mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+        `}
+      >
+        {/* Mobile close button — only on mobile */}
+        <button
+          onClick={() => setMobileOpen(false)}
+          className="md:hidden absolute top-4 right-4 p-1 text-white hover:text-blue-200"
+          aria-label={t('closeMenu')}
+        >
+          <X size={20} />
+        </button>
+
       {/* Header */}
       <div className="p-6 border-b border-blue-500 flex-shrink-0">
         <div className="flex items-center justify-between mb-2">
           <Link to="/" className="flex items-center gap-2 text-white hover:text-blue-100 transition-colors">
             <ArrowLeft size={20} />
-            <span className="text-sm">Back to Dashboard</span>
+            <span className="text-sm">{t('backToDashboard')}</span>
           </Link>
           
           {/* Customize Icon Button */}
@@ -236,7 +286,7 @@ export const SortableModuleSidebar = ({
                 ? 'bg-white text-blue-600 shadow-lg'
                 : 'bg-blue-700 hover:bg-blue-600'
             }`}
-            title={isCustomizing ? 'Done customizing' : 'Customize menu'}
+            title={isCustomizing ? t('doneCustomizing') : t('customizeMenu')}
           >
             <Settings size={16} />
           </button>
@@ -251,14 +301,14 @@ export const SortableModuleSidebar = ({
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             onClick={() => {
-              if (confirm('Reset menu to default layout?')) {
+              if (confirm(t('resetMenuConfirm'))) {
                 onReset();
               }
             }}
             className="w-full flex items-center justify-center gap-2 px-3 py-2 mt-3 bg-blue-700 hover:bg-blue-600 rounded-lg font-medium transition-all text-sm"
           >
             <RotateCcw size={14} />
-            Reset to Default
+            {t('resetToDefault')}
           </motion.button>
         )}
       </div>
@@ -281,7 +331,7 @@ export const SortableModuleSidebar = ({
               <div className="mb-4">
                 <div className="flex items-center gap-2 text-yellow-400 text-xs font-semibold uppercase tracking-wide mb-2 px-2">
                   <Star size={14} className="fill-yellow-400" />
-                  <span>Favorites</span>
+                  <span>{t('favorites')}</span>
                 </div>
                 {filteredFavorites.map(item => (
                   <SortableMenuItem
@@ -308,6 +358,7 @@ export const SortableModuleSidebar = ({
                 isFavorite={isFavorite(item.path)}
                 onToggleFavorite={onToggleFavorite}
                 onHide={onHide}
+                onClose={() => setMobileOpen(false)}
               />
             ))}
 
@@ -335,7 +386,7 @@ export const SortableModuleSidebar = ({
           <div className="mt-6 pt-4 border-t border-blue-500">
             <div className="flex items-center gap-2 text-blue-200 text-xs font-semibold uppercase tracking-wide mb-2 px-2">
               <EyeOff size={14} />
-              <span>Hidden ({hiddenMenuItems.length})</span>
+              <span>{t('hidden')} ({hiddenMenuItems.length})</span>
             </div>
             {hiddenMenuItems.map(item => {
               const Icon = item.icon;
@@ -354,6 +405,7 @@ export const SortableModuleSidebar = ({
           </div>
         )}
       </nav>
-    </motion.aside>
+      </motion.aside>
+    </>
   );
 };

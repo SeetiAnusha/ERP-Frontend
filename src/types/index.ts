@@ -161,6 +161,26 @@ export interface FixedAsset {
   status: string;
   location?: string;
   serialNumber?: string;
+  // New fields
+  supplier?: string;
+  invoiceNumber?: string;
+  purchaseOrderNumber?: string;
+  warrantyExpiryDate?: string;
+  insurancePolicyNumber?: string;
+  insuranceExpiryDate?: string;
+  maintenanceSchedule?: string;
+  lastMaintenanceDate?: string;
+  nextMaintenanceDate?: string;
+  assignedTo?: string;
+  disposalDate?: string;
+  disposalValue?: number;
+  disposalReason?: string;
+  depreciationStartDate?: string;
+  tags?: string;
+  notes?: string;
+  // Calculated fields
+  calculatedDepreciation?: number;
+  calculatedBookValue?: number;
 }
 
 export interface Investment {
@@ -177,6 +197,14 @@ export interface Investment {
   status: string;
   maturityDate?: string;
   interestRate?: number;
+  // Calculated fields (added by backend)
+  calculatedCurrentValue?: number;
+  gainLoss?: number;
+  gainLossPercentage?: number;
+  daysHeld?: number;
+  daysToMaturity?: number | null;
+  annualizedReturn?: number;
+  shouldAutoCalculate?: boolean;
 }
 
 export interface PrepaidExpense {

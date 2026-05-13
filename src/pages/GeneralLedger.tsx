@@ -6,8 +6,10 @@ import { useGeneralLedger, useChartOfAccounts } from '../hooks/queries/useAccoun
 import { formatNumber } from '../utils/formatNumber';
 import Pagination from '../components/common/Pagination';
 import { usePagination } from '../hooks/usePagination';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const GeneralLedger = () => {
+  const { t } = useLanguage();
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState({
     startDate: '', // ✅ Empty = show all entries by default
@@ -117,9 +119,9 @@ const GeneralLedger = () => {
           <div>
             <h2 className="text-3xl font-bold text-gray-800 flex items-center gap-3">
               <FaBook className="text-blue-600" />
-              General Ledger
+              {t('generalLedger')}
             </h2>
-            <p className="text-gray-600 mt-1">Complete transaction history</p>
+            <p className="text-gray-600 mt-1">{t('generalLedgerDesc')}</p>
           </div>
           
           <div className="flex gap-2">
@@ -128,11 +130,11 @@ const GeneralLedger = () => {
               className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center gap-2"
             >
               <FaSync />
-              Refresh
+              {t('buttons_refresh')}
             </button>
             <button className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2">
               <FaDownload />
-              Export
+              {t('export')}
             </button>
           </div>
         </div>
@@ -142,7 +144,7 @@ const GeneralLedger = () => {
       <div className="bg-white rounded-xl shadow-lg p-6">
         <div className="flex items-center gap-2 mb-4">
           <FaFilter className="text-gray-500" />
-          <h3 className="text-lg font-semibold">Filters</h3>
+          <h3 className="text-lg font-semibold">{t('filter')}</h3>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

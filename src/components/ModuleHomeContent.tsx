@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Star } from 'lucide-react';
 import { MenuItem } from '../hooks/useModulePreferences';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface StatCard {
   label: string;
@@ -32,6 +33,8 @@ export const ModuleHomeContent = ({
   groupedItems,
   categoryLabels,
 }: ModuleHomeContentProps) => {
+  const { t } = useLanguage();
+  
   return (
     <div className="p-8">
       <motion.div
@@ -104,7 +107,7 @@ export const ModuleHomeContent = ({
 
         {/* All Items - Grouped or Flat */}
         <h2 className="text-2xl font-bold text-gray-800 mb-4">
-          {favoriteItems.length > 0 ? 'All Modules' : 'Available Modules'}
+          {favoriteItems.length > 0 ? t('all') : 'Available Modules'}
         </h2>
 
         {groupedItems && categoryLabels ? (

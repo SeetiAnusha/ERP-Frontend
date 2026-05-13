@@ -296,7 +296,7 @@ const Purchases = () => {
       
       if (purchaseItems.length === 0) {
         console.error('❌ No purchase items');
-        toast.error('Please add at least one product for goods purchase');
+        toast.error(t('pleaseAddAtLeastOneProduct'));
         return;
       }
       
@@ -398,24 +398,24 @@ const Purchases = () => {
 
   const addAssociatedInvoice = () => {
     if (!newAssociatedInvoice.supplierRnc || !newAssociatedInvoice.supplierName || !newAssociatedInvoice.tax) {
-      toast.error('Please enter Supplier RNC, Supplier Name, and Tax Amount');
+      toast.error(t('enterSupplierRncNameTax'));
       return;
     }
     
     if (!newAssociatedInvoice.paymentType) {
-      toast.error('Please select a payment type for the invoice');
+      toast.error(t('selectPaymentTypeInvoice'));
       return;
     }
     
     // Validate card selection for card payment types
     if ((newAssociatedInvoice.paymentType === 'DEBIT_CARD' || newAssociatedInvoice.paymentType === 'CREDIT_CARD') && !newAssociatedInvoice.cardId) {
-      toast.error('Please select a card for the selected payment type');
+      toast.error(t('selectCardForPaymentType'));
       return;
     }
     
     // Validate bank account selection for bank payment types
     if ((newAssociatedInvoice.paymentType === 'BANK_TRANSFER' || newAssociatedInvoice.paymentType === 'CHEQUE' || newAssociatedInvoice.paymentType === 'DEPOSIT') && !newAssociatedInvoice.bankAccountId) {
-      toast.error('Please select a bank account for the selected payment type');
+      toast.error(t('selectBankAccountForPaymentType'));
       return;
     }
     
@@ -451,7 +451,7 @@ const Purchases = () => {
 
   const addProductToPurchase = () => {
     if (!selectedProduct || quantity <= 0 || unitCost <= 0) {
-      toast.error('Please select a product and enter valid quantity and unit cost');
+      toast.error(t('selectProductValidQuantityCost'));
       return;
     }
     

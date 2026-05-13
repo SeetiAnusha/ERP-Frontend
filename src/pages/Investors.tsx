@@ -5,6 +5,7 @@ import api from '../api/axios';
 import { formatNumber } from '../utils/formatNumber';
 import { toast } from 'sonner';
 import { useInvestors, useInvestorsSummary } from '../hooks/queries/useSharedData';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface Financer {
   id: number;
@@ -58,6 +59,7 @@ interface Financer {
 // }
 
 const Investors = () => {
+  const { t } = useLanguage();
   // ✅ React Query Hooks
   const { data: financers = [], isLoading, isError, refetch: refetchFinancers } = useInvestors();
   const { data: summary, refetch: refetchSummary } = useInvestorsSummary();
@@ -175,9 +177,9 @@ const Investors = () => {
           <div>
             <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-3">
               <Users className="text-green-600" />
-              Investors
+              {t('investors')}
             </h1>
-            <p className="text-gray-600 mt-1">Manage and track all investor investments</p>
+            <p className="text-gray-600 mt-1">{t('investorsDesc')}</p>
           </div>
           <div className="flex gap-2">
             <button
@@ -186,7 +188,7 @@ const Investors = () => {
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50"
             >
               <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh
+              {t('buttons_refresh')}
             </button>
             <button
               onClick={handleFixInvestmentStatus}
@@ -206,7 +208,7 @@ const Investors = () => {
           <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-lg p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-green-600 text-sm font-medium">Total Investors</p>
+                <p className="text-green-600 text-sm font-medium">{t('totalInvestors')}</p>
                 <p className="text-2xl font-bold text-green-700">{summary.totalFinancers}</p>
               </div>
               <Users className="text-green-400 text-3xl" />
@@ -216,7 +218,7 @@ const Investors = () => {
           <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-blue-600 text-sm font-medium">Total Invested</p>
+                <p className="text-blue-600 text-sm font-medium">{t('totalInvested')}</p>
                 <p className="text-2xl font-bold text-blue-700">{formatNumber(summary.totalProvided)}</p>
               </div>
               <TrendingUp className="text-blue-400 text-3xl" />

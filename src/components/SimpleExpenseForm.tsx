@@ -5,6 +5,7 @@ import { Supplier } from '../types';
 import ExpenseCategoryDropdown from './ExpenseCategoryDropdown';
 import ExpenseTypeDropdown from './ExpenseTypeDropdown';
 import { formatNumber } from '../utils/formatNumber';
+import { useLanguage } from '../contexts/LanguageContext';
 
 // ✅ OPTIMIZATION: Use React Query hooks
 import { useBankAccounts, useCards } from '../hooks/queries/useSharedData';
@@ -27,6 +28,7 @@ const SimpleExpenseForm = ({
   suppliers,
   isSubmitting = false
 }: SimpleExpenseFormProps) => {
+  const { t } = useLanguage();
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     supplierId: '',
@@ -74,22 +76,22 @@ const SimpleExpenseForm = ({
   // ✅ OPTIMIZATION: Memoized validation
   const validateForm = useCallback(() => {
     if (!formData.supplierId) {
-      alert('Please select a supplier');
+      alert(t('pleaseSelectSupplier'));
       return false;
     }
     
     if (!formData.amount || parseFloat(formData.amount) <= 0) {
-      alert('Please enter a valid amount');
+      alert(t('pleaseEnterValidAmount'));
       return false;
     }
     
     if (!formData.expenseCategoryId || formData.expenseCategoryId === 0) {
-      alert('Please select an expense category');
+      alert(t('pleaseSelectExpenseCategory'));
       return false;
     }
     
     if (!formData.expenseTypeId || formData.expenseTypeId === 0) {
-      alert('Please select an expense type');
+      alert(t('pleaseSelectExpenseType'));
       return false;
     }
 
@@ -127,7 +129,7 @@ const SimpleExpenseForm = ({
     
     if (cardPaymentMethods.includes(paymentType)) {
       if (!formData.cardId || !formData.paymentReference || !formData.voucherDate) {
-        alert('Please fill in all card payment details');
+        alert(t('fillAllCardPaymentDetails'));
         return false;
       }
       

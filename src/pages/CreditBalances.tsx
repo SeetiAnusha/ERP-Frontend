@@ -57,7 +57,7 @@ const CreditBalances: React.FC = () => {
     changeLimit,
     refresh
   } = useTableData<CreditBalance>({
-    endpoint: '/credit-balances',
+    endpoint: 'credit-balances',
     initialLimit: 50
   });
   

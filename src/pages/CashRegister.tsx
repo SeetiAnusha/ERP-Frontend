@@ -22,6 +22,13 @@ import SearchBar from '../components/common/SearchBar';
 // ✅ Keep React Query hooks for shared master data (not paginated)
 import { useSharedMasterData } from '../hooks/queries/useSharedData';
 
+// ✅ PROFESSIONAL: Import type-safe source type utilities
+import { 
+  CashRegisterSourceType,
+  getSourceBadgeColor, 
+  getSourceLabel 
+} from '../types/CashRegisterSourceType';
+
 const CashRegister: React.FC = () => {
   const { t } = useLanguage();
   const location = useLocation();
@@ -90,7 +97,7 @@ const CashRegister: React.FC = () => {
     transactionType: 'INFLOW',
     amount: '',
     paymentMethod: 'CASH',
-    relatedDocumentType: 'AR_COLLECTION', // Fixed: Changed from 'SALE' to 'AR_COLLECTION' to match dropdown options
+    relatedDocumentType: CashRegisterSourceType.AR_COLLECTION,
     relatedDocumentNumber: '',
     clientRnc: '',
     clientName: '',
@@ -165,7 +172,7 @@ const CashRegister: React.FC = () => {
 
   // Clear related fields when document type changes
   useEffect(() => {
-    if (formData.relatedDocumentType === 'CONTRIBUTION' || formData.relatedDocumentType === 'LOAN') {
+    if (formData.relatedDocumentType === CashRegisterSourceType.CONTRIBUTION || formData.relatedDocumentType === CashRegisterSourceType.LOAN) {
       // Clear customer-related fields when switching to CONTRIBUTION/LOAN
       setFormData(prev => ({ 
         ...prev, 
@@ -174,7 +181,7 @@ const CashRegister: React.FC = () => {
       }));
       setSelectedInvoices([]);
       setPendingCreditSales([]);
-    } else if (formData.relatedDocumentType === 'AR_COLLECTION') {
+    } else if (formData.relatedDocumentType === CashRegisterSourceType.AR_COLLECTION) {
       // Clear investment-related fields when switching to AR_COLLECTION
       setFormData(prev => ({ 
         ...prev, 
@@ -281,7 +288,7 @@ const CashRegister: React.FC = () => {
     e.preventDefault();
     
     // ✅ NEW: For customer AR collections, use customer credit-aware payment system
-    if (formData.relatedDocumentType === 'AR_COLLECTION' && formData.customerId && !allowOverpayment) {
+    if (formData.relatedDocumentType === CashRegisterSourceType.AR_COLLECTION && formData.customerId && !allowOverpayment) {
       console.log('🎯 Using customer credit-aware payment system for AR collection');
       
       // Check if this is a credit-only payment (no payment method required)
@@ -313,7 +320,7 @@ const CashRegister: React.FC = () => {
     }
     
     // Phase 1: Overpayment Detection for AR Collections
-    if (formData.relatedDocumentType === 'AR_COLLECTION' && !allowOverpayment) {
+    if (formData.relatedDocumentType === CashRegisterSourceType.AR_COLLECTION && !allowOverpayment) {
       const paymentAmount = parseFloat(formData.amount);
       
       // Calculate total outstanding balance from selected invoices
@@ -349,9 +356,9 @@ const CashRegister: React.FC = () => {
     
     // Phase 3: Conditional Cash Register Validation
     const needsCashRegister = 
-      (formData.relatedDocumentType === 'CONTRIBUTION' && formData.paymentMethod === 'CASH') || 
-      (formData.relatedDocumentType === 'LOAN' && formData.paymentMethod === 'CASH') ||
-      (formData.relatedDocumentType === 'AR_COLLECTION' && formData.paymentMethod === 'CASH');
+      (formData.relatedDocumentType === CashRegisterSourceType.CONTRIBUTION && formData.paymentMethod === 'CASH') || 
+      (formData.relatedDocumentType === CashRegisterSourceType.LOAN && formData.paymentMethod === 'CASH') ||
+      (formData.relatedDocumentType === CashRegisterSourceType.AR_COLLECTION && formData.paymentMethod === 'CASH');
     
     if (needsCashRegister && !formData.cashRegisterId) {
       toast.error(t('selectCashRegister') || 'Please select a cash register');
@@ -360,7 +367,7 @@ const CashRegister: React.FC = () => {
 
     if (formData.transactionType === 'INFLOW') {
       // INFLOW validations - AR_COLLECTION (Credit Sales and Credit Card Sales), CONTRIBUTION, LOAN
-      if (formData.relatedDocumentType === 'AR_COLLECTION') {
+      if (formData.relatedDocumentType === CashRegisterSourceType.AR_COLLECTION) {
         if (!formData.customerId) {
           toast.error(t('selectCustomer') || 'Please select a customer');
           return;
@@ -372,7 +379,7 @@ const CashRegister: React.FC = () => {
         }
       }
       
-      if (formData.relatedDocumentType === 'CONTRIBUTION' || formData.relatedDocumentType === 'LOAN') {
+      if (formData.relatedDocumentType === CashRegisterSourceType.CONTRIBUTION || formData.relatedDocumentType === CashRegisterSourceType.LOAN) {
         if (!formData.investmentAgreementId) {
           toast.error('Please select an investment/loan agreement');
           return;
@@ -441,7 +448,7 @@ const CashRegister: React.FC = () => {
       refresh(); // Refresh paginated data
       
       // Refresh credit preview after AR collection payment
-      if (formData.relatedDocumentType === 'AR_COLLECTION' && formData.customerId) {
+      if (formData.relatedDocumentType === CashRegisterSourceType.AR_COLLECTION && formData.customerId) {
         fetchCreditPreview(formData.customerId);
       }
       
@@ -522,7 +529,7 @@ const CashRegister: React.FC = () => {
       transactionType: 'INFLOW',
       amount: '',
       paymentMethod: 'CASH',
-      relatedDocumentType: 'AR_COLLECTION', // Fixed: Changed from 'AR_COLLECTION' to match default state
+      relatedDocumentType: CashRegisterSourceType.AR_COLLECTION,
       relatedDocumentNumber: '',
       clientRnc: '',
       clientName: '',
@@ -597,7 +604,7 @@ const CashRegister: React.FC = () => {
         transactionType: 'OUTFLOW',
         amount: depositData.amount,
         paymentMethod: 'BANK_DEPOSIT',
-        relatedDocumentType: 'BANK_DEPOSIT',
+        relatedDocumentType: CashRegisterSourceType.BANK_DEPOSIT,
         relatedDocumentNumber: depositData.transferNumber || '', // ✅ NEW: Pass user-entered transfer number
         description: depositData.description || 'Bank deposit',
         cashRegisterId: depositData.cashRegisterId,
@@ -654,7 +661,7 @@ const CashRegister: React.FC = () => {
 
   // Fetch credit preview when amount or invoices change
   useEffect(() => {
-    if (formData.relatedDocumentType === 'AR_COLLECTION' && formData.customerId && formData.amount) {
+    if (formData.relatedDocumentType === CashRegisterSourceType.AR_COLLECTION && formData.customerId && formData.amount) {
       fetchCreditPreview(formData.customerId);
     } else {
       setCreditPreview(null);
@@ -1002,14 +1009,13 @@ const CashRegister: React.FC = () => {
                 <th className="px-6 py-3 text-left text-sm font-bold text-gray-800 uppercase tracking-wider">
                   {t('date')}
                 </th>
+                {/* ⭐ NEW: Source Column - Shows where transaction came from */}
                 <th className="px-6 py-3 text-left text-sm font-bold text-gray-800 uppercase tracking-wider">
-                  Store Name
+                  {t('source')}
                 </th>
+                {/* ⭐ NEW: Document Number Column - Reference to original transaction */}
                 <th className="px-6 py-3 text-left text-sm font-bold text-gray-800 uppercase tracking-wider">
-                  Bank Name & Number
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-bold text-gray-800 uppercase tracking-wider">
-                  Account Type
+                  {t('docNumber')}
                 </th>
                 <th className="px-6 py-3 text-left text-sm font-bold text-gray-800 uppercase tracking-wider">
                   {t('type')}
@@ -1021,13 +1027,7 @@ const CashRegister: React.FC = () => {
                   Client Name
                 </th>
                 <th className="px-6 py-3 text-left text-sm font-bold text-gray-800 uppercase tracking-wider">
-                  Client RNC
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-bold text-gray-800 uppercase tracking-wider">
-                  NCF
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-bold text-gray-800 uppercase tracking-wider">
-                  {t('description')}
+                  Store Name
                 </th>
                 <th className="px-6 py-3 text-right text-sm font-bold text-gray-800 uppercase tracking-wider">
                   {t('amount')}
@@ -1040,7 +1040,7 @@ const CashRegister: React.FC = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {transactions.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={10} className="px-6 py-8 text-center text-gray-500">
                     {transactionsLoading ? 'Loading transactions...' : t('noTransactionsFound')}
                   </td>
                 </tr>
@@ -1069,17 +1069,21 @@ const CashRegister: React.FC = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(transaction.registrationDate).toLocaleDateString()}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {transaction.cashRegisterMaster?.name || '-'}
+                  
+                  {/* ⭐ NEW: Source Column - Shows transaction origin with color coding */}
+                  <td className="px-6 py-4 text-sm">
+                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                      getSourceBadgeColor(transaction.relatedDocumentType)
+                    }`}>
+                      {getSourceLabel(transaction.relatedDocumentType)}
+                    </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {transaction.bankAccount 
-                      ? `${transaction.bankAccount.bankName} - ${transaction.bankAccount.accountNumber}` 
-                      : '-'}
+                  
+                  {/* ⭐ NEW: Document Number Column - Reference to original transaction */}
+                  <td className="px-6 py-4 text-sm font-medium text-blue-600">
+                    {transaction.relatedDocumentNumber || '-'}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {transaction.bankAccount?.accountType || '-'}
-                  </td>
+                  
                   <td className="px-6 py-4 whitespace-nowrap">
                     {getTransactionStatusBadge(transaction)}
                   </td>
@@ -1089,16 +1093,8 @@ const CashRegister: React.FC = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {transaction.clientName || '-'}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                    {transaction.clientRnc || '-'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                    {transaction.ncf || '-'}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
-                    <span className={isDeleted ? 'line-through text-gray-500' : ''}>
-                      {transaction.description}
-                    </span>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {transaction.cashRegisterMaster?.name || '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold">
                     <span className={`${
@@ -1202,7 +1198,7 @@ const CashRegister: React.FC = () => {
                   {(() => {
                     // Hide cash register selection if credit covers full invoice (scenarios 2️⃣, 4️⃣, 6️⃣)
                     const isCreditOnlyPayment = 
-                      formData.relatedDocumentType === 'AR_COLLECTION' && 
+                      formData.relatedDocumentType === CashRegisterSourceType.AR_COLLECTION && 
                       creditPreview && 
                       !creditPreview.paymentTypeRequired;
                     
@@ -1211,9 +1207,9 @@ const CashRegister: React.FC = () => {
                     }
                     
                     const needsCashRegister = 
-                      (formData.relatedDocumentType === 'CONTRIBUTION' && formData.paymentMethod === 'CASH') || 
-                      (formData.relatedDocumentType === 'LOAN' && formData.paymentMethod === 'CASH') ||
-                      (formData.relatedDocumentType === 'AR_COLLECTION' && formData.paymentMethod === 'CASH');
+                      (formData.relatedDocumentType === CashRegisterSourceType.CONTRIBUTION && formData.paymentMethod === 'CASH') || 
+                      (formData.relatedDocumentType === CashRegisterSourceType.LOAN && formData.paymentMethod === 'CASH') ||
+                      (formData.relatedDocumentType === CashRegisterSourceType.AR_COLLECTION && formData.paymentMethod === 'CASH');
                     
                     return needsCashRegister ? (
                       <div className="md:col-span-2">
@@ -1295,7 +1291,7 @@ const CashRegister: React.FC = () => {
                     
                     {/* Overpayment Warning */}
                     {(() => {
-                      if (formData.relatedDocumentType === 'AR_COLLECTION' && formData.amount) {
+                      if (formData.relatedDocumentType === CashRegisterSourceType.AR_COLLECTION && formData.amount) {
                         const paymentAmount = parseFloat(formData.amount);
                         let totalOutstandingBalance = 0;
                         
@@ -1333,7 +1329,7 @@ const CashRegister: React.FC = () => {
                       {(() => {
                         // Hide payment method selection if credit covers full invoice (scenarios 2️⃣, 4️⃣, 6️⃣)
                         const shouldHidePaymentMethod = 
-                          formData.relatedDocumentType === 'AR_COLLECTION' && 
+                          formData.relatedDocumentType === CashRegisterSourceType.AR_COLLECTION && 
                           creditPreview && 
                           !creditPreview.paymentTypeRequired;
                         
@@ -1385,9 +1381,9 @@ const CashRegister: React.FC = () => {
                               onChange={(e) => {
                                 const newPaymentMethod = e.target.value;
                                 const needsCashRegister = 
-                                  (formData.relatedDocumentType === 'CONTRIBUTION' && newPaymentMethod === 'CASH') || 
-                                  (formData.relatedDocumentType === 'LOAN' && newPaymentMethod === 'CASH') ||
-                                  (formData.relatedDocumentType === 'AR_COLLECTION' && newPaymentMethod === 'CASH');
+                                  (formData.relatedDocumentType === CashRegisterSourceType.CONTRIBUTION && newPaymentMethod === 'CASH') || 
+                                  (formData.relatedDocumentType === CashRegisterSourceType.LOAN && newPaymentMethod === 'CASH') ||
+                                  (formData.relatedDocumentType === CashRegisterSourceType.AR_COLLECTION && newPaymentMethod === 'CASH');
                                 
                                 setFormData({ 
                                   ...formData, 
@@ -1400,7 +1396,7 @@ const CashRegister: React.FC = () => {
                             >
                               <option value="CASH">{t('cash')}</option>
                               {/* Hide credit/debit card options for CONTRIBUTION and LOAN */}
-                              {formData.relatedDocumentType !== 'CONTRIBUTION' && formData.relatedDocumentType !== 'LOAN' && (
+                              {formData.relatedDocumentType !== CashRegisterSourceType.CONTRIBUTION && formData.relatedDocumentType !== CashRegisterSourceType.LOAN && (
                                 <>
                                   <option value="CREDIT_CARD">{t('creditCard')}</option>
                                   <option value="DEBIT_CARD">{t('debitCard')}</option>
@@ -1412,7 +1408,7 @@ const CashRegister: React.FC = () => {
                             </select>
                             
                             {/* Show credit preview info when available */}
-                            {creditPreview && formData.relatedDocumentType === 'AR_COLLECTION' && (
+                            {creditPreview && formData.relatedDocumentType === CashRegisterSourceType.AR_COLLECTION && (
                               <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
                                 <p className="text-blue-700">
                                   💡 Credit: ₹{formatNumber(creditPreview.availableCredit || 0)} | 
@@ -1440,13 +1436,13 @@ const CashRegister: React.FC = () => {
                           onChange={(e) => {
                             const newDocumentType = e.target.value;
                             const needsCashRegister = 
-                              (newDocumentType === 'CONTRIBUTION' && formData.paymentMethod === 'CASH') || 
-                              (newDocumentType === 'LOAN' && formData.paymentMethod === 'CASH') ||
-                              (newDocumentType === 'AR_COLLECTION' && formData.paymentMethod === 'CASH');
+                              (newDocumentType === CashRegisterSourceType.CONTRIBUTION && formData.paymentMethod === 'CASH') || 
+                              (newDocumentType === CashRegisterSourceType.LOAN && formData.paymentMethod === 'CASH') ||
+                              (newDocumentType === CashRegisterSourceType.AR_COLLECTION && formData.paymentMethod === 'CASH');
                             
                             // Reset payment method if switching to CONTRIBUTION/LOAN with card payment selected
                             let newPaymentMethod = formData.paymentMethod;
-                            if ((newDocumentType === 'CONTRIBUTION' || newDocumentType === 'LOAN') && 
+                            if ((newDocumentType === CashRegisterSourceType.CONTRIBUTION || newDocumentType === CashRegisterSourceType.LOAN) && 
                                 (formData.paymentMethod === 'CREDIT_CARD' || formData.paymentMethod === 'DEBIT_CARD')) {
                               newPaymentMethod = 'CASH'; // Reset to CASH as default
                             }
@@ -1461,14 +1457,14 @@ const CashRegister: React.FC = () => {
                           }}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         >
-                          <option value="AR_COLLECTION">{t('creditSaleCollection')} (Credit & Card Sales)</option>
-                          <option value="CONTRIBUTION">{t('contribution')}</option>
-                          <option value="LOAN">{t('loan')}</option>
+                          <option value={CashRegisterSourceType.AR_COLLECTION}>{t('creditSaleCollection')} (Credit & Card Sales)</option>
+                          <option value={CashRegisterSourceType.CONTRIBUTION}>{t('contribution')}</option>
+                          <option value={CashRegisterSourceType.LOAN}>{t('loan')}</option>
                         </select>
                       </div>
 
                       {/* AR Collection: Show customer and invoice selection */}
-                      {formData.relatedDocumentType === 'AR_COLLECTION' && (
+                      {formData.relatedDocumentType === CashRegisterSourceType.AR_COLLECTION && (
                         <>
                           <div className="md:col-span-2">
                             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1533,10 +1529,10 @@ const CashRegister: React.FC = () => {
                       )}
 
                       {/* CONTRIBUTION/LOAN: Show investment agreement selection */}
-                      {(formData.relatedDocumentType === 'CONTRIBUTION' || formData.relatedDocumentType === 'LOAN') && (
+                      {(formData.relatedDocumentType === CashRegisterSourceType.CONTRIBUTION || formData.relatedDocumentType === CashRegisterSourceType.LOAN) && (
                         <div className="md:col-span-2">
                           <label className="block text-sm font-medium text-gray-700 mb-1">
-                            {formData.relatedDocumentType === 'CONTRIBUTION' ? 'Select Investment Agreement' : 'Select Loan Agreement'} *
+                            {formData.relatedDocumentType === CashRegisterSourceType.CONTRIBUTION ? 'Select Investment Agreement' : 'Select Loan Agreement'} *
                           </label>
                           <select
                             required
@@ -1545,14 +1541,14 @@ const CashRegister: React.FC = () => {
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                           >
                             <option value="">
-                              {formData.relatedDocumentType === 'CONTRIBUTION' ? 'Select Investment Agreement' : 'Select Loan Agreement'}
+                              {formData.relatedDocumentType === CashRegisterSourceType.CONTRIBUTION ? 'Select Investment Agreement' : 'Select Loan Agreement'}
                             </option>
                             {activeAgreements
                               .filter((agreement) => {
                                 // Filter agreements based on document type
-                                if (formData.relatedDocumentType === 'CONTRIBUTION') {
+                                if (formData.relatedDocumentType === CashRegisterSourceType.CONTRIBUTION) {
                                   return agreement.agreementType === 'INVESTMENT';
-                                } else if (formData.relatedDocumentType === 'LOAN') {
+                                } else if (formData.relatedDocumentType === CashRegisterSourceType.LOAN) {
                                   return agreement.agreementType === 'LOAN';
                                 }
                                 return false;
@@ -1565,7 +1561,7 @@ const CashRegister: React.FC = () => {
                               ))}
                           </select>
                           <p className="text-xs text-gray-500 mt-1">
-                            {formData.relatedDocumentType === 'CONTRIBUTION' 
+                            {formData.relatedDocumentType === CashRegisterSourceType.CONTRIBUTION 
                               ? '💰 Showing active investment agreements with remaining balance'
                               : '🏦 Showing active loan agreements with remaining balance'
                             }
@@ -1867,9 +1863,10 @@ const CashRegister: React.FC = () => {
                 <div className="flex gap-3 pt-4">
                   <button
                     type="submit"
-                    className="flex-1 bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition font-medium"
+                    disabled={isSubmitting}
+                    className="flex-1 bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
                   >
-                    {t('recordDeposit')}
+                    {isSubmitting ? 'Recording...' : t('recordDeposit')}
                   </button>
                   <button
                     type="button"

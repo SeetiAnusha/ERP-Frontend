@@ -10,8 +10,10 @@ import {
 import { useModulePreferences, MenuItem } from '../../hooks/useModulePreferences';
 import { SortableModuleSidebar } from '../../components/SortableModuleSidebar';
 import { ModuleHomeContent } from '../../components/ModuleHomeContent';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 const AccountingModule = () => {
+  const { t } = useLanguage();
   const location = useLocation();
 
   const menuItems: MenuItem[] = useMemo(() => [
@@ -65,9 +67,9 @@ const AccountingModule = () => {
   return (
     <div className="flex h-screen bg-gray-50">
       <SortableModuleSidebar
-        moduleName="Accounting"
+        moduleName={t('accountingModule')}
         moduleIcon="📊"
-        moduleDescription="Financial management & reporting"
+        moduleDescription={t('accountingDesc')}
         orderedMenuItems={orderedMenuItems}
         hiddenMenuItems={hiddenMenuItems}
         favoriteItems={favoriteItems}
@@ -80,18 +82,18 @@ const AccountingModule = () => {
         onReset={resetToDefault}
       />
 
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto pt-14 md:pt-0">
         {isModuleHome ? (
           <ModuleHomeContent
-            title="Accounting & Financial Management"
-            description="Manage your financial records and generate reports. Select an option from the sidebar to get started."
+            title={t('accountingTitle')}
+            description={t('accountingSubtitle')}
             favoriteItems={favoriteItems}
             regularItems={regularItems}
             isFavorite={isFavorite}
             onToggleFavorite={toggleFavorite}
           />
         ) : (
-          <div className="p-6">
+          <div className="p-4 md:p-6">
             <Outlet />
           </div>
         )}

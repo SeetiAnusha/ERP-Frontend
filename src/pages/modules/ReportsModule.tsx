@@ -66,7 +66,7 @@ const ReportsModule = () => {
         onReset={resetToDefault}
       />
 
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto pt-14 md:pt-0">
         {isModuleHome ? (
           <ModuleHomeContent
             title="Reports & Analytics"
@@ -77,7 +77,7 @@ const ReportsModule = () => {
             onToggleFavorite={toggleFavorite}
           />
         ) : (
-          <div className="p-6">
+          <div className="p-4 md:p-6">
             <Outlet />
           </div>
         )}

@@ -87,9 +87,9 @@ const TransactionsModule = () => {
   return (
     <div className="flex h-screen bg-gray-50">
       <SortableModuleSidebar
-        moduleName="Transactions"
+        moduleName={t('transactionsModule')}
         moduleIcon="📝"
-        moduleDescription="Manage daily operations"
+        moduleDescription={t('transactionsDesc')}
         orderedMenuItems={orderedMenuItems}
         hiddenMenuItems={hiddenMenuItems}
         favoriteItems={favoriteItems}
@@ -102,18 +102,18 @@ const TransactionsModule = () => {
         onReset={resetToDefault}
       />
 
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto pt-14 md:pt-0">
         {isModuleHome ? (
           <ModuleHomeContent
-            title="Transaction Management"
-            description="Record and manage all your business transactions. Select an option from the sidebar to get started."
+            title={t('transactionsTitle')}
+            description={t('transactionsSubtitle')}
             favoriteItems={favoriteItems}
             regularItems={regularItems}
             isFavorite={isFavorite}
             onToggleFavorite={toggleFavorite}
           />
         ) : (
-          <div className="p-6">
+          <div className="p-4 md:p-6">
             <Outlet />
           </div>
         )}

@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { FaFileExcel } from 'react-icons/fa';
 import { useInvestmentReport } from '../hooks/queries/useSharedData';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface InvestmentItem {
   id: number;
@@ -24,6 +25,7 @@ interface InvestmentItem {
 }
 
 const InvestmentReport = () => {
+  const { t } = useLanguage();
   const [selectedType, setSelectedType] = useState('all');
   
   // ✅ React Query Hook
@@ -74,15 +76,15 @@ const InvestmentReport = () => {
       <div className="bg-white rounded-xl shadow-lg p-6">
         <div className="flex justify-between items-center flex-wrap gap-4">
           <div>
-            <h2 className="text-3xl font-bold text-gray-800">Investment Tracking Report</h2>
-            <p className="text-gray-600 mt-1">Portfolio Performance & ROI Analysis</p>
+            <h2 className="text-3xl font-bold text-gray-800">{t('investmentReport')}</h2>
+            <p className="text-gray-600 mt-1">{t('investmentReportDesc')}</p>
           </div>
           
           <button
             onClick={exportToExcel}
             className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition flex items-center gap-2"
           >
-            <FaFileExcel /> Export to Excel
+            <FaFileExcel /> {t('exportToExcel')}
           </button>
         </div>
 
@@ -113,7 +115,7 @@ const InvestmentReport = () => {
           animate={{ opacity: 1, y: 0 }}
           className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white"
         >
-          <h3 className="text-sm font-medium opacity-90">Total Investment</h3>
+          <h3 className="text-sm font-medium opacity-90">{t('totalInvestment')}</h3>
           <p className="text-3xl font-bold mt-2">
             ${totals.totalAcquisitionCost.toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </p>
@@ -126,7 +128,7 @@ const InvestmentReport = () => {
           transition={{ delay: 0.1 }}
           className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white"
         >
-          <h3 className="text-sm font-medium opacity-90">Current Value</h3>
+          <h3 className="text-sm font-medium opacity-90">{t('currentValue')}</h3>
           <p className="text-3xl font-bold mt-2">
             ${totals.totalCurrentValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </p>
@@ -161,22 +163,31 @@ const InvestmentReport = () => {
       <div className="bg-white rounded-xl shadow-lg overflow-hidden">
         <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
           <table className="w-full">
-            <thead className="bg-blue-900 text-white sticky top-0 z-20">
+            <thead className="bg-gray-50 border-b-2 border-gray-300 sticky top-0 z-30 shadow-sm">
               <tr>
-                <th className="px-4 py-3 text-left bg-blue-900">Code</th>
-                <th className="px-4 py-3 text-left bg-blue-900">Name</th>
-                <th className="px-4 py-3 text-left bg-blue-900">Type</th>
-                <th className="px-4 py-3 text-left bg-blue-900">Acquisition Date</th>
-                <th className="px-4 py-3 text-right bg-blue-900">Quantity</th>
-                <th className="px-4 py-3 text-right bg-blue-900">Unit Cost</th>
-                <th className="px-4 py-3 text-right bg-blue-900">Acquisition Cost</th>
-                <th className="px-4 py-3 text-right bg-blue-900">Current Value</th>
-                <th className="px-4 py-3 text-right bg-blue-900">Gain/Loss</th>
-                <th className="px-4 py-3 text-right bg-blue-900">ROI %</th>
-                <th className="px-4 py-3 text-right bg-blue-900">Annualized Return %</th>
-                <th className="px-4 py-3 text-right bg-blue-900">Days Held</th>
-                <th className="px-4 py-3 text-left bg-blue-900">Maturity Date</th>
-                <th className="px-4 py-3 text-right bg-blue-900">Interest Rate</th>
+                <th className="px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider bg-gray-50">Code</th>
+                <th className="px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider bg-gray-50">Name</th>
+                <th className="px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider bg-gray-50">Type</th>
+                <th className="px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider bg-gray-50">Acquisition Date</th>
+                <th className="px-4 py-3 text-right text-xs font-bold text-gray-800 uppercase tracking-wider bg-gray-50">Quantity</th>
+                <th className="px-4 py-3 text-right text-xs font-bold text-gray-800 uppercase tracking-wider bg-gray-50">Unit Cost</th>
+                <th className="px-4 py-3 text-right text-xs font-bold text-gray-800 uppercase tracking-wider bg-gray-50">
+                  <div>Acquisition Cost</div>
+                  <div className="text-xs font-normal text-gray-500 normal-case">(What you paid)</div>
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-bold text-gray-800 uppercase tracking-wider bg-gray-50">
+                  <div>Current Value</div>
+                  <div className="text-xs font-normal text-gray-500 normal-case">(Market value)</div>
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-bold text-gray-800 uppercase tracking-wider bg-gray-50">
+                  <div>Gain/Loss</div>
+                  <div className="text-xs font-normal text-gray-500 normal-case">(Profit/Loss)</div>
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-bold text-gray-800 uppercase tracking-wider bg-gray-50">ROI %</th>
+                <th className="px-4 py-3 text-right text-xs font-bold text-gray-800 uppercase tracking-wider bg-gray-50">Annualized Return %</th>
+                <th className="px-4 py-3 text-right text-xs font-bold text-gray-800 uppercase tracking-wider bg-gray-50">Days Held</th>
+                <th className="px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider bg-gray-50">Maturity Date</th>
+                <th className="px-4 py-3 text-right text-xs font-bold text-gray-800 uppercase tracking-wider bg-gray-50">Interest Rate</th>
               </tr>
             </thead>
             <tbody>

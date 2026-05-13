@@ -7,6 +7,7 @@ import { formatNumber } from '../utils/formatNumber';
 import { toast } from 'sonner';
 import { useInvestmentAgreements, useInvestmentSummary, useFinancers } from '../hooks/queries/useSharedData';
 import { QUERY_KEYS } from '../lib/queryKeys';
+import { useLanguage } from '../contexts/LanguageContext';
 
 // Interfaces moved to top level to avoid unused warnings
 // interface InvestmentAgreement {
@@ -47,6 +48,7 @@ import { QUERY_KEYS } from '../lib/queryKeys';
 // }
 
 const InvestmentAgreements = () => {
+  const { t } = useLanguage();
   // ✅ React Query Hooks
   const { data: agreements = [], isLoading, isError, refetch: refetchAgreements } = useInvestmentAgreements();
   const { data: summary, refetch: refetchSummary } = useInvestmentSummary();
@@ -170,9 +172,9 @@ const InvestmentAgreements = () => {
           <div>
             <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-3">
               <FileText className="text-blue-600" />
-              Investment Agreements
+              {t('investmentAgreements')}
             </h1>
-            <p className="text-gray-600 mt-1">Manage investment and loan agreements before receiving money</p>
+            <p className="text-gray-600 mt-1">{t('investmentAgreementsDesc')}</p>
           </div>
           <div className="flex gap-2">
             <button
@@ -181,14 +183,14 @@ const InvestmentAgreements = () => {
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50"
             >
               <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh
+              {t('buttons_refresh')}
             </button>
             <button
               onClick={() => setShowCreateModal(true)}
               className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
             >
               <Plus className="w-4 h-4" />
-              New Agreement
+              {t('newAgreement')}
             </button>
             <button
               onClick={handleCleanupAccountsPayable}
@@ -208,7 +210,7 @@ const InvestmentAgreements = () => {
           <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-blue-600 text-sm font-medium">Total Agreements</p>
+                <p className="text-blue-600 text-sm font-medium">{t('totalAgreements')}</p>
                 <p className="text-2xl font-bold text-blue-700">{summary.totalAgreements}</p>
                 <p className="text-xs text-blue-500">Active: {summary.activeAgreements}</p>
               </div>
@@ -219,7 +221,7 @@ const InvestmentAgreements = () => {
           <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-lg p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-green-600 text-sm font-medium">Total Committed</p>
+                <p className="text-green-600 text-sm font-medium">{t('totalCommitted')}</p>
                 <p className="text-2xl font-bold text-green-700">{formatNumber(summary.totalCommitted)}</p>
                 <p className="text-xs text-green-500">Received: {formatNumber(summary.totalReceived)}</p>
               </div>

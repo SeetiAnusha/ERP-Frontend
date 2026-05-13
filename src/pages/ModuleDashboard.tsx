@@ -37,6 +37,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useAuth } from '../contexts/AuthContext';
+import { useLanguage } from '../contexts/LanguageContext';
 import LanguageSwitcher from '../components/LanguageSwitcher';
 
 interface Module {
@@ -165,6 +166,7 @@ const SortableModuleCard = ({ module, isCustomizing, onHide }: {
 
 const ModuleDashboard = () => {
   const { user, logout } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [isCustomizing, setIsCustomizing] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -178,8 +180,8 @@ const ModuleDashboard = () => {
   const allModules: Module[] = useMemo(() => [
     {
       id: 'master-data',
-      title: 'Master Data',
-      description: 'Manage products, suppliers, customers, inventory, and core business data',
+      title: t('masterData'),
+      description: t('masterDataDesc'),
       icon: Box,
       path: '/master-data',
       color: 'text-green-600',
@@ -188,8 +190,8 @@ const ModuleDashboard = () => {
     },
     {
       id: 'transactions',
-      title: 'Transactions',
-      description: 'Record sales, purchases, and daily business operations',
+      title: t('transactionsModule'),
+      description: t('transactionsDesc'),
       icon: FileText,
       path: '/transactions',
       color: 'text-blue-600',
@@ -198,8 +200,8 @@ const ModuleDashboard = () => {
     },
     {
       id: 'expenses',
-      title: 'Expenses',
-      description: 'Track and manage business expenses and credit card fees',
+      title: t('expensesModule'),
+      description: t('expensesDesc'),
       icon: TrendingUp,
       path: '/expenses',
       color: 'text-orange-600',
@@ -208,8 +210,8 @@ const ModuleDashboard = () => {
     },
     {
       id: 'accounting',
-      title: 'Accounting',
-      description: 'Financial management, general ledger, and reporting',
+      title: t('accountingModule'),
+      description: t('accountingDesc'),
       icon: BookOpen,
       path: '/accounting',
       color: 'text-purple-600',
@@ -218,8 +220,8 @@ const ModuleDashboard = () => {
     },
     {
       id: 'assets',
-      title: 'Assets & Financing',
-      description: 'Manage fixed assets, investments, loans, and financing',
+      title: t('assetsModule'),
+      description: t('assetsDesc'),
       icon: Building,
       path: '/assets',
       color: 'text-indigo-600',
@@ -228,8 +230,8 @@ const ModuleDashboard = () => {
     },
     {
       id: 'reports',
-      title: 'Reports',
-      description: 'Generate business intelligence and analytical reports',
+      title: t('reportsModule'),
+      description: t('reportsDesc'),
       icon: BarChart3,
       path: '/reports',
       color: 'text-pink-600',
@@ -238,17 +240,17 @@ const ModuleDashboard = () => {
     },
     {
       id: 'administration',
-      title: 'Administration',
+      title: t('administrationModule'),
       description: user && (user.role === 'admin' || user.role === 'manager')
-        ? 'User management, roles, permissions, and system configuration'
-        : 'Data classification and transaction deletion management',
+        ? t('administrationSubtitleAdmin')
+        : t('administrationSubtitleUser'),
       icon: Shield,
       path: '/administration',
       color: 'text-blue-600',
       bgColor: 'bg-blue-100',
       count: user && (user.role === 'admin' || user.role === 'manager') ? 3 : 2,
     },
-  ], [user]);
+  ], [user, t]);
 
   // Create Map for O(1) lookups - DSA optimization
   const moduleMap = useMemo(() => 
@@ -382,10 +384,10 @@ const ModuleDashboard = () => {
   }, [preferences, savePreferences]);
 
   const handleResetToDefault = useCallback(() => {
-    if (confirm('Reset dashboard to default layout?')) {
+    if (confirm(t('resetDashboardConfirm'))) {
       savePreferences(getDefaultPreferences());
     }
-  }, [savePreferences, getDefaultPreferences]);
+  }, [savePreferences, getDefaultPreferences, t]);
 
   const activeModule = useMemo(() => 
     orderedModules.find(m => m.id === activeId),
@@ -396,10 +398,11 @@ const ModuleDashboard = () => {
     <div className="h-screen overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col">
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200 flex-shrink-0">
-        <div className="max-w-7xl mx-auto px-6 py-3">
-          <div className="flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 py-3">
+          {/* ✅ Mobile: stack vertically. Desktop: single row — unchanged */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg flex items-center justify-center">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg flex items-center justify-center flex-shrink-0">
                 <span className="text-white font-bold text-lg">E</span>
               </div>
               <div>
@@ -408,12 +411,13 @@ const ModuleDashboard = () => {
               </div>
             </div>
             
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 flex-wrap">
               <LanguageSwitcher />
               
               {user && (
                 <>
-                  <div className="flex items-center gap-2 text-sm text-gray-600 border-l pl-3">
+                  {/* ✅ Hide name on very small screens, show on sm+ */}
+                  <div className="hidden sm:flex items-center gap-2 text-sm text-gray-600 border-l pl-3">
                     <User size={14} />
                     <span className="font-medium">{user.firstName} {user.lastName}</span>
                     <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs font-semibold">
@@ -427,7 +431,7 @@ const ModuleDashboard = () => {
                     title="Logout"
                   >
                     <LogOut size={14} />
-                    <span>Logout</span>
+                    <span>{ t('buttons_logout')}</span>
                   </button>
                 </>
               )}
@@ -438,20 +442,20 @@ const ModuleDashboard = () => {
 
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-7xl mx-auto px-6 py-8">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
           {/* Welcome Section */}
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             className="text-center mb-6"
           >
-            <h1 className="text-4xl font-bold text-gray-900 mb-2">
-              Welcome to Your ERP System
+            <h1 className="text-2xl md:text-4xl font-bold text-gray-900 mb-2">
+              {t('welcomeTitle')}
             </h1>
-            <p className="text-base text-gray-600">
+            <p className="text-sm md:text-base text-gray-600">
               {isCustomizing 
-                ? 'Drag modules to reorder • Click eye icon to hide • Click again to save'
-                : 'Select a module to get started with your business operations'}
+                ? t('welcomeCustomizing')
+                : t('welcomeSubtitle')}
             </p>
           </motion.div>
 
@@ -466,7 +470,7 @@ const ModuleDashboard = () => {
               }`}
             >
               <Settings size={16} />
-              {isCustomizing ? 'Done Customizing' : 'Customize Dashboard'}
+              {isCustomizing ? t('doneCustomizingDashboard') : t('customizeDashboard')}
             </button>
 
             {isCustomizing && (
@@ -477,7 +481,7 @@ const ModuleDashboard = () => {
                 className="flex items-center gap-2 px-4 py-2 bg-white text-gray-700 hover:bg-gray-50 rounded-lg font-medium shadow transition-all"
               >
                 <RotateCcw size={16} />
-                Reset to Default
+                {t('resetToDefault')}
               </motion.button>
             )}
           </div>
@@ -490,7 +494,7 @@ const ModuleDashboard = () => {
             onDragEnd={handleDragEnd}
           >
             <SortableContext items={orderedModules.map(m => m.id)} strategy={rectSortingStrategy}>
-              <div className="grid grid-cols-3 gap-6 mb-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
                 {orderedModules.map((module) => (
                   <SortableModuleCard
                     key={module.id}
@@ -533,7 +537,7 @@ const ModuleDashboard = () => {
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
                     <EyeOff size={20} className="text-gray-400" />
-                    Hidden Modules ({hiddenModules.length})
+                    {t('hiddenModules')} ({hiddenModules.length})
                   </h3>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

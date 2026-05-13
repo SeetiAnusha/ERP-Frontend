@@ -53,7 +53,7 @@ const ConfirmDialog = ({
   }, [isOpen, onClose, onConfirm]);
 
   const confirmButtonClass = variant === 'danger'
-    ? 'bg-red-600 hover:bg-red-700 text-white'
+    ? 'bg-blue-600 hover:bg-blue-700 text-white'
     : 'bg-blue-600 hover:bg-blue-700 text-white';
 
   return (

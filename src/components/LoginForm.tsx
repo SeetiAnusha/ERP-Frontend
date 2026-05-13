@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useLanguage } from '../contexts/LanguageContext';
 import { motion } from 'framer-motion';
 
 interface LoginFormProps {
@@ -9,6 +10,7 @@ interface LoginFormProps {
 
 const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onSwitchToRegister }) => {
   const { login, isLoading } = useAuth();
+  const { t } = useLanguage();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -32,7 +34,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onSwitchToRegister }) 
 
     // Basic validation
     if (!formData.email || !formData.password) {
-      setError('Please fill in all fields');
+      setError(t('validation_fillAllFields'));
       return;
     }
 
@@ -40,7 +42,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onSwitchToRegister }) 
       await login(formData.email, formData.password);
       onSuccess?.();
     } catch (err: any) {
-      setError(err.message || 'Login failed');
+      setError(err.message || t('errors_processPayment'));
     }
   };
 
@@ -53,8 +55,8 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onSwitchToRegister }) 
     >
       <div className="bg-white rounded-lg shadow-lg p-8">
         <div className="text-center mb-8">
-          <h2 className="text-3xl font-bold text-gray-900">Welcome Back</h2>
-          <p className="text-gray-600 mt-2">Sign in to your ERP account</p>
+          <h2 className="text-3xl font-bold text-gray-900">{t('auth_loginTitle')}</h2>
+          <p className="text-gray-600 mt-2">{t('auth_loginSubtitle')}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -70,7 +72,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onSwitchToRegister }) 
 
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-              Email Address
+              {t('labels_emailAddress')}
             </label>
             <input
               type="email"
@@ -79,14 +81,14 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onSwitchToRegister }) 
               value={formData.email}
               onChange={handleChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Enter your email"
+              placeholder={t('placeholders_enterEmail')}
               required
             />
           </div>
 
           <div>
             <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-              Password
+              {t('labels_password')}
             </label>
             <div className="relative">
               <input
@@ -137,7 +139,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onSwitchToRegister }) 
                 className="font-medium text-blue-600 hover:text-blue-500"
                 onClick={() => {
                   // TODO: Implement forgot password
-                  alert('Forgot password functionality coming soon!');
+                  alert(t('forgotPasswordComingSoon'));
                 }}
               >
                 Forgot your password?

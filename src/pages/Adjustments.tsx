@@ -8,6 +8,7 @@ import { Adjustment } from '../types';
 import { useAdjustments } from '../hooks/queries/useSharedData';
 import { useProducts } from '../hooks/queries/useProducts';
 import { usePurchases } from '../hooks/queries/usePurchases';
+import { useLanguage } from '../contexts/LanguageContext';
 import { useSales } from '../hooks/queries/useSales';
 import { extractErrorMessage } from '../utils/errorHandler';
 import { useConfirm } from '../hooks/useConfirm';
@@ -25,6 +26,7 @@ interface AdjustmentItem {
 }
 
 const Adjustments = () => {
+  const { t } = useLanguage();
   const queryClient = useQueryClient();
   
   // ✅ Confirm Dialog Hook
@@ -154,7 +156,7 @@ const Adjustments = () => {
       
       // ✅ VALIDATION: Ensure amount is greater than 0
       if (finalAmount <= 0) {
-        toast.error('Adjustment amount must be greater than 0. Please add products or enter an amount.');
+        toast.error(t('adjustmentAmountMustBeGreaterThanZero'));
         setIsSubmitting(false);
         return;
       }
@@ -183,10 +185,10 @@ const Adjustments = () => {
 
       if (editingAdjustment) {
         await updateMutation.mutateAsync({ id: editingAdjustment.id, data: adjustmentData });
-        toast.success('Adjustment updated successfully');
+        toast.success(t('successUpdate'));
       } else {
         await createMutation.mutateAsync(adjustmentData);
-        toast.success('Adjustment created successfully');
+        toast.success(t('successCreate'));
       }
       
       // ✅ FIX: Inline reset instead of calling resetForm
@@ -231,7 +233,7 @@ const Adjustments = () => {
 
     try {
       await deleteMutation.mutateAsync(id);
-      toast.success('Adjustment deleted successfully');
+      toast.success(t('successDelete'));
     } catch (error: any) {
       console.error('Error deleting adjustment:', error);
       toast.error(extractErrorMessage(error));
@@ -346,7 +348,7 @@ const Adjustments = () => {
             onClick={() => setShowModal(true)}
             className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition flex items-center gap-2"
           >
-            <FaPlus /> New Adjustment
+            <FaPlus /> {t('newAdjustment')}
           </button>
         </div>
       </div>
@@ -480,7 +482,7 @@ const Adjustments = () => {
             <div className="p-6">
               <h3 className="text-2xl font-bold mb-6 flex items-center gap-2">
                 <FaFileInvoice className="text-blue-600" />
-                {editingAdjustment ? 'Edit Adjustment' : 'New Adjustment'}
+                {editingAdjustment ? t('editAdjustment') : t('newAdjustment')}
               </h3>
 
               <form onSubmit={handleSubmit} className="space-y-6">
@@ -763,9 +765,10 @@ const Adjustments = () => {
                   </button>
                   <button
                     type="submit"
-                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                    disabled={isSubmitting}
+                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
                   >
-                    {editingAdjustment ? 'Update Adjustment' : 'Create Adjustment'}
+                    {isSubmitting ? 'Saving...' : editingAdjustment ? 'Update Adjustment' : 'Create Adjustment'}
                   </button>
                 </div>
               </form>

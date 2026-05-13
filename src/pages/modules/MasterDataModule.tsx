@@ -100,9 +100,9 @@ const MasterDataModule = () => {
     <div className="flex h-screen bg-gray-50">
       {/* Sortable Sidebar */}
       <SortableModuleSidebar
-        moduleName="Master Data"
+        moduleName={t('masterData')}
         moduleIcon="📦"
-        moduleDescription="Configure your business data"
+        moduleDescription={t('masterDataDesc')}
         orderedMenuItems={orderedMenuItems}
         hiddenMenuItems={hiddenMenuItems}
         favoriteItems={favoriteItems}
@@ -116,18 +116,19 @@ const MasterDataModule = () => {
       />
 
       {/* Main Content */}
-      <div className="flex-1 overflow-auto">
+      {/* ✅ Mobile: add top padding for hamburger button. Desktop: unchanged */}
+      <div className="flex-1 overflow-auto pt-14 md:pt-0">
         {isModuleHome ? (
           <ModuleHomeContent
-            title="Master Data Management"
-            description="Configure and manage your core business data. Select an option from the sidebar to get started."
+            title={t('masterDataTitle')}
+            description={t('masterDataSubtitle')}
             favoriteItems={favoriteItems}
             regularItems={regularItems}
             isFavorite={isFavorite}
             onToggleFavorite={toggleFavorite}
           />
         ) : (
-          <div className="p-6">
+          <div className="p-4 md:p-6">
             <Outlet />
           </div>
         )}

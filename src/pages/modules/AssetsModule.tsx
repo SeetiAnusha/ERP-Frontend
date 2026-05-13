@@ -13,8 +13,10 @@ import {
 import { useModulePreferences, MenuItem } from '../../hooks/useModulePreferences';
 import { SortableModuleSidebar } from '../../components/SortableModuleSidebar';
 import { ModuleHomeContent } from '../../components/ModuleHomeContent';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 const AssetsModule = () => {
+  const { t } = useLanguage();
   const location = useLocation();
 
   const menuItems: MenuItem[] = useMemo(() => [
@@ -86,9 +88,9 @@ const AssetsModule = () => {
   return (
     <div className="flex h-screen bg-gray-50">
       <SortableModuleSidebar
-        moduleName="Assets & Financing"
+        moduleName={t('assetsModule')}
         moduleIcon="🏢"
-        moduleDescription="Manage assets and investments"
+        moduleDescription={t('assetsDesc')}
         orderedMenuItems={orderedMenuItems}
         hiddenMenuItems={hiddenMenuItems}
         favoriteItems={favoriteItems}
@@ -101,7 +103,7 @@ const AssetsModule = () => {
         onReset={resetToDefault}
       />
 
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto pt-14 md:pt-0">
         {isModuleHome ? (
           <ModuleHomeContent
             title="Assets & Financing Management"
@@ -112,7 +114,7 @@ const AssetsModule = () => {
             onToggleFavorite={toggleFavorite}
           />
         ) : (
-          <div className="p-6">
+          <div className="p-4 md:p-6">
             <Outlet />
           </div>
         )}

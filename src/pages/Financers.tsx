@@ -94,10 +94,10 @@ const Financers = () => {
     try {
       if (editingFinancer) {
         await api.put(`/financers/${editingFinancer.id}`, formData);
-        toast.success('Financer updated successfully');
+        toast.success(t('financerUpdatedSuccess'));
       } else {
         await api.post('/financers', formData);
-        toast.success('Financer created successfully');
+        toast.success(t('financerCreatedSuccess'));
       }
       // ✅ Invalidate cache
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.financers });
@@ -127,7 +127,7 @@ const Financers = () => {
         // ✅ Invalidate cache
         queryClient.invalidateQueries({ queryKey: QUERY_KEYS.financers });
         refetch();
-        toast.success('Financer deleted successfully');
+        toast.success(t('financerDeletedSuccess'));
       } catch (error: any) {
         console.error('Error deleting financer:', error);
         toast.error(extractErrorMessage(error));

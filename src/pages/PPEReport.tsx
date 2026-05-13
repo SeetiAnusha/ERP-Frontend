@@ -186,19 +186,28 @@ const PPEReport = () => {
       <div className="bg-white rounded-xl shadow-lg overflow-hidden">
         <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
           <table className="w-full">
-            <thead className="bg-blue-900 text-white sticky top-0 z-20">
+            <thead className="bg-gray-50 border-b-2 border-gray-300 sticky top-0 z-30 shadow-sm">
               <tr>
-                <th className="px-4 py-3 text-left bg-blue-900">Code</th>
-                <th className="px-4 py-3 text-left bg-blue-900">Name</th>
-                <th className="px-4 py-3 text-left bg-blue-900">Category</th>
-                <th className="px-4 py-3 text-left bg-blue-900">Acquisition Date</th>
-                <th className="px-4 py-3 text-right bg-blue-900">Acquisition Cost</th>
-                <th className="px-4 py-3 text-right bg-blue-900">Useful Life (Years)</th>
-                <th className="px-4 py-3 text-right bg-blue-900">Monthly Depreciation</th>
-                <th className="px-4 py-3 text-right bg-blue-900">Accumulated Depreciation</th>
-                <th className="px-4 py-3 text-right bg-blue-900">Book Value</th>
-                <th className="px-4 py-3 text-right bg-blue-900">Depreciation %</th>
-                <th className="px-4 py-3 text-center bg-blue-900">Actions</th>
+                <th className="px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider bg-gray-50">Code</th>
+                <th className="px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider bg-gray-50">Name</th>
+                <th className="px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider bg-gray-50">Category</th>
+                <th className="px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider bg-gray-50">Acquisition Date</th>
+                <th className="px-4 py-3 text-right text-xs font-bold text-gray-800 uppercase tracking-wider bg-gray-50">Acquisition Cost</th>
+                <th className="px-4 py-3 text-right text-xs font-bold text-gray-800 uppercase tracking-wider bg-gray-50">Useful Life (Years)</th>
+                <th className="px-4 py-3 text-right text-xs font-bold text-gray-800 uppercase tracking-wider bg-gray-50">
+                  <div>Monthly Depreciation</div>
+                  <div className="text-xs font-normal text-gray-500 normal-case">(This month only)</div>
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-bold text-gray-800 uppercase tracking-wider bg-gray-50">
+                  <div>Accumulated Depreciation</div>
+                  <div className="text-xs font-normal text-gray-500 normal-case">(Total so far)</div>
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-bold text-gray-800 uppercase tracking-wider bg-gray-50">
+                  <div>Book Value</div>
+                  <div className="text-xs font-normal text-gray-500 normal-case">(Current value)</div>
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-bold text-gray-800 uppercase tracking-wider bg-gray-50">Depreciation %</th>
+                <th className="px-4 py-3 text-center text-xs font-bold text-gray-800 uppercase tracking-wider bg-gray-50">Actions</th>
               </tr>
             </thead>
             <tbody>

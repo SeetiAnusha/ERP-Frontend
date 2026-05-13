@@ -4,7 +4,7 @@ import { Plus, Edit, Trash2, X, Shield, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../api/axios';
 import { extractErrorMessage } from '../utils/errorHandler';
-// import { useLanguage } from '../contexts/LanguageContext';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface UserWithRole {
   user_id: number;
@@ -32,7 +32,7 @@ interface SearchUser {
 }
 
 const UserRoleManagement = () => {
-  // const { t } = useLanguage(); // Unused for now
+  const { t } = useLanguage();
   
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const [availableRoles, setAvailableRoles] = useState<AvailableRole[]>([]);
@@ -138,7 +138,7 @@ const UserRoleManagement = () => {
         canDelegate: assignForm.canDelegate,
       });
       
-      toast.success('Role assigned successfully');
+      toast.success(t('roleAssignedSuccess'));
       closeAssignModal();
       loadData();
     } catch (error: any) {
@@ -166,7 +166,7 @@ const UserRoleManagement = () => {
         reason: editLimitForm.reason,
       });
       
-      toast.success('Approval limit updated successfully');
+      toast.success(t('approvalLimitUpdatedSuccess'));
       closeEditLimitModal();
       loadData();
     } catch (error: any) {
@@ -185,7 +185,7 @@ const UserRoleManagement = () => {
       return;
     }
     
-    const reason = prompt(`Enter reason for removing role from ${userName}:`);
+    const reason = prompt(`${t('enterReasonForRemoving')} ${userName}:`);
     
     if (!reason) return;
     
@@ -198,7 +198,7 @@ const UserRoleManagement = () => {
         },
       });
       
-      toast.success('Role removed successfully');
+      toast.success(t('roleRemovedSuccess'));
       loadData();
     } catch (error: any) {
       console.error('Error removing role:', error);
@@ -209,7 +209,7 @@ const UserRoleManagement = () => {
 
   // Sync all admin/manager roles
   const handleSyncAllRoles = async () => {
-    if (!confirm('This will sync all existing admin and manager users to the user_roles table. Continue?')) {
+    if (!confirm(t('syncConfirmation'))) {
       return;
     }
     
@@ -218,7 +218,7 @@ const UserRoleManagement = () => {
       const response = await api.post('/auth/sync-admin-manager-roles');
       const result = response.data.data;
       
-      toast.success(`Sync completed!\n\nSynced: ${result.synced}\nSkipped: ${result.skipped}\nErrors: ${result.errors}`);
+      toast.success(`${t('syncCompletedSuccess')}\n\n${t('syncedLabel')}: ${result.synced}\n${t('skippedLabel')}: ${result.skipped}\n${t('errorsLabel')}: ${result.errors}`);
       loadData();
     } catch (error: any) {
       console.error('Error syncing roles:', error);
@@ -286,7 +286,7 @@ const UserRoleManagement = () => {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-        <span className="ml-3 text-gray-600">Loading user roles...</span>
+        <span className="ml-3 text-gray-600">{t('loadingUserRoles')}</span>
       </div>
     );
   }
@@ -296,7 +296,7 @@ const UserRoleManagement = () => {
       <div className="flex justify-between items-center mb-6">
         <div className="flex items-center gap-3">
           <Shield className="text-blue-600" size={32} />
-          <h1 className="text-3xl font-bold text-gray-800">User Role Management</h1>
+          <h1 className="text-3xl font-bold text-gray-800">{t('userRoleManagement')}</h1>
         </div>
         <div className="flex gap-3">
           <motion.button
@@ -306,7 +306,7 @@ const UserRoleManagement = () => {
             className="bg-green-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700 shadow-lg"
           >
             <Shield size={20} />
-            Sync All Admin/Manager Roles
+            {t('syncAllAdminManagerRoles')}
           </motion.button>
           <motion.button
             whileHover={{ scale: 1.05 }}
@@ -315,7 +315,7 @@ const UserRoleManagement = () => {
             className="bg-blue-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 shadow-lg"
           >
             <Plus size={20} />
-            Assign Role
+            {t('assignRole')}
           </motion.button>
         </div>
       </div>
@@ -328,21 +328,21 @@ const UserRoleManagement = () => {
         <div className="p-4 bg-gray-50 border-b border-gray-200">
           <div className="flex items-center gap-2 text-gray-600">
             <Users size={20} />
-            <span className="font-medium">Total Users: {users.length}</span>
+            <span className="font-medium">{t('totalUsers')}: {users.length}</span>
           </div>
         </div>
 
         <table className="w-full">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">EMAIL</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">FULL NAME</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">BASIC ROLE</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">APPROVAL ROLE</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">APPROVAL LIMIT</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">CAN DELEGATE</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">ASSIGNED AT</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">ACTIONS</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('emailHeader')}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('fullNameHeader')}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('basicRoleHeader')}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('approvalRoleHeader')}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('approvalLimitHeader')}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('canDelegateHeader')}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('assignedAtHeader')}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('actionsHeader')}</th>
             </tr>
           </thead>
           <tbody>
@@ -373,7 +373,7 @@ const UserRoleManagement = () => {
                         {user.role_display_name}
                       </span>
                     ) : (
-                      <span className="text-gray-400 italic">Not synced yet</span>
+                      <span className="text-gray-400 italic">{t('notSyncedYet')}</span>
                     )}
                   </td>
                   <td className="px-6 py-4 text-sm">
@@ -388,9 +388,9 @@ const UserRoleManagement = () => {
                   <td className="px-6 py-4 text-sm">
                     {user.can_delegate !== null ? (
                       user.can_delegate ? (
-                        <span className="text-green-600">✓ Yes</span>
+                        <span className="text-green-600">✓ {t('yesLabel')}</span>
                       ) : (
-                        <span className="text-gray-400">✗ No</span>
+                        <span className="text-gray-400">✗ {t('noLabel')}</span>
                       )
                     ) : (
                       <span className="text-gray-400">-</span>
@@ -408,7 +408,7 @@ const UserRoleManagement = () => {
                             whileTap={{ scale: 0.9 }}
                             onClick={() => openEditLimitModal(user)}
                             className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
-                            title="Edit Approval Limit"
+                            title={t('editApprovalLimit')}
                           >
                             <Edit size={18} />
                           </motion.button>
@@ -417,7 +417,7 @@ const UserRoleManagement = () => {
                             whileTap={{ scale: 0.9 }}
                             onClick={() => handleRemoveRole(user.user_id, user.role_id, user.full_name)}
                             className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                            title="Remove Role"
+                            title={t('removeRole')}
                           >
                             <Trash2 size={18} />
                           </motion.button>
@@ -450,7 +450,7 @@ const UserRoleManagement = () => {
               className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md"
             >
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold">Assign Role to User</h2>
+                <h2 className="text-2xl font-bold">{t('assignRoleToUser')}</h2>
                 <button onClick={closeAssignModal} className="text-gray-400 hover:text-gray-600">
                   <X size={24} />
                 </button>
@@ -458,7 +458,7 @@ const UserRoleManagement = () => {
               
               <form onSubmit={handleAssignRole} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">User Email *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('userEmailRequired')}</label>
                   <div className="relative">
                     <input
                       type="email"
@@ -469,7 +469,7 @@ const UserRoleManagement = () => {
                         setSearchTerm(e.target.value);
                       }}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="Search by email or name..."
+                      placeholder={t('searchByEmailOrName')}
                     />
                     {searching && (
                       <div className="absolute right-3 top-3">
@@ -496,14 +496,14 @@ const UserRoleManagement = () => {
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Role *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('roleRequired')}</label>
                   <select
                     required
                     value={assignForm.roleName}
                     onChange={(e) => setAssignForm({ ...assignForm, roleName: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="">Select a role...</option>
+                    <option value="">{t('selectARole')}</option>
                     {availableRoles.map((role) => (
                       <option key={role.role_name} value={role.role_name}>
                         {role.role_name} (Default: ${role.default_approval_limit.toLocaleString()})
@@ -519,7 +519,7 @@ const UserRoleManagement = () => {
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Custom Approval Limit (Optional)
+                    {t('customApprovalLimit')}
                   </label>
                   <input
                     type="number"
@@ -527,7 +527,7 @@ const UserRoleManagement = () => {
                     value={assignForm.customApprovalLimit}
                     onChange={(e) => setAssignForm({ ...assignForm, customApprovalLimit: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="Leave empty for default limit"
+                    placeholder={t('leaveEmptyForDefault')}
                   />
                 </div>
                 
@@ -540,7 +540,7 @@ const UserRoleManagement = () => {
                     className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                   />
                   <label htmlFor="canDelegate" className="ml-2 text-sm text-gray-700">
-                    Can delegate approval authority
+                    {t('canDelegateApproval')}
                   </label>
                 </div>
                 
@@ -557,7 +557,7 @@ const UserRoleManagement = () => {
                     disabled={isSubmitting}
                     className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
                   >
-                    {isSubmitting ? 'Assigning...' : 'Assign Role'}
+                    {isSubmitting ? t('assigning') : t('assignRoleButton')}
                   </button>
                 </div>
               </form>
@@ -584,7 +584,7 @@ const UserRoleManagement = () => {
               className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md"
             >
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold">Update Approval Limit</h2>
+                <h2 className="text-2xl font-bold">{t('updateApprovalLimit')}</h2>
                 <button onClick={closeEditLimitModal} className="text-gray-400 hover:text-gray-600">
                   <X size={24} />
                 </button>
@@ -592,16 +592,16 @@ const UserRoleManagement = () => {
               
               <form onSubmit={handleUpdateLimit} className="space-y-4">
                 <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600">User</p>
+                  <p className="text-sm text-gray-600">{t('userLabel')}</p>
                   <p className="font-semibold">{editLimitForm.userName}</p>
-                  <p className="text-sm text-gray-600 mt-2">Current Limit</p>
+                  <p className="text-sm text-gray-600 mt-2">{t('currentLimit')}</p>
                   <p className="font-semibold text-green-600">
                     ${editLimitForm.currentLimit.toLocaleString()}
                   </p>
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">New Approval Limit *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('newApprovalLimitRequired')}</label>
                   <input
                     type="number"
                     step="0.01"
@@ -609,19 +609,19 @@ const UserRoleManagement = () => {
                     value={editLimitForm.newLimit}
                     onChange={(e) => setEditLimitForm({ ...editLimitForm, newLimit: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter new limit"
+                    placeholder={t('enterNewLimit')}
                   />
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Reason for Change *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('reasonForChangeRequired')}</label>
                   <textarea
                     required
                     value={editLimitForm.reason}
                     onChange={(e) => setEditLimitForm({ ...editLimitForm, reason: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     rows={3}
-                    placeholder="Explain why this limit is being changed..."
+                    placeholder={t('explainWhyChanging')}
                   />
                 </div>
                 
@@ -638,7 +638,7 @@ const UserRoleManagement = () => {
                     disabled={isSubmitting}
                     className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
                   >
-                    {isSubmitting ? 'Updating...' : 'Update Limit'}
+                    {isSubmitting ? t('updating') : t('updateLimitButton')}
                   </button>
                 </div>
               </form>

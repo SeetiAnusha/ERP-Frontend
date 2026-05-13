@@ -46,6 +46,7 @@ const Payments = () => {
   // ✅ SHARED STATE (USED BY BOTH IMPLEMENTATIONS)
   const [showModal, setShowModal] = useState(false);
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('All');
   const [outstandingDocuments, setOutstandingDocuments] = useState<(Purchase | Sale)[]>([]);
@@ -149,6 +150,7 @@ const Payments = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return; // ✅ Prevent duplicate submissions
     
     // Validation
     if (!formData.relatedEntityId) {
@@ -161,6 +163,7 @@ const Payments = () => {
       return;
     }
     
+    setIsSubmitting(true);
     try {
       // Prepare invoice applications data
       const invoiceApplications = selectedInvoices.map(invoiceId => ({
@@ -241,7 +244,7 @@ const Payments = () => {
     if (confirmed) {
       try {
         await axios.delete(`/payments/${id}`);
-        toast.success('Payment deleted successfully');
+        toast.success(t('paymentDeletedSuccess'));
         
         // ✅ CONDITIONAL REFRESH BASED ON FEATURE FLAG
         if (useReactQuery) {

@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
 import { notify } from '../utils/notifications';
 import { useChartOfAccounts } from '../hooks/queries/useAccounting';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface OpeningBalanceEntry {
   accountCode: string;
@@ -14,6 +15,7 @@ interface OpeningBalanceEntry {
 }
 
 const OpeningBalance = () => {
+  const { t } = useLanguage();
   const queryClient = useQueryClient();
   const { data: accounts = [] } = useChartOfAccounts();
   
@@ -122,16 +124,16 @@ const OpeningBalance = () => {
           <div>
             <h2 className="text-3xl font-bold text-gray-800 flex items-center gap-3">
               <FaCalculator className="text-blue-600" />
-              Opening Balances
+              {t('openingBalance')}
             </h2>
-            <p className="text-gray-600 mt-1">Set initial account balances for your accounting system</p>
+            <p className="text-gray-600 mt-1">{t('openingBalanceDesc')}</p>
           </div>
         </div>
       </div>
 
       {/* Configuration */}
       <div className="bg-white rounded-xl shadow-lg p-6">
-        <h3 className="text-lg font-semibold mb-4">Configuration</h3>
+        <h3 className="text-lg font-semibold mb-4">{t('configuration')}</h3>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
@@ -186,13 +188,13 @@ const OpeningBalance = () => {
       {/* Entries */}
       <div className="bg-white rounded-xl shadow-lg p-6">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold">Opening Balance Entries</h3>
+          <h3 className="text-lg font-semibold">{t('openingBalanceEntries')}</h3>
           <button
             onClick={addEntry}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2"
           >
             <FaPlus />
-            Add Entry
+            {t('addEntry')}
           </button>
         </div>
 

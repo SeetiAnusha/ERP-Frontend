@@ -83,6 +83,17 @@ export const QUERY_KEYS = {
   // ✅ NEW: Investments (standalone)
   investments: ['investments'] as const,
   investment: (id: number) => ['investments', id] as const,
+  investmentDetails: (id: number) => ['investments', id, 'details'] as const,
+  
+  // ✅ NEW: Fixed Assets
+  fixedAssets: ['fixed-assets'] as const,
+  fixedAsset: (id: number) => ['fixed-assets', id] as const,
+  fixedAssetDetails: (id: number) => ['fixed-assets', id, 'details'] as const,
+  
+  // ✅ NEW: Prepaid Expenses
+  prepaidExpenses: ['prepaid-expenses'] as const,
+  prepaidExpense: (id: number) => ['prepaid-expenses', id] as const,
+  prepaidExpenseDetails: (id: number) => ['prepaid-expenses', id, 'details'] as const,
   
   // ✅ NEW: Accounting & Financial Reporting
   chartOfAccounts: ['chart-of-accounts'] as const,

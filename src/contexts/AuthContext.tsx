@@ -50,16 +50,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Check if authentication is enabled
   const isAuthEnabled = (): boolean => {
-    // TEMPORARY: Disable auth for testing
-    // return false;
-    
-    // Check environment variable first (for development)
     const envEnabled = import.meta.env.VITE_AUTH_ENABLED === 'true';
-    // Check localStorage (for runtime control)
     const localEnabled = localStorage.getItem('AUTH_ENABLED') === 'true';
-    
-    console.log('🔐 Auth Check:', { envEnabled, localEnabled, result: envEnabled || localEnabled });
-    
     return envEnabled || localEnabled;
   };
 
@@ -96,15 +88,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         
         // ✅ CRITICAL: Clear ALL cache before setting new user to prevent showing previous user's data
         queryClient.clear();
-        console.log('🗑️ [Login] Cleared all React Query cache before login');
         
         setUser(userData);
         storeToken(accessToken);
-        
-        // Enable auth flag
         localStorage.setItem('AUTH_ENABLED', 'true');
-        
-        console.log('✅ [Login] Login successful for user:', userData.email);
       } else {
         throw new Error(response.data.message || 'Login failed');
       }
@@ -139,22 +126,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Logout function
   const logout = (): void => {
-    console.log('🚪 [Logout] Starting logout process...');
-    
-    // Clear user state
     setUser(null);
     removeToken();
-    
-    // ✅ CRITICAL: Clear ALL React Query cache to prevent showing previous user's data
     queryClient.clear();
-    console.log('🗑️ [Logout] Cleared all React Query cache');
-    
-    // Call logout endpoint to clear refresh token cookie
-    axios.post('/auth/logout').catch(() => {
-      // Ignore errors on logout
-    });
-    
-    console.log('✅ [Logout] Logout complete');
+    axios.post('/auth/logout').catch(() => {});
   };
 
   // Refresh token function
@@ -280,13 +255,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     logout,
     refreshToken,
   };
-
-  console.log('🔐 Auth State:', { 
-    user: !!user, 
-    isAuthEnabled: isAuthEnabled(), 
-    isAuthenticated: !!user && isAuthEnabled(),
-    isLoading 
-  });
 
   return (
     <AuthContext.Provider value={value}>

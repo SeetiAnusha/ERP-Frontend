@@ -9,7 +9,7 @@ import { QUERY_KEYS } from '../lib/queryKeys';
 import { extractErrorMessage } from '../utils/errorHandler';
 import { useConfirm } from '../hooks/useConfirm';
 import ConfirmDialog from '../components/common/ConfirmDialog';
-// import { useLanguage } from '../contexts/LanguageContext';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface ExpenseCategory {
   id: number;
@@ -31,7 +31,7 @@ interface ExpenseType {
 }
 
 const ExpenseCategories = () => {
-  // const { t } = useLanguage();
+  const { t } = useLanguage();
   // ✅ React Query Hooks
   const { data: categories = [], isLoading, isError, refetch } = useExpenseCategories();
   const queryClient = useQueryClient();
@@ -84,12 +84,12 @@ const ExpenseCategories = () => {
     if (isSubmitting) return;
     
     if (!formData.name.trim()) {
-      toast.error('Category name is required');
+      toast.error(t('categoryNameRequired'));
       return;
     }
 
     if (!formData.code.trim()) {
-      toast.error('Category code is required');
+      toast.error(t('categoryCodeRequired'));
       return;
     }
 
@@ -105,10 +105,10 @@ const ExpenseCategories = () => {
 
       if (editingCategory) {
         await api.put(`/expenses/categories/${editingCategory.id}`, submitData);
-        toast.success('Category updated successfully');
+        toast.success(t('categoryUpdatedSuccess'));
       } else {
         await api.post('/expenses/categories', submitData);
-        toast.success('Category created successfully');
+        toast.success(t('categoryCreatedSuccess'));
       }
       
       // ✅ Invalidate cache
@@ -128,12 +128,12 @@ const ExpenseCategories = () => {
     e.preventDefault();
     
     if (!newTypeData.name.trim() || !selectedCategory) {
-      toast.error('Type name is required');
+      toast.error(t('typeNameRequired'));
       return;
     }
 
     if (!newTypeData.code.trim()) {
-      toast.error('Type code is required');
+      toast.error(t('typeCodeRequired'));
       return;
     }
 
@@ -147,7 +147,7 @@ const ExpenseCategories = () => {
       };
 
       await api.post('/expenses/types', submitData);
-      toast.success('Expense type added successfully');
+      toast.success(t('expenseTypeAddedSuccess'));
       
       // ✅ FIX: Invalidate categories cache to update the count
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenseCategories });
@@ -176,7 +176,7 @@ const ExpenseCategories = () => {
 
     try {
       await api.delete(`/expenses/categories/${id}`);
-      toast.success('Category deleted successfully');
+      toast.success(t('categoryDeletedSuccess'));
       // ✅ Invalidate cache
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenseCategories });
       refetch();

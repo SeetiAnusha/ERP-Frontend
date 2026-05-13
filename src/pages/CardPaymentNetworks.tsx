@@ -6,6 +6,8 @@ import api from '../api/axios';
 import { notify } from '../utils/notifications';
 import { usePaymentNetworks } from '../hooks/queries/useSharedData';
 import { QUERY_KEYS } from '../lib/queryKeys';
+import { useConfirm } from '../hooks/useConfirm';
+import ConfirmDialog from '../components/common/ConfirmDialog';
 
 interface CardPaymentNetwork {
   id: number;
@@ -21,6 +23,7 @@ interface CardPaymentNetwork {
 
 const CardPaymentNetworks = () => {
   const queryClient = useQueryClient();
+  const { confirm, dialogProps } = useConfirm();
   
   // ✅ REACT QUERY: Use shared data hook instead of local state
   const { data: networks = [], isLoading, isError } = usePaymentNetworks();
@@ -76,23 +79,29 @@ const CardPaymentNetworks = () => {
     setShowModal(true);
   }, []);
 
-  // ✅ MEMOIZED: Handle delete
+  // ✅ MEMOIZED: Handle delete - NO MORE window.confirm!
   const handleDelete = useCallback(async (id: number) => {
-    if (!confirm('Are you sure you want to delete this payment network?')) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: 'Delete Payment Network',
+      message: 'Are you sure you want to delete this payment network? This action cannot be undone.',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      variant: 'danger'
+    });
 
-    try {
-      await api.delete(`/card-payment-networks/${id}`);
-      notify.success('Payment network deleted successfully');
-      
-      // ✅ REACT QUERY: Cache invalidation for automatic UI updates
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.paymentNetworks });
-    } catch (error: any) {
-      console.error('Error deleting payment network:', error);
-      notify.error(error.response?.data?.error || 'Failed to delete payment network');
+    if (confirmed) {
+      try {
+        await api.delete(`/card-payment-networks/${id}`);
+        notify.success('Payment network deleted successfully');
+        
+        // ✅ REACT QUERY: Cache invalidation for automatic UI updates
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.paymentNetworks });
+      } catch (error: any) {
+        console.error('Error deleting payment network:', error);
+        notify.error(error.response?.data?.error || 'Failed to delete payment network');
+      }
     }
-  }, [queryClient]);
+  }, [confirm, queryClient]);
 
   // ✅ MEMOIZED: Initialize defaults
   const initializeDefaults = useCallback(async () => {
@@ -455,6 +464,9 @@ const CardPaymentNetworks = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog {...dialogProps} />
     </div>
   );
 };
