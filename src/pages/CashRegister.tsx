@@ -904,11 +904,15 @@ const CashRegister: React.FC = () => {
     let totalInflow = 0;
     let totalOutflow = 0;
     let totalBankDeposits = 0;
+    let totalBankDepositsPreviousDay = 0;
+    let totalBankDepositsSameDay = 0;
     const allBankDeposits: Array<{ bankName: string; accountNumber: string; amount: number; storeName: string }> = [];
 
     storeReports.forEach((store: any) => {
       totalInflow += store.inflow;
       totalOutflow += store.outflow;
+      totalBankDepositsPreviousDay += store.outflowBreakdown.bankDeposits.previousDay.total;
+      totalBankDepositsSameDay += store.outflowBreakdown.bankDeposits.sameDay.total;
       store.bankDeposits.forEach((deposit: any) => {
         totalBankDeposits += deposit.amount;
         allBankDeposits.push({
@@ -927,6 +931,8 @@ const CashRegister: React.FC = () => {
       totalInflow,
       totalOutflow,
       totalBankDeposits,
+      totalBankDepositsPreviousDay,
+      totalBankDepositsSameDay,
       netMovement: totalInflow - totalOutflow,
       allBankDeposits,
       transactionCount: txs.length
@@ -2088,6 +2094,7 @@ const CashRegister: React.FC = () => {
                     <div className="text-center">
                       <p className="text-xs text-gray-600 mb-1">Bank Deposits</p>
                       <p className="text-2xl font-bold text-blue-600">{formatNumber(report.totalBankDeposits)}</p>
+                      <p className="text-[10px] text-gray-500 mt-0.5">all stores, today</p>
                     </div>
                     <div className="text-center">
                       <p className="text-xs text-gray-600 mb-1">Net Movement</p>
@@ -2096,6 +2103,53 @@ const CashRegister: React.FC = () => {
                       </p>
                     </div>
                   </div>
+                  {report.totalBankDeposits > 0 && (
+                    <div className="mt-4 pt-4 border-t border-gray-300 rounded-lg bg-white/80 p-4 text-sm">
+                      <p className="font-semibold text-gray-800 mb-2">
+                        Bank deposit outflows on{' '}
+                        {new Date(reportDate + 'T12:00:00').toLocaleDateString(undefined, {
+                          weekday: 'short',
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric'
+                        })}
+                      </p>
+                      <p className="text-xs text-gray-600 mb-3">
+                        Money physically moved to the bank today. Split by whether the cash came from{' '}
+                        <span className="font-medium">earlier sales (previous days)</span> or from{' '}
+                        <span className="font-medium">today&apos;s register (same calendar day)</span>.
+                      </p>
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                          <span className="text-gray-800 text-left flex-1 pr-2">
+                            Cash outflows — previous day&apos;s register cash deposited today
+                          </span>
+                          <span className="font-bold text-blue-800 whitespace-nowrap">
+                            {formatNumber(report.totalBankDepositsPreviousDay)}
+                            <span className="text-xs font-normal text-gray-600 ml-1">(out)</span>
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                          <span className="text-gray-800 text-left flex-1 pr-2">
+                            Cash outflows — current day&apos;s register (deposit same day)
+                          </span>
+                          <span className="font-bold text-emerald-800 whitespace-nowrap">
+                            {formatNumber(report.totalBankDepositsSameDay)}
+                            <span className="text-xs font-normal text-gray-600 ml-1">(out)</span>
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center gap-2 bg-gray-100 border border-gray-300 rounded-lg px-3 py-2 font-semibold">
+                          <span className="text-gray-900">Total bank deposit outflows</span>
+                          <span className="text-blue-700">
+                            {formatNumber(report.totalBankDeposits)}
+                            <span className="text-xs font-normal text-gray-600 ml-1">
+                              (= previous + today)
+                            </span>
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Per-Store Breakdown */}
@@ -2211,23 +2265,63 @@ const CashRegister: React.FC = () => {
                                 TODAY'S OUTFLOWS (Detailed Breakdown)
                               </h6>
                               
-                              {/* Bank Deposits with Sales Date vs Deposit Date */}
+                              {/* Bank deposits: previous-day vs same-day (client wording) */}
                               {store.outflowBreakdown.bankDeposits.count > 0 && (
                                 <div className="mb-3">
-                                  <div className="flex justify-between items-center text-sm font-semibold mb-2 bg-white p-2 rounded">
-                                    <span className="text-gray-700">🏦 Bank Deposits:</span>
+                                  <p className="text-xs text-gray-600 mb-2 px-1">
+                                    Deposits are cash <span className="font-medium text-red-800">out of the register</span>{' '}
+                                    on the report date. Totals below split{' '}
+                                    <span className="font-medium">yesterday / earlier sales</span> vs{' '}
+                                    <span className="font-medium">today&apos;s sales</span>.
+                                  </p>
+                                  <div className="flex justify-between items-center text-sm font-semibold mb-2 bg-white p-2 rounded border border-red-100">
+                                    <span className="text-gray-700">🏦 Bank deposits (total)</span>
                                     <span className="text-red-600">
                                       {formatNumber(store.outflowBreakdown.bankDeposits.total)}
                                       <span className="text-xs text-gray-500 ml-1">({store.outflowBreakdown.bankDeposits.count})</span>
                                     </span>
                                   </div>
-                                  
-                                  {/* Previous Day Deposits */}
+
+                                  <div className="space-y-2 mb-3">
+                                    <div className="flex justify-between items-start gap-2 text-sm bg-blue-50 border border-blue-200 rounded p-2 ml-1">
+                                      <span className="text-gray-800 leading-snug flex-1">
+                                        Cash outflows — previous day&apos;s register cash deposited today
+                                      </span>
+                                      <span className="font-bold text-blue-900 whitespace-nowrap">
+                                        {formatNumber(store.outflowBreakdown.bankDeposits.previousDay.total)}
+                                        <span className="text-xs font-normal text-gray-600 block text-right">
+                                          ({store.outflowBreakdown.bankDeposits.previousDay.count} txn)
+                                        </span>
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between items-start gap-2 text-sm bg-emerald-50 border border-emerald-200 rounded p-2 ml-1">
+                                      <span className="text-gray-800 leading-snug flex-1">
+                                        Cash outflows — current day&apos;s register (deposit same day)
+                                      </span>
+                                      <span className="font-bold text-emerald-900 whitespace-nowrap">
+                                        {formatNumber(store.outflowBreakdown.bankDeposits.sameDay.total)}
+                                        <span className="text-xs font-normal text-gray-600 block text-right">
+                                          ({store.outflowBreakdown.bankDeposits.sameDay.count} txn)
+                                        </span>
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs font-semibold text-gray-700 bg-gray-100 rounded px-2 py-1.5 ml-1 border border-gray-200">
+                                      <span>Subtotal — bank deposits (previous + today)</span>
+                                      <span className="text-red-700">
+                                        {formatNumber(
+                                          store.outflowBreakdown.bankDeposits.previousDay.total +
+                                            store.outflowBreakdown.bankDeposits.sameDay.total
+                                        )}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {/* Previous day deposit lines */}
                                   {store.outflowBreakdown.bankDeposits.previousDay.count > 0 && (
-                                    <div className="ml-4 mb-3">
-                                      <div className="text-xs font-semibold text-blue-700 mb-2 flex items-center gap-1">
+                                    <div className="ml-2 mb-3">
+                                      <div className="text-xs font-semibold text-blue-800 mb-2 flex items-center gap-1">
                                         <span>🔵</span>
-                                        Previous Day Deposits: {formatNumber(store.outflowBreakdown.bankDeposits.previousDay.total)} ({store.outflowBreakdown.bankDeposits.previousDay.count})
+                                        Detail: money from earlier sales, deposited today
                                       </div>
                                       {store.outflowBreakdown.bankDeposits.previousDay.deposits.map((deposit: any, idx: number) => (
                                         <div key={idx} className="bg-blue-100 rounded p-3 mb-2 text-xs border border-blue-300">
@@ -2236,19 +2330,22 @@ const CashRegister: React.FC = () => {
                                           </div>
                                           <div className="grid grid-cols-2 gap-2 text-xs">
                                             <div className="text-gray-700">
-                                              <span className="font-medium">Sales Date:</span> {deposit.salesDate.toLocaleDateString()}
+                                              <span className="font-medium">Sales / cash date:</span>{' '}
+                                              {deposit.salesDate.toLocaleDateString()}
                                             </div>
                                             <div className="text-gray-700">
-                                              <span className="font-medium">Deposit Date:</span> {deposit.depositDate.toLocaleDateString()}
+                                              <span className="font-medium">Deposit date:</span>{' '}
+                                              {deposit.depositDate.toLocaleDateString()}
                                             </div>
                                             <div className="text-gray-700">
-                                              <span className="font-medium">Days Difference:</span> {deposit.daysDifference} day(s)
+                                              <span className="font-medium">Days difference:</span> {deposit.daysDifference}{' '}
+                                              day(s)
                                             </div>
                                             <div className="text-gray-700">
                                               <span className="font-medium">Time:</span> {deposit.depositTime}
                                             </div>
                                             <div className="text-gray-700">
-                                              <span className="font-medium">Deposited By:</span> {deposit.depositedBy}
+                                              <span className="font-medium">Deposited by:</span> {deposit.depositedBy}
                                             </div>
                                             <div className="text-gray-700">
                                               <span className="font-medium">Bank:</span> {deposit.bankName}
@@ -2261,31 +2358,33 @@ const CashRegister: React.FC = () => {
                                       ))}
                                     </div>
                                   )}
-                                  
-                                  {/* Same Day Deposits */}
+
+                                  {/* Same-day deposit lines */}
                                   {store.outflowBreakdown.bankDeposits.sameDay.count > 0 && (
-                                    <div className="ml-4">
-                                      <div className="text-xs font-semibold text-green-700 mb-2 flex items-center gap-1">
+                                    <div className="ml-2 mb-1">
+                                      <div className="text-xs font-semibold text-emerald-800 mb-2 flex items-center gap-1">
                                         <span>🟢</span>
-                                        Same Day Deposits: {formatNumber(store.outflowBreakdown.bankDeposits.sameDay.total)} ({store.outflowBreakdown.bankDeposits.sameDay.count})
+                                        Detail: today&apos;s register cash, deposited same day
                                       </div>
                                       {store.outflowBreakdown.bankDeposits.sameDay.deposits.map((deposit: any, idx: number) => (
-                                        <div key={idx} className="bg-green-100 rounded p-3 mb-2 text-xs border border-green-300">
-                                          <div className="font-semibold text-green-900 mb-2">
+                                        <div key={idx} className="bg-emerald-100 rounded p-3 mb-2 text-xs border border-emerald-300">
+                                          <div className="font-semibold text-emerald-900 mb-2">
                                             Deposit #{idx + 1}: {formatNumber(deposit.amount)}
                                           </div>
                                           <div className="grid grid-cols-2 gap-2 text-xs">
                                             <div className="text-gray-700">
-                                              <span className="font-medium">Sales Date:</span> {deposit.salesDate.toLocaleDateString()}
+                                              <span className="font-medium">Sales / cash date:</span>{' '}
+                                              {deposit.salesDate.toLocaleDateString()}
                                             </div>
                                             <div className="text-gray-700">
-                                              <span className="font-medium">Deposit Date:</span> {deposit.depositDate.toLocaleDateString()}
+                                              <span className="font-medium">Deposit date:</span>{' '}
+                                              {deposit.depositDate.toLocaleDateString()}
                                             </div>
                                             <div className="text-gray-700">
                                               <span className="font-medium">Time:</span> {deposit.depositTime}
                                             </div>
                                             <div className="text-gray-700">
-                                              <span className="font-medium">Deposited By:</span> {deposit.depositedBy}
+                                              <span className="font-medium">Deposited by:</span> {deposit.depositedBy}
                                             </div>
                                             <div className="text-gray-700">
                                               <span className="font-medium">Bank:</span> {deposit.bankName}
@@ -2402,22 +2501,55 @@ const CashRegister: React.FC = () => {
                 {/* Bank Deposit Summary */}
                 {report.allBankDeposits.length > 0 && (
                   <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-200">
-                    <h4 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                    <h4 className="text-lg font-bold text-gray-800 mb-2 flex items-center gap-2">
                       <span>🏦</span>
                       Bank Deposit Summary
                     </h4>
+                    <p className="text-xs text-gray-600 mb-4">
+                      Totals by category (all stores). Each line is cash taken from a register and sent to the bank on
+                      this report date.
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4 text-sm">
+                      <div className="bg-blue-100 border border-blue-200 rounded-lg p-3 text-center">
+                        <div className="text-[11px] text-blue-900 font-medium leading-tight mb-1">
+                          Previous day&apos;s register — deposited today
+                        </div>
+                        <div className="text-lg font-bold text-blue-800">
+                          {formatNumber(report.totalBankDepositsPreviousDay)}
+                        </div>
+                      </div>
+                      <div className="bg-emerald-100 border border-emerald-200 rounded-lg p-3 text-center">
+                        <div className="text-[11px] text-emerald-900 font-medium leading-tight mb-1">
+                          Current day&apos;s register — same-day deposit
+                        </div>
+                        <div className="text-lg font-bold text-emerald-800">
+                          {formatNumber(report.totalBankDepositsSameDay)}
+                        </div>
+                      </div>
+                      <div className="bg-gray-100 border border-gray-300 rounded-lg p-3 text-center">
+                        <div className="text-[11px] text-gray-800 font-medium leading-tight mb-1">Total (previous + today)</div>
+                        <div className="text-lg font-bold text-gray-900">{formatNumber(report.totalBankDeposits)}</div>
+                      </div>
+                    </div>
                     <div className="space-y-2">
                       {report.allBankDeposits.map((deposit: any, idx: number) => (
-                        <div key={idx} className="flex justify-between items-center bg-white p-3 rounded-lg">
-                          <div>
+                        <div key={idx} className="flex justify-between items-center bg-white p-3 rounded-lg gap-2">
+                          <div className="min-w-0 flex-1">
+                            <span
+                              className={`inline-block text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded mr-2 ${
+                                deposit.isPreviousDay ? 'bg-blue-200 text-blue-900' : 'bg-emerald-200 text-emerald-900'
+                              }`}
+                            >
+                              {deposit.isPreviousDay ? 'Earlier sales' : 'Same day'}
+                            </span>
                             <span className="font-medium text-gray-800">{deposit.bankName} (****{deposit.accountNumber})</span>
-                            <span className="text-xs text-gray-500 ml-2">from {deposit.storeName}</span>
+                            <span className="text-xs text-gray-500 ml-2 block sm:inline sm:ml-2">from {deposit.storeName}</span>
                           </div>
-                          <span className="font-bold text-blue-600">{formatNumber(deposit.amount)}</span>
+                          <span className="font-bold text-blue-600 shrink-0">{formatNumber(deposit.amount)}</span>
                         </div>
                       ))}
                       <div className="flex justify-between items-center bg-blue-100 p-3 rounded-lg font-bold border-t-2 border-blue-300">
-                        <span className="text-gray-800">Total Deposited:</span>
+                        <span className="text-gray-800">Total deposited (all lines above)</span>
                         <span className="text-blue-700 text-xl">{formatNumber(report.totalBankDeposits)}</span>
                       </div>
                     </div>
