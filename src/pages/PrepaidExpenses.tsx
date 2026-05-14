@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, Edit, Trash2, X, Calendar, TrendingUp, AlertCircle, DollarSign } from 'lucide-react';
-import { toast } from 'sonner';
+import { Plus, Search, Edit, Trash2, Calendar, TrendingUp, AlertCircle, DollarSign } from 'lucide-react';
 import api from '../api/axios';
 import { extractErrorMessage } from '../utils/errorHandler';
 import { useConfirm } from '../hooks/useConfirm';
@@ -131,10 +130,11 @@ const PrepaidExpenses = () => {
       const data = {
         ...formData,
         totalAmount: parseFloat(formData.totalAmount),
-        // ✅ Convert all integer fields — empty string → null to prevent "invalid input syntax for type integer"
-        supplierId: formData.supplierId && formData.supplierId !== '' ? parseInt(formData.supplierId) : null,
-        bankAccountId: formData.bankAccountId && formData.bankAccountId !== '' ? parseInt(formData.bankAccountId) : null,
-        cardId: formData.cardId && formData.cardId !== '' ? parseInt(formData.cardId) : null,
+        category: formData.type, // Add category field
+        // ✅ Convert all integer fields — empty string → undefined to prevent type errors
+        supplierId: formData.supplierId && formData.supplierId !== '' ? parseInt(formData.supplierId) : undefined,
+        bankAccountId: formData.bankAccountId && formData.bankAccountId !== '' ? parseInt(formData.bankAccountId) : undefined,
+        cardId: formData.cardId && formData.cardId !== '' ? parseInt(formData.cardId) : undefined,
       };
 
       // ✅ Use React Query mutations instead of manual API calls

@@ -105,11 +105,11 @@ const Investments = () => {
         // ✅ Only send interestRate if it has a value
         interestRate: formData.interestRate && formData.interestRate.trim() !== '' 
           ? parseFloat(formData.interestRate) 
-          : null,
-        // ✅ Only send maturityDate if it has a value, otherwise send null
+          : undefined,
+        // ✅ Only send maturityDate if it has a value, otherwise send undefined
         maturityDate: formData.maturityDate && formData.maturityDate.trim() !== '' 
           ? formData.maturityDate 
-          : null,
+          : undefined,
         // ✅ Convert all integer fields — empty string → null to prevent "invalid input syntax for type integer"
         supplierId: formData.supplierId && formData.supplierId !== '' ? parseInt(formData.supplierId) : null,
         bankAccountId: formData.bankAccountId && formData.bankAccountId !== '' ? parseInt(formData.bankAccountId) : null,

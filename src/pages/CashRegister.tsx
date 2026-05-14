@@ -668,7 +668,7 @@ const CashRegister: React.FC = () => {
     }
   }, [formData.amount, selectedInvoices, formData.customerId, formData.relatedDocumentType]);
 
-  // ✅ PROFESSIONAL: Generate comprehensive report grouped by store
+  // ✅ PROFESSIONAL: Generate comprehensive report grouped by store with DETAILED BREAKDOWN
   const generateProfessionalReport = useCallback(() => {
     const safeTransactions = Array.isArray(transactions) ? transactions : [];
     const selectedDate = new Date(reportDate);
@@ -756,7 +756,7 @@ const CashRegister: React.FC = () => {
       return prevDayInflow - prevDayOutflow;
     };
     
-    // Initialize all cash registers with calculated opening balance
+    // Initialize all cash registers with calculated opening balance and detailed breakdown
     cashRegisterMasters.forEach(register => {
       const openingBalance = calculateOpeningBalance(register.id);
       
@@ -765,36 +765,123 @@ const CashRegister: React.FC = () => {
         name: register.name,
         code: register.code,
         location: register.location,
-        openingBalance, // ✅ FIXED: Use calculated opening balance from previous day
+        openingBalance,
+        // Detailed INFLOW breakdown
+        inflowBreakdown: {
+          sales: { total: 0, count: 0, transactions: [] },
+          arCollections: { total: 0, count: 0, transactions: [] },
+          contributions: { total: 0, count: 0, transactions: [] },
+          loans: { total: 0, count: 0, transactions: [] },
+          other: { total: 0, count: 0, transactions: [] }
+        },
+        // Detailed OUTFLOW breakdown
+        outflowBreakdown: {
+          bankDeposits: {
+            total: 0,
+            count: 0,
+            previousDay: { total: 0, count: 0, deposits: [] },
+            sameDay: { total: 0, count: 0, deposits: [] }
+          },
+          cashRefunds: { total: 0, count: 0, transactions: [] },
+          corrections: { total: 0, count: 0, transactions: [] },
+          other: { total: 0, count: 0, transactions: [] }
+        },
         inflow: 0,
         inflowCount: 0,
         outflow: 0,
         outflowCount: 0,
-        bankDeposits: [] as Array<{ bankName: string; accountNumber: string; amount: number }>,
-        transactions: [] as typeof safeTransactions
+        bankDeposits: [],
+        transactions: []
       });
     });
 
-    // Process transactions
+    // Process transactions with DETAILED categorization
     filtered.forEach(t => {
       if (t.cashRegisterId && storeReports.has(t.cashRegisterId)) {
         const store = storeReports.get(t.cashRegisterId);
         store.transactions.push(t);
+        const amount = parseFloat(t.amount.toString()) || 0;
         
         if (t.transactionType === 'INFLOW') {
-          store.inflow += parseFloat(t.amount.toString());
+          store.inflow += amount;
           store.inflowCount++;
+          
+          // Categorize by transaction type
+          const docType = (t.relatedDocumentType || '').toUpperCase();
+          if (docType === 'SALE') {
+            store.inflowBreakdown.sales.total += amount;
+            store.inflowBreakdown.sales.count++;
+            store.inflowBreakdown.sales.transactions.push(t);
+          } else if (docType === 'AR_COLLECTION') {
+            store.inflowBreakdown.arCollections.total += amount;
+            store.inflowBreakdown.arCollections.count++;
+            store.inflowBreakdown.arCollections.transactions.push(t);
+          } else if (docType === 'CONTRIBUTION') {
+            store.inflowBreakdown.contributions.total += amount;
+            store.inflowBreakdown.contributions.count++;
+            store.inflowBreakdown.contributions.transactions.push(t);
+          } else if (docType === 'LOAN') {
+            store.inflowBreakdown.loans.total += amount;
+            store.inflowBreakdown.loans.count++;
+            store.inflowBreakdown.loans.transactions.push(t);
+          } else {
+            store.inflowBreakdown.other.total += amount;
+            store.inflowBreakdown.other.count++;
+            store.inflowBreakdown.other.transactions.push(t);
+          }
         } else if (t.transactionType === 'OUTFLOW') {
-          store.outflow += parseFloat(t.amount.toString());
+          store.outflow += amount;
           store.outflowCount++;
           
-          // Track bank deposits
+          // Track bank deposits with sales date vs deposit date
           if (t.paymentMethod === 'BANK_DEPOSIT' && t.bankAccount) {
-            store.bankDeposits.push({
+            // Determine sales date and deposit date
+            const salesDate = t.sales_date ? new Date(t.sales_date) : new Date(t.registrationDate);
+            const depositDate = t.deposit_date ? new Date(t.deposit_date) : new Date(t.registrationDate);
+            
+            // Calculate days difference
+            const daysDiff = Math.floor((depositDate.getTime() - salesDate.getTime()) / (1000 * 60 * 60 * 24));
+            const isPreviousDay = daysDiff > 0;
+            
+            const depositInfo = {
+              amount,
+              salesDate,
+              depositDate,
+              daysDifference: daysDiff,
+              isPreviousDay,
+              depositTime: t.deposit_time || 'N/A',
+              depositedBy: t.deposited_by || 'N/A',
+              referenceNumber: t.deposit_reference_number || t.registrationNumber,
               bankName: t.bankAccount.bankName,
               accountNumber: t.bankAccount.accountNumber,
-              amount: parseFloat(t.amount.toString())
-            });
+              transaction: t
+            };
+            
+            store.bankDeposits.push(depositInfo);
+            store.outflowBreakdown.bankDeposits.total += amount;
+            store.outflowBreakdown.bankDeposits.count++;
+            
+            if (isPreviousDay) {
+              store.outflowBreakdown.bankDeposits.previousDay.total += amount;
+              store.outflowBreakdown.bankDeposits.previousDay.count++;
+              store.outflowBreakdown.bankDeposits.previousDay.deposits.push(depositInfo);
+            } else {
+              store.outflowBreakdown.bankDeposits.sameDay.total += amount;
+              store.outflowBreakdown.bankDeposits.sameDay.count++;
+              store.outflowBreakdown.bankDeposits.sameDay.deposits.push(depositInfo);
+            }
+          } else if (t.paymentMethod === 'CASH_REFUND') {
+            store.outflowBreakdown.cashRefunds.total += amount;
+            store.outflowBreakdown.cashRefunds.count++;
+            store.outflowBreakdown.cashRefunds.transactions.push(t);
+          } else if (t.paymentMethod === 'CORRECTION') {
+            store.outflowBreakdown.corrections.total += amount;
+            store.outflowBreakdown.corrections.count++;
+            store.outflowBreakdown.corrections.transactions.push(t);
+          } else {
+            store.outflowBreakdown.other.total += amount;
+            store.outflowBreakdown.other.count++;
+            store.outflowBreakdown.other.transactions.push(t);
           }
         }
       }
@@ -1997,55 +2084,248 @@ const CashRegister: React.FC = () => {
 
                           {/* Store Details */}
                           <div className="p-4 bg-white">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                              {/* Left Column */}
-                              <div className="space-y-3">
-                                <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                                  <span className="text-sm text-gray-600">Opening Balance:</span>
-                                  <span className="text-lg font-semibold text-gray-800">{formatNumber(store.openingBalance)}</span>
-                                </div>
-                                <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                                  <span className="text-sm text-green-700">Cash Inflow:</span>
-                                  <span className="text-lg font-semibold text-green-600">
-                                    +{formatNumber(store.inflow)} <span className="text-xs text-gray-500">({store.inflowCount})</span>
-                                  </span>
-                                </div>
-                                <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                                  <span className="text-sm text-red-700">Cash Outflow:</span>
-                                  <span className="text-lg font-semibold text-red-600">
-                                    -{formatNumber(store.outflow)} <span className="text-xs text-gray-500">({store.outflowCount})</span>
-                                  </span>
-                                </div>
-                                <div className="flex justify-between items-center py-2 bg-blue-50 px-3 rounded">
-                                  <span className="text-sm font-medium text-blue-900">Expected Balance:</span>
-                                  <span className="text-xl font-bold text-blue-700">{formatNumber(expectedBalance)}</span>
-                                </div>
+                            {/* Opening Balance */}
+                            <div className="bg-blue-50 rounded-lg p-4 mb-4 border border-blue-200">
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm font-semibold text-blue-900">📊 Opening Balance:</span>
+                                <span className="text-2xl font-bold text-blue-700">{formatNumber(store.openingBalance)}</span>
                               </div>
+                            </div>
 
-                              {/* Right Column - Bank Deposits */}
-                              <div className="bg-gray-50 rounded-lg p-4">
-                                <p className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                                  <span>💸</span>
-                                  Bank Deposits Made:
-                                </p>
-                                {store.bankDeposits.length === 0 ? (
-                                  <p className="text-sm text-gray-500 italic">No deposits made today</p>
-                                ) : (
-                                  <div className="space-y-2">
-                                    {store.bankDeposits.map((deposit: any, idx: number) => (
-                                      <div key={idx} className="flex justify-between items-center text-sm bg-white p-2 rounded">
-                                        <span className="text-gray-700">
-                                          → {deposit.bankName} (****{deposit.accountNumber})
-                                        </span>
-                                        <span className="font-semibold text-gray-800">{formatNumber(deposit.amount)}</span>
-                                      </div>
-                                    ))}
-                                    <div className="flex justify-between items-center text-sm font-bold pt-2 border-t border-gray-300">
-                                      <span className="text-gray-700">Total Deposited:</span>
-                                      <span className="text-blue-600">{formatNumber(store.bankDeposits.reduce((sum: number, d: any) => sum + d.amount, 0))}</span>
-                                    </div>
+                            {/* DETAILED INFLOW BREAKDOWN */}
+                            <div className="bg-green-50 rounded-lg p-4 mb-4 border border-green-200">
+                              <h6 className="text-sm font-bold text-green-900 mb-3 flex items-center gap-2">
+                                <span>📈</span>
+                                TODAY'S INFLOWS (Detailed Breakdown)
+                              </h6>
+                              <div className="space-y-2">
+                                {store.inflowBreakdown.sales.count > 0 && (
+                                  <div className="flex justify-between items-center text-sm bg-white p-2 rounded">
+                                    <span className="text-gray-700">💰 Sales:</span>
+                                    <span className="font-semibold text-green-600">
+                                      {formatNumber(store.inflowBreakdown.sales.total)} 
+                                      <span className="text-xs text-gray-500 ml-1">({store.inflowBreakdown.sales.count})</span>
+                                    </span>
                                   </div>
                                 )}
+                                {store.inflowBreakdown.arCollections.count > 0 && (
+                                  <div className="flex justify-between items-center text-sm bg-white p-2 rounded">
+                                    <span className="text-gray-700">💳 AR Collections:</span>
+                                    <span className="font-semibold text-green-600">
+                                      {formatNumber(store.inflowBreakdown.arCollections.total)}
+                                      <span className="text-xs text-gray-500 ml-1">({store.inflowBreakdown.arCollections.count})</span>
+                                    </span>
+                                  </div>
+                                )}
+                                {store.inflowBreakdown.contributions.count > 0 && (
+                                  <div className="flex justify-between items-center text-sm bg-white p-2 rounded">
+                                    <span className="text-gray-700">🏦 Contributions:</span>
+                                    <span className="font-semibold text-green-600">
+                                      {formatNumber(store.inflowBreakdown.contributions.total)}
+                                      <span className="text-xs text-gray-500 ml-1">({store.inflowBreakdown.contributions.count})</span>
+                                    </span>
+                                  </div>
+                                )}
+                                {store.inflowBreakdown.loans.count > 0 && (
+                                  <div className="flex justify-between items-center text-sm bg-white p-2 rounded">
+                                    <span className="text-gray-700">💵 Loans:</span>
+                                    <span className="font-semibold text-green-600">
+                                      {formatNumber(store.inflowBreakdown.loans.total)}
+                                      <span className="text-xs text-gray-500 ml-1">({store.inflowBreakdown.loans.count})</span>
+                                    </span>
+                                  </div>
+                                )}
+                                {store.inflowBreakdown.other.count > 0 && (
+                                  <div className="flex justify-between items-center text-sm bg-white p-2 rounded">
+                                    <span className="text-gray-700">📝 Other:</span>
+                                    <span className="font-semibold text-green-600">
+                                      {formatNumber(store.inflowBreakdown.other.total)}
+                                      <span className="text-xs text-gray-500 ml-1">({store.inflowBreakdown.other.count})</span>
+                                    </span>
+                                  </div>
+                                )}
+                                <div className="flex justify-between items-center text-sm font-bold pt-2 border-t-2 border-green-300 bg-green-100 p-2 rounded">
+                                  <span className="text-green-900">Total Inflow:</span>
+                                  <span className="text-green-700 text-lg">
+                                    +{formatNumber(store.inflow)}
+                                    <span className="text-xs text-gray-600 ml-1">({store.inflowCount})</span>
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* DETAILED OUTFLOW BREAKDOWN */}
+                            <div className="bg-red-50 rounded-lg p-4 mb-4 border border-red-200">
+                              <h6 className="text-sm font-bold text-red-900 mb-3 flex items-center gap-2">
+                                <span>📉</span>
+                                TODAY'S OUTFLOWS (Detailed Breakdown)
+                              </h6>
+                              
+                              {/* Bank Deposits with Sales Date vs Deposit Date */}
+                              {store.outflowBreakdown.bankDeposits.count > 0 && (
+                                <div className="mb-3">
+                                  <div className="flex justify-between items-center text-sm font-semibold mb-2 bg-white p-2 rounded">
+                                    <span className="text-gray-700">🏦 Bank Deposits:</span>
+                                    <span className="text-red-600">
+                                      {formatNumber(store.outflowBreakdown.bankDeposits.total)}
+                                      <span className="text-xs text-gray-500 ml-1">({store.outflowBreakdown.bankDeposits.count})</span>
+                                    </span>
+                                  </div>
+                                  
+                                  {/* Previous Day Deposits */}
+                                  {store.outflowBreakdown.bankDeposits.previousDay.count > 0 && (
+                                    <div className="ml-4 mb-3">
+                                      <div className="text-xs font-semibold text-blue-700 mb-2 flex items-center gap-1">
+                                        <span>🔵</span>
+                                        Previous Day Deposits: {formatNumber(store.outflowBreakdown.bankDeposits.previousDay.total)} ({store.outflowBreakdown.bankDeposits.previousDay.count})
+                                      </div>
+                                      {store.outflowBreakdown.bankDeposits.previousDay.deposits.map((deposit: any, idx: number) => (
+                                        <div key={idx} className="bg-blue-100 rounded p-3 mb-2 text-xs border border-blue-300">
+                                          <div className="font-semibold text-blue-900 mb-2">
+                                            Deposit #{idx + 1}: {formatNumber(deposit.amount)}
+                                          </div>
+                                          <div className="grid grid-cols-2 gap-2 text-xs">
+                                            <div className="text-gray-700">
+                                              <span className="font-medium">Sales Date:</span> {deposit.salesDate.toLocaleDateString()}
+                                            </div>
+                                            <div className="text-gray-700">
+                                              <span className="font-medium">Deposit Date:</span> {deposit.depositDate.toLocaleDateString()}
+                                            </div>
+                                            <div className="text-gray-700">
+                                              <span className="font-medium">Days Difference:</span> {deposit.daysDifference} day(s)
+                                            </div>
+                                            <div className="text-gray-700">
+                                              <span className="font-medium">Time:</span> {deposit.depositTime}
+                                            </div>
+                                            <div className="text-gray-700">
+                                              <span className="font-medium">Deposited By:</span> {deposit.depositedBy}
+                                            </div>
+                                            <div className="text-gray-700">
+                                              <span className="font-medium">Bank:</span> {deposit.bankName}
+                                            </div>
+                                            <div className="text-gray-700 col-span-2">
+                                              <span className="font-medium">Reference:</span> {deposit.referenceNumber}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  
+                                  {/* Same Day Deposits */}
+                                  {store.outflowBreakdown.bankDeposits.sameDay.count > 0 && (
+                                    <div className="ml-4">
+                                      <div className="text-xs font-semibold text-green-700 mb-2 flex items-center gap-1">
+                                        <span>🟢</span>
+                                        Same Day Deposits: {formatNumber(store.outflowBreakdown.bankDeposits.sameDay.total)} ({store.outflowBreakdown.bankDeposits.sameDay.count})
+                                      </div>
+                                      {store.outflowBreakdown.bankDeposits.sameDay.deposits.map((deposit: any, idx: number) => (
+                                        <div key={idx} className="bg-green-100 rounded p-3 mb-2 text-xs border border-green-300">
+                                          <div className="font-semibold text-green-900 mb-2">
+                                            Deposit #{idx + 1}: {formatNumber(deposit.amount)}
+                                          </div>
+                                          <div className="grid grid-cols-2 gap-2 text-xs">
+                                            <div className="text-gray-700">
+                                              <span className="font-medium">Sales Date:</span> {deposit.salesDate.toLocaleDateString()}
+                                            </div>
+                                            <div className="text-gray-700">
+                                              <span className="font-medium">Deposit Date:</span> {deposit.depositDate.toLocaleDateString()}
+                                            </div>
+                                            <div className="text-gray-700">
+                                              <span className="font-medium">Time:</span> {deposit.depositTime}
+                                            </div>
+                                            <div className="text-gray-700">
+                                              <span className="font-medium">Deposited By:</span> {deposit.depositedBy}
+                                            </div>
+                                            <div className="text-gray-700">
+                                              <span className="font-medium">Bank:</span> {deposit.bankName}
+                                            </div>
+                                            <div className="text-gray-700 col-span-2">
+                                              <span className="font-medium">Reference:</span> {deposit.referenceNumber}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              
+                              {/* Cash Refunds */}
+                              {store.outflowBreakdown.cashRefunds.count > 0 && (
+                                <div className="flex justify-between items-center text-sm bg-white p-2 rounded mb-2">
+                                  <span className="text-gray-700">💸 Cash Refunds:</span>
+                                  <span className="font-semibold text-red-600">
+                                    {formatNumber(store.outflowBreakdown.cashRefunds.total)}
+                                    <span className="text-xs text-gray-500 ml-1">({store.outflowBreakdown.cashRefunds.count})</span>
+                                  </span>
+                                </div>
+                              )}
+                              
+                              {/* Corrections */}
+                              {store.outflowBreakdown.corrections.count > 0 && (
+                                <div className="flex justify-between items-center text-sm bg-white p-2 rounded mb-2">
+                                  <span className="text-gray-700">🔧 Corrections:</span>
+                                  <span className="font-semibold text-red-600">
+                                    {formatNumber(store.outflowBreakdown.corrections.total)}
+                                    <span className="text-xs text-gray-500 ml-1">({store.outflowBreakdown.corrections.count})</span>
+                                  </span>
+                                </div>
+                              )}
+                              
+                              {/* Other Outflows */}
+                              {store.outflowBreakdown.other.count > 0 && (
+                                <div className="flex justify-between items-center text-sm bg-white p-2 rounded mb-2">
+                                  <span className="text-gray-700">📝 Other:</span>
+                                  <span className="font-semibold text-red-600">
+                                    {formatNumber(store.outflowBreakdown.other.total)}
+                                    <span className="text-xs text-gray-500 ml-1">({store.outflowBreakdown.other.count})</span>
+                                  </span>
+                                </div>
+                              )}
+                              
+                              <div className="flex justify-between items-center text-sm font-bold pt-2 border-t-2 border-red-300 bg-red-100 p-2 rounded">
+                                <span className="text-red-900">Total Outflow:</span>
+                                <span className="text-red-700 text-lg">
+                                  -{formatNumber(store.outflow)}
+                                  <span className="text-xs text-gray-600 ml-1">({store.outflowCount})</span>
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Cash Flow Summary */}
+                            <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-4 mb-4 border border-gray-300">
+                              <h6 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+                                <span>📈</span>
+                                CASH FLOW SUMMARY
+                              </h6>
+                              <div className="space-y-2 text-sm">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-gray-700">Opening Balance:</span>
+                                  <span className="font-semibold text-gray-800">{formatNumber(store.openingBalance)}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-green-700">➕ Add: Today's Inflows:</span>
+                                  <span className="font-semibold text-green-600">+{formatNumber(store.inflow)}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-red-700">➖ Less: Today's Outflows:</span>
+                                  <span className="font-semibold text-red-600">-{formatNumber(store.outflow)}</span>
+                                </div>
+                                <div className="flex justify-between items-center pt-2 border-t-2 border-gray-400 font-bold">
+                                  <span className="text-gray-900">Closing Balance:</span>
+                                  <span className="text-blue-700 text-lg">{formatNumber(expectedBalance)}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                              {/* Left Column - removed, now above */}
+                              <div className="space-y-3">
+                              </div>
+
+                              {/* Right Column - removed, now in detailed breakdown */}
+                              <div className="bg-gray-50 rounded-lg p-4">
                               </div>
                             </div>
 

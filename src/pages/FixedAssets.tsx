@@ -177,10 +177,10 @@ const FixedAssets = () => {
         supplierId: formData.supplierId && formData.supplierId !== '' ? parseInt(formData.supplierId) : null,
         bankAccountId: formData.bankAccountId && formData.bankAccountId !== '' ? parseInt(formData.bankAccountId) : null,
         cardId: formData.cardId && formData.cardId !== '' ? parseInt(formData.cardId) : null,
-        warrantyExpiryDate: formData.warrantyExpiryDate || null,
-        insuranceExpiryDate: formData.insuranceExpiryDate || null,
-        lastMaintenanceDate: formData.lastMaintenanceDate || null,
-        depreciationStartDate: formData.depreciationStartDate || null,
+        warrantyExpiryDate: formData.warrantyExpiryDate || undefined,
+        insuranceExpiryDate: formData.insuranceExpiryDate || undefined,
+        lastMaintenanceDate: formData.lastMaintenanceDate || undefined,
+        depreciationStartDate: formData.depreciationStartDate || undefined,
       };
 
       if (assetModal.data) {

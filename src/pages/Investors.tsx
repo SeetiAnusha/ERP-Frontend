@@ -177,9 +177,9 @@ const Investors = () => {
           <div>
             <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-3">
               <Users className="text-green-600" />
-              {t('investors')}
+              {t('financers')}
             </h1>
-            <p className="text-gray-600 mt-1">{t('investorsDesc')}</p>
+            <p className="text-gray-600 mt-1">{t('financersDesc')}</p>
           </div>
           <div className="flex gap-2">
             <button
