@@ -302,6 +302,9 @@ export interface CashTransaction {
   deletion_memo?: string;
   is_reversal?: boolean;
   original_transaction_id?: number;
+  /** Posting order tie-break (API / Sequelize); used for EOD opening balance when registrationDate collides */
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Adjustment {
