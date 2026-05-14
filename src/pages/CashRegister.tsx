@@ -30,6 +30,27 @@ import {
   isValidSourceType,
 } from '../types/CashRegisterSourceType';
 
+/** ISO YYYY-MM-DD + calendar days (local), for deposit defaults. */
+function addCalendarDaysToIsoDate(isoYmd: string, deltaDays: number): string {
+  const [y, m, d] = isoYmd.split('-').map(Number);
+  const dt = new Date(y, m - 1, d + deltaDays);
+  const yy = dt.getFullYear();
+  const mm = String(dt.getMonth() + 1).padStart(2, '0');
+  const dd = String(dt.getDate()).padStart(2, '0');
+  return `${yy}-${mm}-${dd}`;
+}
+
+/** Compare calendar days from API (YYYY-MM-DD prefix). */
+function extractYmd(v: unknown): string {
+  if (v == null || v === '') return '';
+  if (typeof v === 'string') return v.slice(0, 10);
+  try {
+    return new Date(v as Date).toISOString().slice(0, 10);
+  } catch {
+    return '';
+  }
+}
+
 const CashRegister: React.FC = () => {
   const { t } = useLanguage();
   const location = useLocation();
@@ -119,6 +140,8 @@ const CashRegister: React.FC = () => {
 
   const [depositData, setDepositData] = useState({
     date: new Date().toISOString().split('T')[0],
+    /** Which day's takings this cash represents (earlier date = "previous register" bucket in EOD). */
+    salesDate: addCalendarDaysToIsoDate(new Date().toISOString().split('T')[0], -1),
     cashRegisterId: '',
     bankAccountId: '',
     amount: '',
@@ -611,11 +634,20 @@ const CashRegister: React.FC = () => {
       toast.error(t('selectBankAccount') || 'Please select a bank account');
       return;
     }
+
+    if (depositData.salesDate > depositData.date) {
+      toast.error(
+        'Cash-from (sales) date cannot be after the bank deposit date. Use the same date as the deposit for same-day takings only.'
+      );
+      return;
+    }
     
     try {
       // Create OUTFLOW transaction for cash register (money leaving)
       await axios.post('/cash-register', {
         registrationDate: depositData.date,
+        sales_date: depositData.salesDate,
+        deposit_date: depositData.date,
         transactionType: 'OUTFLOW',
         amount: depositData.amount,
         paymentMethod: 'BANK_DEPOSIT',
@@ -647,8 +679,10 @@ const CashRegister: React.FC = () => {
   }, [depositData, queryClient, t, refresh]);
 
   const resetDepositForm = useCallback(() => {
+    const today = new Date().toISOString().split('T')[0];
     setDepositData({
-      date: new Date().toISOString().split('T')[0],
+      date: today,
+      salesDate: addCalendarDaysToIsoDate(today, -1),
       cashRegisterId: '',
       bankAccountId: '',
       amount: '',
@@ -656,6 +690,20 @@ const CashRegister: React.FC = () => {
       transferNumber: '', // ✅ NEW: Reset transfer number
     });
     setShowDepositModal(false);
+  }, []);
+
+  const openDepositModal = useCallback(() => {
+    const today = new Date().toISOString().split('T')[0];
+    setDepositData({
+      date: today,
+      salesDate: addCalendarDaysToIsoDate(today, -1),
+      cashRegisterId: '',
+      bankAccountId: '',
+      amount: '',
+      description: '',
+      transferNumber: '',
+    });
+    setShowDepositModal(true);
   }, []);
 
   // ✅ MEMOIZED: Handle customer selection for AR collection
@@ -850,19 +898,34 @@ const CashRegister: React.FC = () => {
         store.outflowCount++;
 
         if (t.paymentMethod === 'BANK_DEPOSIT' && t.bankAccount) {
-          const salesDate = t.sales_date ? new Date(t.sales_date) : new Date(t.registrationDate);
-          const depositDate = t.deposit_date ? new Date(t.deposit_date) : new Date(t.registrationDate);
+          const salesYmd =
+            extractYmd(t.sales_date) || extractYmd(t.registrationDate);
+          const depositYmd =
+            extractYmd(t.deposit_date) || extractYmd(t.registrationDate);
+          const isPreviousDay = salesYmd !== '' && depositYmd !== '' && salesYmd < depositYmd;
 
-          const daysDiff = Math.floor(
-            (depositDate.getTime() - salesDate.getTime()) / (1000 * 60 * 60 * 24)
+          const salesDate = t.sales_date ? new Date(t.sales_date as string) : new Date(t.registrationDate);
+          const depositDate = t.deposit_date ? new Date(t.deposit_date as string) : new Date(t.registrationDate);
+          const tSales = Date.UTC(
+            parseInt(salesYmd.slice(0, 4), 10),
+            parseInt(salesYmd.slice(5, 7), 10) - 1,
+            parseInt(salesYmd.slice(8, 10), 10)
           );
-          const isPreviousDay = daysDiff > 0;
+          const tDep = Date.UTC(
+            parseInt(depositYmd.slice(0, 4), 10),
+            parseInt(depositYmd.slice(5, 7), 10) - 1,
+            parseInt(depositYmd.slice(8, 10), 10)
+          );
+          const daysDifference =
+            salesYmd.length >= 10 && depositYmd.length >= 10
+              ? Math.floor((tDep - tSales) / (1000 * 60 * 60 * 24))
+              : 0;
 
           const depositInfo = {
             amount,
             salesDate,
             depositDate,
-            daysDifference: daysDiff,
+            daysDifference,
             isPreviousDay,
             depositTime: t.deposit_time || 'N/A',
             depositedBy: t.deposited_by || 'N/A',
@@ -1018,7 +1081,7 @@ const CashRegister: React.FC = () => {
               <FaWallet /> {t('endOfDayReport')}
             </button>
             <button
-              onClick={() => setShowDepositModal(true)}
+              onClick={openDepositModal}
               className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition flex items-center gap-2"
             >
               <FaArrowDown /> {t('bankDeposit')}
@@ -1890,7 +1953,14 @@ const CashRegister: React.FC = () => {
                     <input
                       type="date"
                       value={depositData.date}
-                      onChange={(e) => setDepositData({...depositData, date: e.target.value})}
+                      onChange={(e) => {
+                        const next = e.target.value;
+                        setDepositData((prev) => ({
+                          ...prev,
+                          date: next,
+                          salesDate: addCalendarDaysToIsoDate(next, -1),
+                        }));
+                      }}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                       required
                     />
@@ -1907,6 +1977,26 @@ const CashRegister: React.FC = () => {
                       required
                     />
                   </div>
+                </div>
+
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-2">
+                  <label className="block text-sm font-medium text-gray-800 mb-1">
+                    Cash in register from (sales / takings date) *
+                  </label>
+                  <input
+                    type="date"
+                    value={depositData.salesDate}
+                    max={depositData.date}
+                    onChange={(e) => setDepositData({ ...depositData, salesDate: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 bg-white"
+                    required
+                  />
+                  <p className="text-xs text-amber-900 mt-2 leading-relaxed">
+                    <span className="font-semibold">Previous days&apos; sales deposited today:</span> leave this date{' '}
+                    <em>before</em> the deposit date (default is the day before).{' '}
+                    <span className="font-semibold">Today&apos;s sales only, deposited same day:</span> set this date{' '}
+                    <em>equal</em> to the deposit date.
+                  </p>
                 </div>
 
                 <div>
@@ -2533,17 +2623,19 @@ const CashRegister: React.FC = () => {
                     </div>
                     <div className="space-y-2">
                       {report.allBankDeposits.map((deposit: any, idx: number) => (
-                        <div key={idx} className="flex justify-between items-center bg-white p-3 rounded-lg gap-2">
-                          <div className="min-w-0 flex-1">
+                        <div key={idx} className="flex justify-between items-center bg-white p-3 rounded-lg gap-3">
+                          <div className="min-w-0 flex-1 flex flex-wrap items-center gap-x-2 gap-y-1">
                             <span
-                              className={`inline-block text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded mr-2 ${
+                              className={`shrink-0 text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded ${
                                 deposit.isPreviousDay ? 'bg-blue-200 text-blue-900' : 'bg-emerald-200 text-emerald-900'
                               }`}
                             >
                               {deposit.isPreviousDay ? 'Earlier sales' : 'Same day'}
                             </span>
-                            <span className="font-medium text-gray-800">{deposit.bankName} (****{deposit.accountNumber})</span>
-                            <span className="text-xs text-gray-500 ml-2 block sm:inline sm:ml-2">from {deposit.storeName}</span>
+                            <span className="font-medium text-gray-800 break-words">
+                              {deposit.bankName} (****{deposit.accountNumber})
+                            </span>
+                            <span className="text-xs text-gray-500 w-full sm:w-auto">from {deposit.storeName}</span>
                           </div>
                           <span className="font-bold text-blue-600 shrink-0">{formatNumber(deposit.amount)}</span>
                         </div>
