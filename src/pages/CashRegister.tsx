@@ -51,6 +51,17 @@ function extractYmd(v: unknown): string {
   }
 }
 
+/** Stable order for same-day register math (opening-first deposit split). */
+function compareCashRegisterTx(a: CashTransaction, b: CashTransaction): number {
+  const da = new Date(a.registrationDate).getTime();
+  const db = new Date(b.registrationDate).getTime();
+  if (da !== db) return da - db;
+  const ca = a.createdAt ? new Date(a.createdAt as string).getTime() : 0;
+  const cb = b.createdAt ? new Date(b.createdAt as string).getTime() : 0;
+  if (ca !== cb) return ca - cb;
+  return (a.id || 0) - (b.id || 0);
+}
+
 const CashRegister: React.FC = () => {
   const { t } = useLanguage();
   const location = useLocation();
@@ -905,11 +916,66 @@ const CashRegister: React.FC = () => {
         store.outflowCount++;
 
         if (t.paymentMethod === 'BANK_DEPOSIT' && t.bankAccount) {
+          store.outflowBreakdown.bankDeposits.total += amount;
+          store.outflowBreakdown.bankDeposits.count++;
+        } else if (t.paymentMethod === 'CASH_REFUND') {
+          store.outflowBreakdown.cashRefunds.total += amount;
+          store.outflowBreakdown.cashRefunds.count++;
+          store.outflowBreakdown.cashRefunds.transactions.push(t);
+        } else if (t.paymentMethod === 'CORRECTION') {
+          store.outflowBreakdown.corrections.total += amount;
+          store.outflowBreakdown.corrections.count++;
+          store.outflowBreakdown.corrections.transactions.push(t);
+        } else {
+          store.outflowBreakdown.other.total += amount;
+          store.outflowBreakdown.other.count++;
+          store.outflowBreakdown.other.transactions.push(t);
+        }
+      }
+    });
+
+    // Split bank deposits: opening / carry-in cash first (FIFO), then today's inflows — matches client worksheet.
+    // If sales_date is strictly before deposit_date on the record, reporting uses 100% "prior" (explicit override).
+    storeReports.forEach((store: any) => {
+      store.outflowBreakdown.bankDeposits.previousDay = { total: 0, count: 0, deposits: [] as any[] };
+      store.outflowBreakdown.bankDeposits.sameDay = { total: 0, count: 0, deposits: [] as any[] };
+      store.bankDeposits = [];
+
+      let priorPool = Number(store.openingBalance) || 0;
+      let todayPool = 0;
+
+      const sorted = [...store.transactions].sort(compareCashRegisterTx);
+
+      for (const t of sorted) {
+        const amount = parseFloat(t.amount.toString()) || 0;
+
+        if (t.transactionType === 'INFLOW') {
+          todayPool += amount;
+          continue;
+        }
+
+        if (t.transactionType !== 'OUTFLOW') continue;
+
+        if (t.paymentMethod === 'BANK_DEPOSIT' && t.bankAccount) {
           const salesYmd =
             extractYmd(t.sales_date) || extractYmd(t.registrationDate);
           const depositYmd =
             extractYmd(t.deposit_date) || extractYmd(t.registrationDate);
-          const isPreviousDay = salesYmd !== '' && depositYmd !== '' && salesYmd < depositYmd;
+
+          const fromPriorPhys = Math.min(amount, priorPool);
+          const fromTodayPhys = amount - fromPriorPhys;
+          priorPool -= fromPriorPhys;
+          todayPool -= fromTodayPhys;
+
+          const explicitOlderTakings =
+            salesYmd.length >= 10 && depositYmd.length >= 10 && salesYmd < depositYmd;
+
+          let priorAmt = fromPriorPhys;
+          let sameAmt = fromTodayPhys;
+          if (explicitOlderTakings) {
+            priorAmt = amount;
+            sameAmt = 0;
+          }
 
           const salesDate = t.sales_date ? new Date(t.sales_date as string) : new Date(t.registrationDate);
           const depositDate = t.deposit_date ? new Date(t.deposit_date as string) : new Date(t.registrationDate);
@@ -928,45 +994,46 @@ const CashRegister: React.FC = () => {
               ? Math.floor((tDep - tSales) / (1000 * 60 * 60 * 24))
               : 0;
 
-          const depositInfo = {
+          const depositBase = {
             amount,
+            priorAmount: priorAmt,
+            sameAmount: sameAmt,
             salesDate,
             depositDate,
             daysDifference,
-            isPreviousDay,
+            allocationMode: explicitOlderTakings ? ('EXPLICIT_DATES' as const) : ('FIFO_OPENING_FIRST' as const),
             depositTime: t.deposit_time || 'N/A',
             depositedBy: t.deposited_by || 'N/A',
             referenceNumber: t.deposit_reference_number || t.registrationNumber,
-            bankName: t.bankAccount.bankName,
-            accountNumber: t.bankAccount.accountNumber,
+            bankName: t.bankAccount!.bankName,
+            accountNumber: t.bankAccount!.accountNumber,
             transaction: t
           };
 
-          store.bankDeposits.push(depositInfo);
-          store.outflowBreakdown.bankDeposits.total += amount;
-          store.outflowBreakdown.bankDeposits.count++;
+          store.bankDeposits.push(depositBase);
 
-          if (isPreviousDay) {
-            store.outflowBreakdown.bankDeposits.previousDay.total += amount;
+          if (priorAmt > 0.000001) {
+            store.outflowBreakdown.bankDeposits.previousDay.total += priorAmt;
             store.outflowBreakdown.bankDeposits.previousDay.count++;
-            store.outflowBreakdown.bankDeposits.previousDay.deposits.push(depositInfo);
-          } else {
-            store.outflowBreakdown.bankDeposits.sameDay.total += amount;
-            store.outflowBreakdown.bankDeposits.sameDay.count++;
-            store.outflowBreakdown.bankDeposits.sameDay.deposits.push(depositInfo);
+            store.outflowBreakdown.bankDeposits.previousDay.deposits.push({
+              ...depositBase,
+              lineAmount: priorAmt,
+              lineKind: 'PRIOR' as const
+            });
           }
-        } else if (t.paymentMethod === 'CASH_REFUND') {
-          store.outflowBreakdown.cashRefunds.total += amount;
-          store.outflowBreakdown.cashRefunds.count++;
-          store.outflowBreakdown.cashRefunds.transactions.push(t);
-        } else if (t.paymentMethod === 'CORRECTION') {
-          store.outflowBreakdown.corrections.total += amount;
-          store.outflowBreakdown.corrections.count++;
-          store.outflowBreakdown.corrections.transactions.push(t);
+          if (sameAmt > 0.000001) {
+            store.outflowBreakdown.bankDeposits.sameDay.total += sameAmt;
+            store.outflowBreakdown.bankDeposits.sameDay.count++;
+            store.outflowBreakdown.bankDeposits.sameDay.deposits.push({
+              ...depositBase,
+              lineAmount: sameAmt,
+              lineKind: 'SAME' as const
+            });
+          }
         } else {
-          store.outflowBreakdown.other.total += amount;
-          store.outflowBreakdown.other.count++;
-          store.outflowBreakdown.other.transactions.push(t);
+          const fromPrior = Math.min(amount, priorPool);
+          priorPool -= fromPrior;
+          todayPool -= amount - fromPrior;
         }
       }
     });
@@ -985,10 +1052,22 @@ const CashRegister: React.FC = () => {
       totalBankDepositsSameDay += store.outflowBreakdown.bankDeposits.sameDay.total;
       store.bankDeposits.forEach((deposit: any) => {
         totalBankDeposits += deposit.amount;
-        allBankDeposits.push({
-          ...deposit,
-          storeName: store.name
-        });
+        if (deposit.priorAmount > 0.000001) {
+          allBankDeposits.push({
+            ...deposit,
+            storeName: store.name,
+            lineAmount: deposit.priorAmount,
+            lineKind: 'PRIOR' as const
+          });
+        }
+        if (deposit.sameAmount > 0.000001) {
+          allBankDeposits.push({
+            ...deposit,
+            storeName: store.name,
+            lineAmount: deposit.sameAmount,
+            lineKind: 'SAME' as const
+          });
+        }
       });
     });
 
@@ -2434,9 +2513,12 @@ const CashRegister: React.FC = () => {
                                 <div className="mb-3">
                                   <p className="text-xs text-gray-600 mb-2 px-1">
                                     Deposits are cash <span className="font-medium text-red-800">out of the register</span>{' '}
-                                    on the report date. Totals below split{' '}
-                                    <span className="font-medium">yesterday / earlier sales</span> vs{' '}
-                                    <span className="font-medium">today&apos;s sales</span>.
+                                    on the report date. Amounts are split using{' '}
+                                    <span className="font-medium">opening balance first</span> (cash already in the
+                                    drawer from before today), then <span className="font-medium">today&apos;s inflows</span>
+                                    . If you saved a bank deposit with <span className="font-medium">cash-from date</span>{' '}
+                                    strictly before the deposit date, that line is shown entirely as &quot;earlier
+                                    takings&quot; instead.
                                   </p>
                                   <div className="flex justify-between items-center text-sm font-semibold mb-2 bg-white p-2 rounded border border-red-100">
                                     <span className="text-gray-700">🏦 Bank deposits (total)</span>
@@ -2454,7 +2536,8 @@ const CashRegister: React.FC = () => {
                                       <span className="font-bold text-blue-900 whitespace-nowrap">
                                         {formatNumber(store.outflowBreakdown.bankDeposits.previousDay.total)}
                                         <span className="text-xs font-normal text-gray-600 block text-right">
-                                          ({store.outflowBreakdown.bankDeposits.previousDay.count} txn)
+                                          ({store.outflowBreakdown.bankDeposits.previousDay.count} line
+                                          {store.outflowBreakdown.bankDeposits.previousDay.count === 1 ? '' : 's'})
                                         </span>
                                       </span>
                                     </div>
@@ -2465,7 +2548,8 @@ const CashRegister: React.FC = () => {
                                       <span className="font-bold text-emerald-900 whitespace-nowrap">
                                         {formatNumber(store.outflowBreakdown.bankDeposits.sameDay.total)}
                                         <span className="text-xs font-normal text-gray-600 block text-right">
-                                          ({store.outflowBreakdown.bankDeposits.sameDay.count} txn)
+                                          ({store.outflowBreakdown.bankDeposits.sameDay.count} line
+                                          {store.outflowBreakdown.bankDeposits.sameDay.count === 1 ? '' : 's'})
                                         </span>
                                       </span>
                                     </div>
@@ -2488,23 +2572,38 @@ const CashRegister: React.FC = () => {
                                         Detail: money from earlier sales, deposited today
                                       </div>
                                       {store.outflowBreakdown.bankDeposits.previousDay.deposits.map((deposit: any, idx: number) => (
-                                        <div key={idx} className="bg-blue-100 rounded p-3 mb-2 text-xs border border-blue-300">
+                                        <div
+                                          key={`${deposit.transaction?.id ?? idx}-prior-${idx}`}
+                                          className="bg-blue-100 rounded p-3 mb-2 text-xs border border-blue-300"
+                                        >
                                           <div className="font-semibold text-blue-900 mb-2">
-                                            Deposit #{idx + 1}: {formatNumber(deposit.amount)}
+                                            Prior register portion: {formatNumber(deposit.lineAmount ?? deposit.amount)}
+                                            <span className="font-normal text-blue-800">
+                                              {' '}
+                                              (full deposit {formatNumber(deposit.amount)})
+                                            </span>
                                           </div>
                                           <div className="grid grid-cols-2 gap-2 text-xs">
+                                            <div className="text-gray-700 col-span-2">
+                                              <span className="font-medium">How split:</span>{' '}
+                                              {deposit.allocationMode === 'EXPLICIT_DATES'
+                                                ? 'Saved cash-from date is before deposit date (100% prior bucket).'
+                                                : 'Opening / carry-in cash used first (FIFO), then today&apos;s inflows.'}
+                                            </div>
                                             <div className="text-gray-700">
-                                              <span className="font-medium">Sales / cash date:</span>{' '}
+                                              <span className="font-medium">Recorded sales / cash-from date:</span>{' '}
                                               {deposit.salesDate.toLocaleDateString()}
                                             </div>
                                             <div className="text-gray-700">
                                               <span className="font-medium">Deposit date:</span>{' '}
                                               {deposit.depositDate.toLocaleDateString()}
                                             </div>
-                                            <div className="text-gray-700">
-                                              <span className="font-medium">Days difference:</span> {deposit.daysDifference}{' '}
-                                              day(s)
-                                            </div>
+                                            {deposit.allocationMode === 'EXPLICIT_DATES' && (
+                                              <div className="text-gray-700 col-span-2">
+                                                <span className="font-medium">Calendar days (cash-from → deposit):</span>{' '}
+                                                {deposit.daysDifference} day(s)
+                                              </div>
+                                            )}
                                             <div className="text-gray-700">
                                               <span className="font-medium">Time:</span> {deposit.depositTime}
                                             </div>
@@ -2531,13 +2630,27 @@ const CashRegister: React.FC = () => {
                                         Detail: today&apos;s register cash, deposited same day
                                       </div>
                                       {store.outflowBreakdown.bankDeposits.sameDay.deposits.map((deposit: any, idx: number) => (
-                                        <div key={idx} className="bg-emerald-100 rounded p-3 mb-2 text-xs border border-emerald-300">
+                                        <div
+                                          key={`${deposit.transaction?.id ?? idx}-same-${idx}`}
+                                          className="bg-emerald-100 rounded p-3 mb-2 text-xs border border-emerald-300"
+                                        >
                                           <div className="font-semibold text-emerald-900 mb-2">
-                                            Deposit #{idx + 1}: {formatNumber(deposit.amount)}
+                                            Same-day register portion:{' '}
+                                            {formatNumber(deposit.lineAmount ?? deposit.amount)}
+                                            <span className="font-normal text-emerald-800">
+                                              {' '}
+                                              (full deposit {formatNumber(deposit.amount)})
+                                            </span>
                                           </div>
                                           <div className="grid grid-cols-2 gap-2 text-xs">
+                                            <div className="text-gray-700 col-span-2">
+                                              <span className="font-medium">How split:</span>{' '}
+                                              {deposit.allocationMode === 'EXPLICIT_DATES'
+                                                ? '— (this line is the same-day slice only; see prior section if split.)'
+                                                : 'Part of the deposit taken from today&apos;s inflows after opening cash was used first.'}
+                                            </div>
                                             <div className="text-gray-700">
-                                              <span className="font-medium">Sales / cash date:</span>{' '}
+                                              <span className="font-medium">Recorded sales / cash-from date:</span>{' '}
                                               {deposit.salesDate.toLocaleDateString()}
                                             </div>
                                             <div className="text-gray-700">
@@ -2670,8 +2783,9 @@ const CashRegister: React.FC = () => {
                       Bank Deposit Summary
                     </h4>
                     <p className="text-xs text-gray-600 mb-4">
-                      Totals by category (all stores). Each line is cash taken from a register and sent to the bank on
-                      this report date.
+                      Totals by category (all stores). Split uses opening balance first, then today&apos;s inflows
+                      (unless the deposit was saved with cash-from date before deposit date). One physical deposit can
+                      appear as two lines if it is split across both categories.
                     </p>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4 text-sm">
                       <div className="bg-blue-100 border border-blue-200 rounded-lg p-3 text-center">
@@ -2697,21 +2811,23 @@ const CashRegister: React.FC = () => {
                     </div>
                     <div className="space-y-2">
                       {report.allBankDeposits.map((deposit: any, idx: number) => (
-                        <div key={idx} className="flex justify-between items-center bg-white p-3 rounded-lg gap-3">
+                        <div key={`${deposit.transaction?.id ?? idx}-${deposit.lineKind ?? 'all'}-${idx}`} className="flex justify-between items-center bg-white p-3 rounded-lg gap-3">
                           <div className="min-w-0 flex-1 flex flex-wrap items-center gap-x-2 gap-y-1">
                             <span
                               className={`shrink-0 text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded ${
-                                deposit.isPreviousDay ? 'bg-blue-200 text-blue-900' : 'bg-emerald-200 text-emerald-900'
+                                deposit.lineKind === 'PRIOR' ? 'bg-blue-200 text-blue-900' : 'bg-emerald-200 text-emerald-900'
                               }`}
                             >
-                              {deposit.isPreviousDay ? 'Earlier sales' : 'Same day'}
+                              {deposit.lineKind === 'PRIOR' ? 'Prior register' : 'Same day'}
                             </span>
                             <span className="font-medium text-gray-800 break-words">
                               {deposit.bankName} (****{deposit.accountNumber})
                             </span>
                             <span className="text-xs text-gray-500 w-full sm:w-auto">from {deposit.storeName}</span>
                           </div>
-                          <span className="font-bold text-blue-600 shrink-0">{formatNumber(deposit.amount)}</span>
+                          <span className="font-bold text-blue-600 shrink-0">
+                            {formatNumber(deposit.lineAmount ?? deposit.amount)}
+                          </span>
                         </div>
                       ))}
                       <div className="flex justify-between items-center bg-blue-100 p-3 rounded-lg font-bold border-t-2 border-blue-300">
