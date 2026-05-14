@@ -127,6 +127,20 @@ const CashRegister: React.FC = () => {
   });
 
   const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
+  /** Server-built EOD data (correct opening balance + all day lines; not limited to table pagination). */
+  const [eodReportSnapshot, setEodReportSnapshot] = useState<{
+    reportDate: string;
+    stores: Array<{
+      id: number;
+      openingBalance: number;
+      transactions: CashTransaction[];
+      name?: string;
+      code?: string;
+      location?: string;
+    }>;
+  } | null>(null);
+  const [eodReportLoading, setEodReportLoading] = useState(false);
+  const [eodReportError, setEodReportError] = useState<string | null>(null);
 
   // Fetch active agreements (not in shared data yet)
   useEffect(() => {
@@ -669,12 +683,54 @@ const CashRegister: React.FC = () => {
     }
   }, [formData.amount, selectedInvoices, formData.customerId, formData.relatedDocumentType]);
 
+  useEffect(() => {
+    if (!showReportModal || !reportDate) return undefined;
+    let cancelled = false;
+    setEodReportLoading(true);
+    setEodReportError(null);
+    axios
+      .get('/cash-register/eod-report', { params: { date: reportDate } })
+      .then((res) => {
+        if (cancelled) return;
+        setEodReportSnapshot({
+          reportDate,
+          stores: res.data?.stores ?? []
+        });
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setEodReportSnapshot(null);
+        setEodReportError(extractErrorMessage(err));
+      })
+      .finally(() => {
+        if (!cancelled) setEodReportLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [showReportModal, reportDate]);
+
+  useEffect(() => {
+    if (!showReportModal) {
+      setEodReportSnapshot(null);
+      setEodReportError(null);
+      setEodReportLoading(false);
+    }
+  }, [showReportModal]);
+
   // ✅ PROFESSIONAL: Generate comprehensive report grouped by store with DETAILED BREAKDOWN
   const generateProfessionalReport = useCallback(() => {
-    const safeTransactions = Array.isArray(transactions) ? transactions : [];
     const selectedDate = new Date(reportDate);
-    
-    const filtered = safeTransactions.filter(t => {
+    selectedDate.setHours(0, 0, 0, 0);
+
+    const useApi =
+      eodReportSnapshot &&
+      eodReportSnapshot.reportDate === reportDate &&
+      Array.isArray(eodReportSnapshot.stores);
+
+    const safeTransactions = Array.isArray(transactions) ? transactions : [];
+
+    const filtered = safeTransactions.filter((t) => {
       const tDate = new Date(t.registrationDate.split('T')[0]);
       const repDate = new Date(reportDate);
       tDate.setHours(0, 0, 0, 0);
@@ -682,213 +738,166 @@ const CashRegister: React.FC = () => {
       return tDate.getTime() === repDate.getTime();
     });
 
-    // Group transactions by cash register (store)
-    const storeReports = new Map();
-    
-    // ✅ FIXED: Calculate opening balance from previous day's closing balance
-    const calculateOpeningBalance = (registerId: number) => {
-      const previousDate = new Date(selectedDate);
-      previousDate.setDate(previousDate.getDate() - 1);
-      
-      // Get previous day's transactions for this store
-      const prevDayTransactions = safeTransactions.filter(t => {
+    /** Fallback when API unavailable: last line's running balance before report day (still incomplete if list is paginated). */
+    const calculateOpeningBalanceFromRunningBalance = (registerId: number) => {
+      const beforeRows = safeTransactions.filter((t) => {
+        if (t.cashRegisterId !== registerId) return false;
         const tDate = new Date(t.registrationDate.split('T')[0]);
-        const prevDate = new Date(previousDate.toISOString().split('T')[0]);
         tDate.setHours(0, 0, 0, 0);
-        prevDate.setHours(0, 0, 0, 0);
-        return tDate.getTime() === prevDate.getTime() && t.cashRegisterId === registerId;
+        return tDate.getTime() < selectedDate.getTime();
       });
-      
-      // Calculate previous day's cash flow
-      let prevDayInflow = 0;
-      let prevDayOutflow = 0;
-      
-      prevDayTransactions.forEach(t => {
-        const amount = parseFloat(t.amount.toString()) || 0;
-        if (t.transactionType === 'INFLOW') {
-          prevDayInflow += amount;
-        } else if (t.transactionType === 'OUTFLOW') {
-          prevDayOutflow += amount;
-        }
+      if (beforeRows.length === 0) return 0;
+      beforeRows.sort((a, b) => {
+        const da = new Date(a.registrationDate).getTime() - new Date(b.registrationDate).getTime();
+        if (da !== 0) return da;
+        return (a.id || 0) - (b.id || 0);
       });
-      
-      // If no transactions on previous day, recursively check earlier days
-      if (prevDayTransactions.length === 0) {
-        // Check if there are any transactions before this date
-        const hasEarlierTransactions = safeTransactions.some(t => {
-          const tDate = new Date(t.registrationDate.split('T')[0]);
-          return tDate < previousDate && t.cashRegisterId === registerId;
-        });
-        
-        if (hasEarlierTransactions) {
-          // Recursively calculate from earlier date
-          const earlierDate = new Date(previousDate);
-          earlierDate.setDate(earlierDate.getDate() - 1);
-          
-          const earlierTransactions = safeTransactions.filter(t => {
-            const tDate = new Date(t.registrationDate.split('T')[0]);
-            const eDate = new Date(earlierDate.toISOString().split('T')[0]);
-            tDate.setHours(0, 0, 0, 0);
-            eDate.setHours(0, 0, 0, 0);
-            return tDate.getTime() === eDate.getTime() && t.cashRegisterId === registerId;
-          });
-          
-          let earlierInflow = 0;
-          let earlierOutflow = 0;
-          
-          earlierTransactions.forEach(t => {
-            const amount = parseFloat(t.amount.toString()) || 0;
-            if (t.transactionType === 'INFLOW') {
-              earlierInflow += amount;
-            } else if (t.transactionType === 'OUTFLOW') {
-              earlierOutflow += amount;
-            }
-          });
-          
-          return earlierInflow - earlierOutflow;
-        } else {
-          // First day - opening balance is 0
-          return 0;
-        }
-      }
-      
-      // Closing balance of previous day = Opening + Inflow - Outflow
-      // For simplicity, if this is the first calculation, assume previous opening was 0
-      return prevDayInflow - prevDayOutflow;
+      const last = beforeRows[beforeRows.length - 1];
+      return parseFloat(String(last.balance)) || 0;
     };
-    
-    // Initialize all cash registers with calculated opening balance and detailed breakdown
-    cashRegisterMasters.forEach(register => {
-      const openingBalance = calculateOpeningBalance(register.id);
-      
+
+    const storeReports = new Map<number, any>();
+
+    cashRegisterMasters.forEach((register) => {
+      const apiStore = useApi
+        ? eodReportSnapshot!.stores.find((s) => s.id === register.id)
+        : undefined;
+
+      const openingBalance =
+        useApi && apiStore !== undefined
+          ? Number(apiStore.openingBalance) || 0
+          : calculateOpeningBalanceFromRunningBalance(register.id);
+
       storeReports.set(register.id, {
         id: register.id,
         name: register.name,
         code: register.code,
         location: register.location,
         openingBalance,
-        // Detailed INFLOW breakdown
         inflowBreakdown: {
-          sales: { total: 0, count: 0, transactions: [] },
-          arCollections: { total: 0, count: 0, transactions: [] },
-          contributions: { total: 0, count: 0, transactions: [] },
-          loans: { total: 0, count: 0, transactions: [] },
-          other: { total: 0, count: 0, transactions: [] }
+          sales: { total: 0, count: 0, transactions: [] as CashTransaction[] },
+          arCollections: { total: 0, count: 0, transactions: [] as CashTransaction[] },
+          contributions: { total: 0, count: 0, transactions: [] as CashTransaction[] },
+          loans: { total: 0, count: 0, transactions: [] as CashTransaction[] },
+          other: { total: 0, count: 0, transactions: [] as CashTransaction[] }
         },
-        // Detailed OUTFLOW breakdown
         outflowBreakdown: {
           bankDeposits: {
             total: 0,
             count: 0,
-            previousDay: { total: 0, count: 0, deposits: [] },
-            sameDay: { total: 0, count: 0, deposits: [] }
+            previousDay: { total: 0, count: 0, deposits: [] as any[] },
+            sameDay: { total: 0, count: 0, deposits: [] as any[] }
           },
-          cashRefunds: { total: 0, count: 0, transactions: [] },
-          corrections: { total: 0, count: 0, transactions: [] },
-          other: { total: 0, count: 0, transactions: [] }
+          cashRefunds: { total: 0, count: 0, transactions: [] as CashTransaction[] },
+          corrections: { total: 0, count: 0, transactions: [] as CashTransaction[] },
+          other: { total: 0, count: 0, transactions: [] as CashTransaction[] }
         },
         inflow: 0,
         inflowCount: 0,
         outflow: 0,
         outflowCount: 0,
-        bankDeposits: [],
-        transactions: []
+        bankDeposits: [] as any[],
+        transactions: [] as CashTransaction[]
       });
     });
 
-    // Process transactions with DETAILED categorization
-    filtered.forEach(t => {
-      if (t.cashRegisterId && storeReports.has(t.cashRegisterId)) {
-        const store = storeReports.get(t.cashRegisterId);
-        store.transactions.push(t);
-        const amount = parseFloat(t.amount.toString()) || 0;
-        
-        if (t.transactionType === 'INFLOW') {
-          store.inflow += amount;
-          store.inflowCount++;
-          
-          // Categorize by transaction type
-          const docType = (t.relatedDocumentType || '').toUpperCase();
-          if (docType === 'SALE') {
-            store.inflowBreakdown.sales.total += amount;
-            store.inflowBreakdown.sales.count++;
-            store.inflowBreakdown.sales.transactions.push(t);
-          } else if (docType === 'AR_COLLECTION') {
-            store.inflowBreakdown.arCollections.total += amount;
-            store.inflowBreakdown.arCollections.count++;
-            store.inflowBreakdown.arCollections.transactions.push(t);
-          } else if (docType === 'CONTRIBUTION') {
-            store.inflowBreakdown.contributions.total += amount;
-            store.inflowBreakdown.contributions.count++;
-            store.inflowBreakdown.contributions.transactions.push(t);
-          } else if (docType === 'LOAN') {
-            store.inflowBreakdown.loans.total += amount;
-            store.inflowBreakdown.loans.count++;
-            store.inflowBreakdown.loans.transactions.push(t);
+    const txs: CashTransaction[] = useApi
+      ? (eodReportSnapshot!.stores as { id: number; transactions: CashTransaction[] }[]).flatMap((st) =>
+          st.transactions.map((tx) => ({
+            ...tx,
+            cashRegisterId: (tx as any).cashRegisterId ?? st.id
+          }))
+        )
+      : filtered;
+
+    txs.forEach((t) => {
+      if (!t.cashRegisterId || !storeReports.has(t.cashRegisterId)) return;
+      const store = storeReports.get(t.cashRegisterId)!;
+      store.transactions.push(t);
+      const amount = parseFloat(t.amount.toString()) || 0;
+
+      if (t.transactionType === 'INFLOW') {
+        store.inflow += amount;
+        store.inflowCount++;
+
+        const docType = (t.relatedDocumentType || '').toUpperCase();
+        if (docType === 'SALE') {
+          store.inflowBreakdown.sales.total += amount;
+          store.inflowBreakdown.sales.count++;
+          store.inflowBreakdown.sales.transactions.push(t);
+        } else if (docType === 'AR_COLLECTION') {
+          store.inflowBreakdown.arCollections.total += amount;
+          store.inflowBreakdown.arCollections.count++;
+          store.inflowBreakdown.arCollections.transactions.push(t);
+        } else if (docType === 'CONTRIBUTION') {
+          store.inflowBreakdown.contributions.total += amount;
+          store.inflowBreakdown.contributions.count++;
+          store.inflowBreakdown.contributions.transactions.push(t);
+        } else if (docType === 'LOAN') {
+          store.inflowBreakdown.loans.total += amount;
+          store.inflowBreakdown.loans.count++;
+          store.inflowBreakdown.loans.transactions.push(t);
+        } else {
+          store.inflowBreakdown.other.total += amount;
+          store.inflowBreakdown.other.count++;
+          store.inflowBreakdown.other.transactions.push(t);
+        }
+      } else if (t.transactionType === 'OUTFLOW') {
+        store.outflow += amount;
+        store.outflowCount++;
+
+        if (t.paymentMethod === 'BANK_DEPOSIT' && t.bankAccount) {
+          const salesDate = t.sales_date ? new Date(t.sales_date) : new Date(t.registrationDate);
+          const depositDate = t.deposit_date ? new Date(t.deposit_date) : new Date(t.registrationDate);
+
+          const daysDiff = Math.floor(
+            (depositDate.getTime() - salesDate.getTime()) / (1000 * 60 * 60 * 24)
+          );
+          const isPreviousDay = daysDiff > 0;
+
+          const depositInfo = {
+            amount,
+            salesDate,
+            depositDate,
+            daysDifference: daysDiff,
+            isPreviousDay,
+            depositTime: t.deposit_time || 'N/A',
+            depositedBy: t.deposited_by || 'N/A',
+            referenceNumber: t.deposit_reference_number || t.registrationNumber,
+            bankName: t.bankAccount.bankName,
+            accountNumber: t.bankAccount.accountNumber,
+            transaction: t
+          };
+
+          store.bankDeposits.push(depositInfo);
+          store.outflowBreakdown.bankDeposits.total += amount;
+          store.outflowBreakdown.bankDeposits.count++;
+
+          if (isPreviousDay) {
+            store.outflowBreakdown.bankDeposits.previousDay.total += amount;
+            store.outflowBreakdown.bankDeposits.previousDay.count++;
+            store.outflowBreakdown.bankDeposits.previousDay.deposits.push(depositInfo);
           } else {
-            store.inflowBreakdown.other.total += amount;
-            store.inflowBreakdown.other.count++;
-            store.inflowBreakdown.other.transactions.push(t);
+            store.outflowBreakdown.bankDeposits.sameDay.total += amount;
+            store.outflowBreakdown.bankDeposits.sameDay.count++;
+            store.outflowBreakdown.bankDeposits.sameDay.deposits.push(depositInfo);
           }
-        } else if (t.transactionType === 'OUTFLOW') {
-          store.outflow += amount;
-          store.outflowCount++;
-          
-          // Track bank deposits with sales date vs deposit date
-          if (t.paymentMethod === 'BANK_DEPOSIT' && t.bankAccount) {
-            // Determine sales date and deposit date
-            const salesDate = t.sales_date ? new Date(t.sales_date) : new Date(t.registrationDate);
-            const depositDate = t.deposit_date ? new Date(t.deposit_date) : new Date(t.registrationDate);
-            
-            // Calculate days difference
-            const daysDiff = Math.floor((depositDate.getTime() - salesDate.getTime()) / (1000 * 60 * 60 * 24));
-            const isPreviousDay = daysDiff > 0;
-            
-            const depositInfo = {
-              amount,
-              salesDate,
-              depositDate,
-              daysDifference: daysDiff,
-              isPreviousDay,
-              depositTime: t.deposit_time || 'N/A',
-              depositedBy: t.deposited_by || 'N/A',
-              referenceNumber: t.deposit_reference_number || t.registrationNumber,
-              bankName: t.bankAccount.bankName,
-              accountNumber: t.bankAccount.accountNumber,
-              transaction: t
-            };
-            
-            store.bankDeposits.push(depositInfo);
-            store.outflowBreakdown.bankDeposits.total += amount;
-            store.outflowBreakdown.bankDeposits.count++;
-            
-            if (isPreviousDay) {
-              store.outflowBreakdown.bankDeposits.previousDay.total += amount;
-              store.outflowBreakdown.bankDeposits.previousDay.count++;
-              store.outflowBreakdown.bankDeposits.previousDay.deposits.push(depositInfo);
-            } else {
-              store.outflowBreakdown.bankDeposits.sameDay.total += amount;
-              store.outflowBreakdown.bankDeposits.sameDay.count++;
-              store.outflowBreakdown.bankDeposits.sameDay.deposits.push(depositInfo);
-            }
-          } else if (t.paymentMethod === 'CASH_REFUND') {
-            store.outflowBreakdown.cashRefunds.total += amount;
-            store.outflowBreakdown.cashRefunds.count++;
-            store.outflowBreakdown.cashRefunds.transactions.push(t);
-          } else if (t.paymentMethod === 'CORRECTION') {
-            store.outflowBreakdown.corrections.total += amount;
-            store.outflowBreakdown.corrections.count++;
-            store.outflowBreakdown.corrections.transactions.push(t);
-          } else {
-            store.outflowBreakdown.other.total += amount;
-            store.outflowBreakdown.other.count++;
-            store.outflowBreakdown.other.transactions.push(t);
-          }
+        } else if (t.paymentMethod === 'CASH_REFUND') {
+          store.outflowBreakdown.cashRefunds.total += amount;
+          store.outflowBreakdown.cashRefunds.count++;
+          store.outflowBreakdown.cashRefunds.transactions.push(t);
+        } else if (t.paymentMethod === 'CORRECTION') {
+          store.outflowBreakdown.corrections.total += amount;
+          store.outflowBreakdown.corrections.count++;
+          store.outflowBreakdown.corrections.transactions.push(t);
+        } else {
+          store.outflowBreakdown.other.total += amount;
+          store.outflowBreakdown.other.count++;
+          store.outflowBreakdown.other.transactions.push(t);
         }
       }
     });
 
-    // Calculate totals
     let totalInflow = 0;
     let totalOutflow = 0;
     let totalBankDeposits = 0;
@@ -907,16 +916,19 @@ const CashRegister: React.FC = () => {
     });
 
     return {
-      stores: Array.from(storeReports.values()).filter((s: any) => s.transactions.length > 0),
+      stores: Array.from(storeReports.values()).filter(
+        (s: any) =>
+          s.transactions.length > 0 || Math.abs(Number(s.openingBalance) || 0) > 0.0001
+      ),
       allStores: Array.from(storeReports.values()),
       totalInflow,
       totalOutflow,
       totalBankDeposits,
       netMovement: totalInflow - totalOutflow,
       allBankDeposits,
-      transactionCount: filtered.length
+      transactionCount: txs.length
     };
-  }, [transactions, reportDate, cashRegisterMasters]);
+  }, [transactions, reportDate, cashRegisterMasters, eodReportSnapshot]);
 
   // ✅ REMOVED: No longer need manual filtering - backend handles it via pagination
   // Backend now handles search and filters, so we use the data directly from useTableData
@@ -936,9 +948,6 @@ const CashRegister: React.FC = () => {
     return { totalInflow, totalOutflow };
   }, [transactions]);
 
-  // Safety check - ensure transactions is always an array
-  console.log('🔍 CashRegister render - transactions:', transactions, 'Type:', typeof transactions, 'IsArray:', Array.isArray(transactions));
-  
   // ✅ OPTIMIZED: Loading state
   if (isLoading) {
     return (
@@ -1974,6 +1983,41 @@ const CashRegister: React.FC = () => {
 
       {/* End of Day Report Modal - PROFESSIONAL REDESIGN */}
       {showReportModal && (() => {
+        if (eodReportLoading) {
+          return (
+            <div
+              className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+              onClick={() => setShowReportModal(false)}
+            >
+              <div className="bg-white rounded-xl shadow-2xl p-10 text-center" onClick={(e) => e.stopPropagation()}>
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" />
+                <p className="text-gray-700 font-medium">Loading end-of-day report…</p>
+              </div>
+            </div>
+          );
+        }
+
+        if (eodReportError) {
+          return (
+            <div
+              className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+              onClick={() => setShowReportModal(false)}
+            >
+              <div className="bg-white rounded-xl shadow-2xl p-8 max-w-md" onClick={(e) => e.stopPropagation()}>
+                <p className="text-red-600 font-semibold mb-2">Could not load report</p>
+                <p className="text-gray-700 text-sm mb-4">{eodReportError}</p>
+                <button
+                  type="button"
+                  onClick={() => setShowReportModal(false)}
+                  className="w-full py-2 bg-gray-200 rounded-lg hover:bg-gray-300"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          );
+        }
+
         const report = generateProfessionalReport();
         
         return (
