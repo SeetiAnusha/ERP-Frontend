@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { FaPlus, FaEdit, FaTrash, FaChartLine, FaSearch } from 'react-icons/fa';
-import { toast } from 'sonner';
-import axios from '../api/axios';
+// import { toast } from 'sonner';
+// import axios from '../api/axios';
 import { Investment } from '../types';
 import { extractErrorMessage } from '../utils/errorHandler';
 import { useConfirm } from '../hooks/useConfirm';
@@ -22,7 +22,7 @@ import { notify } from '../utils/notifications';
 const Investments = () => {
   const { t } = useLanguage();
   // ✅ Server-Side Pagination — single source of truth for data
-  const { data: investments = [], loading, pagination, goToPage, changeLimit, updateSearch, refresh } = useTableData({ endpoint: 'investments' });
+  const { data: investments = [], pagination, goToPage, changeLimit, updateSearch, refresh } = useTableData({ endpoint: 'investments' });
   // ✅ Only mutations — useTableData handles the GET
   const createInvestmentMutation = useCreateInvestment();
   const updateInvestmentMutation = useUpdateInvestment();
@@ -76,8 +76,8 @@ const Investments = () => {
   }, [searchTerm, updateSearch]);
 
   // Filter by status (client-side for now, can be moved to backend)
-  const filteredInvestments = filterStatus === 'All' 
-    ? investments 
+  const filteredInvestments = filterStatus === 'All'
+    ? investments
     : investments.filter(investment => investment.status === filterStatus);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -103,17 +103,17 @@ const Investments = () => {
         quantity: parseFloat(formData.quantity),
         unitCost: parseFloat(formData.unitCost),
         // ✅ Only send interestRate if it has a value
-        interestRate: formData.interestRate && formData.interestRate.trim() !== '' 
-          ? parseFloat(formData.interestRate) 
+        interestRate: formData.interestRate && formData.interestRate.trim() !== ''
+          ? parseFloat(formData.interestRate)
           : undefined,
         // ✅ Only send maturityDate if it has a value, otherwise send undefined
-        maturityDate: formData.maturityDate && formData.maturityDate.trim() !== '' 
-          ? formData.maturityDate 
+        maturityDate: formData.maturityDate && formData.maturityDate.trim() !== ''
+          ? formData.maturityDate
           : undefined,
-        // ✅ Convert all integer fields — empty string → undefined to prevent type errors
-        supplierId: formData.supplierId && formData.supplierId !== '' ? String(parseInt(formData.supplierId)) : undefined,
-        bankAccountId: formData.bankAccountId && formData.bankAccountId !== '' ? String(parseInt(formData.bankAccountId)) : undefined,
-        cardId: formData.cardId && formData.cardId !== '' ? String(parseInt(formData.cardId)) : undefined,
+        // ✅ Convert ID fields — empty string → undefined to prevent type errors
+        supplierId: formData.supplierId || undefined,
+        bankAccountId: formData.bankAccountId || undefined,
+        cardId: formData.cardId || undefined,
       };
 
       // ✅ Use React Query mutations instead of manual API calls
@@ -354,132 +354,129 @@ const Investments = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-              {filteredInvestments.map((investment) => {
-                // Use calculated values if available
-                const currentVal = investment.calculatedCurrentValue !== undefined 
-                  ? investment.calculatedCurrentValue 
-                  : investment.currentValue;
-                const gainLoss = investment.gainLoss !== undefined
-                  ? investment.gainLoss
-                  : parseFloat(currentVal.toString()) - parseFloat(investment.acquisitionCost.toString());
-                
-                // Get risk level from investment or default to MEDIUM
-                const riskLevel = (investment as any).riskLevel || 'MEDIUM';
-                
-                return (
-                  <tr key={investment.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{investment.code}</td>
-                    <td className="px-6 py-4 text-sm text-gray-900">
-                      <div className="font-medium">{investment.name}</div>
-                      {investment.shouldAutoCalculate && (
-                        <span className="text-xs text-blue-600 flex items-center gap-1 mt-1">
-                          🤖 Auto-calculated
+                {filteredInvestments.map((investment) => {
+                  // Use calculated values if available
+                  const currentVal = investment.calculatedCurrentValue !== undefined
+                    ? investment.calculatedCurrentValue
+                    : investment.currentValue;
+                  const gainLoss = investment.gainLoss !== undefined
+                    ? investment.gainLoss
+                    : parseFloat(currentVal.toString()) - parseFloat(investment.acquisitionCost.toString());
+
+                  // Get risk level from investment or default to MEDIUM
+                  const riskLevel = (investment as any).riskLevel || 'MEDIUM';
+
+                  return (
+                    <tr key={investment.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{investment.code}</td>
+                      <td className="px-6 py-4 text-sm text-gray-900">
+                        <div className="font-medium">{investment.name}</div>
+                        {investment.shouldAutoCalculate && (
+                          <span className="text-xs text-blue-600 flex items-center gap-1 mt-1">
+                            🤖 Auto-calculated
+                          </span>
+                        )}
+                        {(investment as any).broker && (
+                          <span className="text-xs text-gray-500 mt-1 block">
+                            📊 {(investment as any).broker}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-medium">
+                          {investment.type}
                         </span>
-                      )}
-                      {(investment as any).broker && (
-                        <span className="text-xs text-gray-500 mt-1 block">
-                          📊 {(investment as any).broker}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${riskLevel === 'LOW' ? 'bg-green-100 text-green-800' :
+                          riskLevel === 'MEDIUM' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-red-100 text-red-800'
+                          }`}>
+                          {riskLevel}
                         </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-medium">
-                        {investment.type}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                        riskLevel === 'LOW' ? 'bg-green-100 text-green-800' :
-                        riskLevel === 'MEDIUM' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-red-100 text-red-800'
-                      }`}>
-                        {riskLevel}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-700 font-medium">{investment.quantity}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-600">
-                      {parseFloat(investment.unitCost.toString()).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
-                      {parseFloat(investment.acquisitionCost.toString()).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-gray-900">
-                      {parseFloat(currentVal.toString()).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      {investment.daysHeld !== undefined && (
-                        <div className="text-xs text-gray-500 font-normal">
-                          {investment.daysHeld} days held
-                        </div>
-                      )}
-                    </td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm text-right font-semibold ${gainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {gainLoss >= 0 ? '+' : ''}{gainLoss.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      {investment.gainLossPercentage !== undefined && (
-                        <div className="text-xs font-normal">
-                          ({investment.gainLossPercentage >= 0 ? '+' : ''}{investment.gainLossPercentage.toFixed(2)}%)
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-700">
-                      {investment.interestRate
-                        ? <span className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded text-xs font-medium">{parseFloat(investment.interestRate.toString()).toFixed(2)}%</span>
-                        : <span className="text-gray-300">—</span>}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-700">
-                      {investment.maturityDate
-                        ? <div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-700 font-medium">{investment.quantity}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-600">
+                        {parseFloat(investment.unitCost.toString()).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
+                        {parseFloat(investment.acquisitionCost.toString()).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-gray-900">
+                        {parseFloat(currentVal.toString()).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {investment.daysHeld !== undefined && (
+                          <div className="text-xs text-gray-500 font-normal">
+                            {investment.daysHeld} days held
+                          </div>
+                        )}
+                      </td>
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm text-right font-semibold ${gainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {gainLoss >= 0 ? '+' : ''}{gainLoss.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {investment.gainLossPercentage !== undefined && (
+                          <div className="text-xs font-normal">
+                            ({investment.gainLossPercentage >= 0 ? '+' : ''}{investment.gainLossPercentage.toFixed(2)}%)
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-700">
+                        {investment.interestRate
+                          ? <span className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded text-xs font-medium">{parseFloat(investment.interestRate.toString()).toFixed(2)}%</span>
+                          : <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-700">
+                        {investment.maturityDate
+                          ? <div>
                             <div>{new Date(investment.maturityDate).toLocaleDateString('en-IN')}</div>
                             {investment.daysToMaturity !== undefined && investment.daysToMaturity !== null && investment.daysToMaturity > 0 && (
                               <div className="text-xs text-orange-500">{investment.daysToMaturity}d left</div>
                             )}
                           </div>
-                        : <span className="text-gray-300">—</span>}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {(investment as any).broker || <span className="text-gray-300">—</span>}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      {(investment as any).paymentType ? (
-                        <span className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${
-                          (investment as any).paymentType === 'CASH' ? 'bg-green-100 text-green-800' :
-                          (investment as any).paymentType === 'BANK_TRANSFER' ? 'bg-blue-100 text-blue-800' :
-                          (investment as any).paymentType === 'CHEQUE' ? 'bg-yellow-100 text-yellow-800' :
-                          (investment as any).paymentType === 'CREDIT' ? 'bg-orange-100 text-orange-800' :
-                          (investment as any).paymentType === 'CREDIT_CARD' ? 'bg-purple-100 text-purple-800' :
-                          (investment as any).paymentType === 'DEBIT_CARD' ? 'bg-indigo-100 text-indigo-800' :
-                          'bg-gray-100 text-gray-700'
-                        }`}>
-                          {(investment as any).paymentType.replace('_', ' ')}
+                          : <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {(investment as any).broker || <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        {(investment as any).paymentType ? (
+                          <span className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${(investment as any).paymentType === 'CASH' ? 'bg-green-100 text-green-800' :
+                            (investment as any).paymentType === 'BANK_TRANSFER' ? 'bg-blue-100 text-blue-800' :
+                              (investment as any).paymentType === 'CHEQUE' ? 'bg-yellow-100 text-yellow-800' :
+                                (investment as any).paymentType === 'CREDIT' ? 'bg-orange-100 text-orange-800' :
+                                  (investment as any).paymentType === 'CREDIT_CARD' ? 'bg-purple-100 text-purple-800' :
+                                    (investment as any).paymentType === 'DEBIT_CARD' ? 'bg-indigo-100 text-indigo-800' :
+                                      'bg-gray-100 text-gray-700'
+                            }`}>
+                            {(investment as any).paymentType.replace('_', ' ')}
+                          </span>
+                        ) : <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${investment.status === 'ACTIVE' ? 'bg-green-100 text-green-800' :
+                          investment.status === 'MATURED' ? 'bg-blue-100 text-blue-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                          {investment.status}
                         </span>
-                      ) : <span className="text-gray-300">—</span>}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                        investment.status === 'ACTIVE' ? 'bg-green-100 text-green-800' :
-                        investment.status === 'MATURED' ? 'bg-blue-100 text-blue-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {investment.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium sticky right-0 bg-white">
-                      <button
-                        onClick={() => handleEdit(investment)}
-                        className="text-blue-600 hover:text-blue-900 mr-3"
-                      >
-                        <FaEdit />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(investment.id)}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        <FaTrash />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium sticky right-0 bg-white">
+                        <button
+                          onClick={() => handleEdit(investment)}
+                          className="text-blue-600 hover:text-blue-900 mr-3"
+                        >
+                          <FaEdit />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(investment.id)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          <FaTrash />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
 
@@ -520,239 +517,239 @@ const Investments = () => {
       >
         <div className="overflow-y-auto px-6 py-4" style={{ maxHeight: 'calc(90vh - 80px)' }}>
           <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Code *</label>
-                    <input
-                      type="text"
-                      value={formData.code}
-                      onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
-                    <input
-                      type="text"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Type *</label>
-                    <select
-                      value={formData.type}
-                      onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="Stocks">Stocks</option>
-                      <option value="Bonds">Bonds</option>
-                      <option value="Mutual Funds">Mutual Funds</option>
-                      <option value="Real Estate">Real Estate</option>
-                      <option value="Cryptocurrency">Cryptocurrency</option>
-                      <option value="Fixed Deposit">Fixed Deposit</option>
-                      <option value="Gold">Gold</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Risk Level *
-                      <span className="text-xs text-gray-500 ml-2">(Investment risk assessment)</span>
-                    </label>
-                    <select
-                      value={formData.riskLevel}
-                      onChange={(e) => setFormData({ ...formData, riskLevel: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="LOW">🟢 Low Risk (Safe, stable returns)</option>
-                      <option value="MEDIUM">🟡 Medium Risk (Balanced)</option>
-                      <option value="HIGH">🔴 High Risk (Volatile, high returns)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Acquisition Date *</label>
-                    <input
-                      type="date"
-                      value={formData.acquisitionDate}
-                      onChange={(e) => setFormData({ ...formData, acquisitionDate: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Quantity *</label>
-                    <input
-                      type="number"
-                      step="0.0001"
-                      value={formData.quantity}
-                      onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Unit Cost *</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={formData.unitCost}
-                      onChange={(e) => setFormData({ ...formData, unitCost: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Acquisition Cost *</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={formData.acquisitionCost}
-                      onChange={(e) => setFormData({ ...formData, acquisitionCost: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Current Value *</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={formData.currentValue}
-                      onChange={(e) => setFormData({ ...formData, currentValue: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Maturity Date</label>
-                    <input
-                      type="date"
-                      value={formData.maturityDate}
-                      onChange={(e) => setFormData({ ...formData, maturityDate: e.target.value })}
-                      min={formData.acquisitionDate || undefined}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Optional. Must be after acquisition date.
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Interest Rate (%)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={formData.interestRate}
-                      onChange={(e) => setFormData({ ...formData, interestRate: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Status *</label>
-                    <select
-                      value={formData.status}
-                      onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="ACTIVE">Active</option>
-                      <option value="MATURED">Matured</option>
-                      <option value="SOLD">Sold</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Broker/Platform
-                      <span className="text-xs text-gray-500 ml-2">(Where is it held?)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.broker}
-                      onChange={(e) => setFormData({ ...formData, broker: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Zerodha, Groww, HDFC, etc."
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Description *</label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                {/* ✅ Supplier Selection — linked to Suppliers table for AP tracking */}
-                <div>
-                  <SupplierSelector
-                    value={formData.supplierId}
-                    onChange={(value, supplier) => setFormData({
-                      ...formData,
-                      supplierId: value,
-                      supplierRnc: supplier?.rnc || '',
-                    })}
-                    label="Supplier (for Credit/AP tracking)"
-                    showRnc={true}
-                    filterActive={false}
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Required when payment type is Credit or Credit Card — links to Accounts Payable
-                  </p>
-                </div>
-
-                {/* Payment Fields - Reusable Component */}
-                <PaymentFields
-                  paymentType={formData.paymentType}
-                  onPaymentTypeChange={(value) => setFormData({ ...formData, paymentType: value })}
-                  bankAccountId={formData.bankAccountId}
-                  onBankAccountChange={(value) => setFormData({ ...formData, bankAccountId: value })}
-                  cardId={formData.cardId}
-                  onCardChange={(value) => setFormData({ ...formData, cardId: value })}
-                  chequeNumber={formData.chequeNumber}
-                  onChequeNumberChange={(value) => setFormData({ ...formData, chequeNumber: value })}
-                  chequeDate={formData.chequeDate}
-                  onChequeDateChange={(value) => setFormData({ ...formData, chequeDate: value })}
-                  transferNumber={formData.transferNumber}
-                  onTransferNumberChange={(value) => setFormData({ ...formData, transferNumber: value })}
-                  transferDate={formData.transferDate}
-                  onTransferDateChange={(value) => setFormData({ ...formData, transferDate: value })}
-                  paymentReference={formData.paymentReference}
-                  onPaymentReferenceChange={(value) => setFormData({ ...formData, paymentReference: value })}
-                  voucherDate={formData.voucherDate}
-                  onVoucherDateChange={(value) => setFormData({ ...formData, voucherDate: value })}
-                  showCreditOption={true}
-                  showCashOption={false}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Code *</label>
+                <input
+                  type="text"
+                  value={formData.code}
+                  onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
+              </div>
 
-                <div className="flex justify-end gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={resetForm}
-                    className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={createInvestmentMutation.isPending || updateInvestmentMutation.isPending}
-                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
-                  >
-                    {(createInvestmentMutation.isPending || updateInvestmentMutation.isPending)
-                      ? 'Saving...'
-                      : investmentModal.data ? 'Update Investment' : 'Create Investment'}
-                  </button>
-                </div>
-              </form>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Type *</label>
+                <select
+                  value={formData.type}
+                  onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="Stocks">Stocks</option>
+                  <option value="Bonds">Bonds</option>
+                  <option value="Mutual Funds">Mutual Funds</option>
+                  <option value="Real Estate">Real Estate</option>
+                  <option value="Cryptocurrency">Cryptocurrency</option>
+                  <option value="Fixed Deposit">Fixed Deposit</option>
+                  <option value="Gold">Gold</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Risk Level *
+                  <span className="text-xs text-gray-500 ml-2">(Investment risk assessment)</span>
+                </label>
+                <select
+                  value={formData.riskLevel}
+                  onChange={(e) => setFormData({ ...formData, riskLevel: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="LOW">🟢 Low Risk (Safe, stable returns)</option>
+                  <option value="MEDIUM">🟡 Medium Risk (Balanced)</option>
+                  <option value="HIGH">🔴 High Risk (Volatile, high returns)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Acquisition Date *</label>
+                <input
+                  type="date"
+                  value={formData.acquisitionDate}
+                  onChange={(e) => setFormData({ ...formData, acquisitionDate: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Quantity *</label>
+                <input
+                  type="number"
+                  step="0.0001"
+                  value={formData.quantity}
+                  onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Unit Cost *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.unitCost}
+                  onChange={(e) => setFormData({ ...formData, unitCost: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Acquisition Cost *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.acquisitionCost}
+                  onChange={(e) => setFormData({ ...formData, acquisitionCost: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Current Value *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.currentValue}
+                  onChange={(e) => setFormData({ ...formData, currentValue: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Maturity Date</label>
+                <input
+                  type="date"
+                  value={formData.maturityDate}
+                  onChange={(e) => setFormData({ ...formData, maturityDate: e.target.value })}
+                  min={formData.acquisitionDate || undefined}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Optional. Must be after acquisition date.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Interest Rate (%)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.interestRate}
+                  onChange={(e) => setFormData({ ...formData, interestRate: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Status *</label>
+                <select
+                  value={formData.status}
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="ACTIVE">Active</option>
+                  <option value="MATURED">Matured</option>
+                  <option value="SOLD">Sold</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Broker/Platform
+                  <span className="text-xs text-gray-500 ml-2">(Where is it held?)</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.broker}
+                  onChange={(e) => setFormData({ ...formData, broker: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Zerodha, Groww, HDFC, etc."
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Description *</label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+
+            {/* ✅ Supplier Selection — linked to Suppliers table for AP tracking */}
+            <div>
+              <SupplierSelector
+                value={formData.supplierId}
+                onChange={(value, supplier) => setFormData({
+                  ...formData,
+                  supplierId: value,
+                  supplierRnc: supplier?.rnc || '',
+                })}
+                label="Supplier (for Credit/AP tracking)"
+                showRnc={true}
+                filterActive={false}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Required when payment type is Credit or Credit Card — links to Accounts Payable
+              </p>
+            </div>
+
+            {/* Payment Fields - Reusable Component */}
+            <PaymentFields
+              paymentType={formData.paymentType}
+              onPaymentTypeChange={(value) => setFormData({ ...formData, paymentType: value })}
+              bankAccountId={formData.bankAccountId}
+              onBankAccountChange={(value) => setFormData({ ...formData, bankAccountId: value })}
+              cardId={formData.cardId}
+              onCardChange={(value) => setFormData({ ...formData, cardId: value })}
+              chequeNumber={formData.chequeNumber}
+              onChequeNumberChange={(value) => setFormData({ ...formData, chequeNumber: value })}
+              chequeDate={formData.chequeDate}
+              onChequeDateChange={(value) => setFormData({ ...formData, chequeDate: value })}
+              transferNumber={formData.transferNumber}
+              onTransferNumberChange={(value) => setFormData({ ...formData, transferNumber: value })}
+              transferDate={formData.transferDate}
+              onTransferDateChange={(value) => setFormData({ ...formData, transferDate: value })}
+              paymentReference={formData.paymentReference}
+              onPaymentReferenceChange={(value) => setFormData({ ...formData, paymentReference: value })}
+              voucherDate={formData.voucherDate}
+              onVoucherDateChange={(value) => setFormData({ ...formData, voucherDate: value })}
+              showCreditOption={true}
+              showCashOption={false}
+            />
+
+            <div className="flex justify-end gap-3 pt-4">
+              <button
+                type="button"
+                onClick={resetForm}
+                className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={createInvestmentMutation.isPending || updateInvestmentMutation.isPending}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                {(createInvestmentMutation.isPending || updateInvestmentMutation.isPending)
+                  ? 'Saving...'
+                  : investmentModal.data ? 'Update Investment' : 'Create Investment'}
+              </button>
+            </div>
+          </form>
         </div>
       </Modal>
 

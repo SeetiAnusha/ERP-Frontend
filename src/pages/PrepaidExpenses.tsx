@@ -131,10 +131,10 @@ const PrepaidExpenses = () => {
         ...formData,
         totalAmount: parseFloat(formData.totalAmount),
         category: formData.type, // Add category field
-        // ✅ Convert all integer fields — empty string → undefined to prevent type errors
-        supplierId: formData.supplierId && formData.supplierId !== '' ? String(parseInt(formData.supplierId)) : undefined,
-        bankAccountId: formData.bankAccountId && formData.bankAccountId !== '' ? String(parseInt(formData.bankAccountId)) : undefined,
-        cardId: formData.cardId && formData.cardId !== '' ? String(parseInt(formData.cardId)) : undefined,
+        // ✅ Convert ID fields — empty string → undefined to prevent type errors
+        supplierId: formData.supplierId || undefined,
+        bankAccountId: formData.bankAccountId || undefined,
+        cardId: formData.cardId || undefined,
       };
 
       // ✅ Use React Query mutations instead of manual API calls
