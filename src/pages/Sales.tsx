@@ -372,6 +372,39 @@ const Sales = () => {
     setSaleItems(prev => prev.filter((_, i) => i !== index));
   }, []);
 
+  /** After a line is added, keep quantity, sales price, and tax editable; subtotal/total follow automatically. */
+  const handleUpdateSaleItem = useCallback(
+    (index: number, field: 'quantity' | 'unitPrice' | 'tax', rawValue: number) => {
+      setSaleItems((prev) => {
+        const next = [...prev];
+        const row = { ...next[index] };
+        if (field === 'quantity') {
+          const qty = Math.max(1, Math.floor(Number(rawValue)) || 1);
+          const product = products.find((p: any) => p.id === row.productId);
+          const maxStock = product != null ? Number(product.amount) : row.productAmount;
+          if (qty > maxStock) {
+            setTimeout(
+              () =>
+                notify.error('Insufficient stock', `Available: ${maxStock}, requested: ${qty}`),
+              0
+            );
+            return prev;
+          }
+          row.quantity = qty;
+        } else if (field === 'unitPrice') {
+          row.unitPrice = Math.max(0, Number(rawValue) || 0);
+        } else {
+          row.tax = Math.max(0, Number(rawValue) || 0);
+        }
+        row.subtotal = row.quantity * row.unitPrice;
+        row.total = row.subtotal + row.tax;
+        next[index] = row;
+        return next;
+      });
+    },
+    [products, notify]
+  );
+
   // ✅ Memoized status badge functions for stable references
   const getSaleStatusBadge = useCallback((sale: EnhancedSale) => {
     if (sale.deletion_status === 'EXECUTED') {
@@ -952,8 +985,8 @@ const Sales = () => {
 
           {/* Items Table */}
           {saleItems.length > 0 && (
-            <div className="border rounded-lg overflow-hidden">
-              <table className="w-full">
+            <div className="border rounded-lg overflow-x-auto">
+              <table className="w-full min-w-[720px]">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-4 py-3 text-left text-sm font-semibold">{t('product')}</th>
@@ -967,26 +1000,70 @@ const Sales = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {saleItems.map((item, index) => (
-                    <tr key={index} className="border-t">
-                      <td className="px-4 py-3 text-sm">{item.productName}</td>
-                      <td className="px-4 py-3 text-sm text-right">{item.productAmount}</td>
-                      <td className="px-4 py-3 text-sm text-right">{item.quantity}</td>
-                      <td className="px-4 py-3 text-sm text-right">{formatNumber(Number(item.unitPrice))}</td>
-                      <td className="px-4 py-3 text-sm text-right">{formatNumber(Number(item.subtotal))}</td>
-                      <td className="px-4 py-3 text-sm text-right">{formatNumber(Number(item.tax))}</td>
-                      <td className="px-4 py-3 text-sm text-right font-semibold">{formatNumber(Number(item.total))}</td>
-                      <td className="px-4 py-3">
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveItem(index)}
-                          className="text-red-600 hover:text-red-800"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {saleItems.map((item, index) => {
+                    const liveProduct = products.find((p: any) => p.id === item.productId);
+                    const stockDisplay =
+                      liveProduct != null ? Number(liveProduct.amount) : item.productAmount;
+                    return (
+                      <tr key={index} className="border-t align-top">
+                        <td className="px-4 py-3 text-sm">{item.productName}</td>
+                        <td className="px-4 py-3 text-sm text-right text-gray-600">{stockDisplay}</td>
+                        <td className="px-4 py-3 text-right">
+                          <input
+                            type="number"
+                            min={1}
+                            step={1}
+                            value={item.quantity}
+                            onChange={(e) =>
+                              handleUpdateSaleItem(index, 'quantity', parseInt(e.target.value, 10) || 1)
+                            }
+                            className="w-20 ml-auto px-2 py-1 border border-gray-300 rounded text-sm text-right focus:ring-2 focus:ring-green-500"
+                          />
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <input
+                            type="number"
+                            step="0.01"
+                            min={0}
+                            value={item.unitPrice}
+                            onChange={(e) =>
+                              handleUpdateSaleItem(index, 'unitPrice', parseFloat(e.target.value) || 0)
+                            }
+                            className="w-24 ml-auto px-2 py-1 border border-gray-300 rounded text-sm text-right focus:ring-2 focus:ring-green-500"
+                            title="Sales price"
+                          />
+                        </td>
+                        <td className="px-4 py-3 text-sm text-right font-medium text-gray-800">
+                          {formatNumber(Number(item.subtotal))}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <input
+                            type="number"
+                            step="0.01"
+                            min={0}
+                            value={item.tax}
+                            onChange={(e) =>
+                              handleUpdateSaleItem(index, 'tax', parseFloat(e.target.value) || 0)
+                            }
+                            className="w-20 ml-auto px-2 py-1 border border-gray-300 rounded text-sm text-right focus:ring-2 focus:ring-green-500"
+                            title={t('tax')}
+                          />
+                        </td>
+                        <td className="px-4 py-3 text-sm text-right font-semibold">
+                          {formatNumber(Number(item.total))}
+                        </td>
+                        <td className="px-4 py-3">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveItem(index)}
+                            className="text-red-600 hover:text-red-800"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
                 <tfoot className="bg-gray-50 font-semibold">
                   <tr>

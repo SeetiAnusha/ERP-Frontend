@@ -449,6 +449,19 @@ const Purchases = () => {
     setAssociatedInvoices(associatedInvoices.filter((_, i) => i !== index));
   };
 
+  /** Keep associated invoice lines editable after add (same idea as product qty/cost/tax). */
+  const updateAssociatedInvoice = useCallback((index: number, patch: Record<string, unknown>) => {
+    setAssociatedInvoices((prev) => {
+      const next = [...prev];
+      const cur: AssociatedInvoice & Record<string, unknown> = { ...next[index], ...patch };
+      if ('tax' in patch || 'taxAmount' in patch) {
+        cur.amount = (Number(cur.tax) || 0) + (Number(cur.taxAmount) || 0);
+      }
+      next[index] = cur as AssociatedInvoice;
+      return next;
+    });
+  }, []);
+
   const addProductToPurchase = () => {
     if (!selectedProduct || quantity <= 0 || unitCost <= 0) {
       toast.error(t('selectProductValidQuantityCost'));
@@ -1807,8 +1820,8 @@ const Purchases = () => {
 
               {/* Invoices Table */}
               {associatedInvoices.length > 0 && (
-                <div className="border rounded-lg overflow-hidden">
-                  <table className="w-full text-sm">
+                <div className="border rounded-lg overflow-x-auto">
+                  <table className="w-full text-sm min-w-[1100px]">
                     <thead className="bg-orange-100">
                       <tr>
                         <th className="px-3 py-2 text-left font-semibold">{t('supplierRncShort')}</th>
@@ -1821,30 +1834,128 @@ const Purchases = () => {
                         <th className="px-3 py-2 text-right font-semibold">{t('totalAmount')}</th>
                         <th className="px-3 py-2 text-left font-semibold">{t('purchaseOf')}</th>
                         <th className="px-3 py-2 text-left font-semibold">{t('paymentType')}</th>
-                        <th className="px-3 py-2 text-left font-semibold">Card</th>
+                        <th className="px-3 py-2 text-left font-semibold min-w-[200px]">Card / Bank</th>
                         <th className="px-3 py-2"></th>
                       </tr>
                     </thead>
                     <tbody>
                       {associatedInvoices.map((invoice, index) => (
-                        <tr key={index} className="border-t">
+                        <tr key={index} className="border-t align-top">
                           <td className="px-3 py-2">{invoice.supplierRnc}</td>
                           <td className="px-3 py-2">{invoice.supplierName}</td>
-                          <td className="px-3 py-2">{invoice.ncf || '-'}</td>
-                          <td className="px-3 py-2">{new Date(invoice.date).toLocaleDateString()}</td>
-                          <td className="px-3 py-2">{invoice.concept || '-'}</td>
-                          <td className="px-3 py-2 text-right">{formatNumber(invoice.tax)}</td>
-                          <td className="px-3 py-2 text-right">{formatNumber(invoice.taxAmount)}</td>
-                          <td className="px-3 py-2 text-right font-semibold">{formatNumber(invoice.amount)}</td>
-                          <td className="px-3 py-2">{invoice.purchaseType || '-'}</td>
-                          <td className="px-3 py-2">{invoice.paymentType || '-'}</td>
                           <td className="px-3 py-2">
-                            {invoice.cardId ? (
-                              (() => {
-                                const card = cards.find((c: any) => c.id === parseInt(invoice.cardId || '0'));
-                                return card ? (card.cardName ? card.cardName : `${card.cardBrand || 'Card'} ****${card.cardNumberLast4}`) : 'Card not found';
-                              })()
-                            ) : '-'}
+                            <input
+                              type="text"
+                              value={invoice.ncf || ''}
+                              onChange={(e) => updateAssociatedInvoice(index, { ncf: e.target.value })}
+                              className="w-full min-w-[7rem] px-2 py-1 border border-gray-300 rounded text-sm"
+                              placeholder="NCF"
+                              title={t('ncf')}
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="date"
+                              value={String(invoice.date || '').slice(0, 10)}
+                              onChange={(e) => updateAssociatedInvoice(index, { date: e.target.value })}
+                              className="w-full min-w-[9rem] px-2 py-1 border border-gray-300 rounded text-sm"
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="text"
+                              value={invoice.concept || ''}
+                              onChange={(e) => updateAssociatedInvoice(index, { concept: e.target.value })}
+                              className="w-full min-w-[6rem] px-2 py-1 border border-gray-300 rounded text-sm"
+                              placeholder={t('concept')}
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={invoice.tax || ''}
+                              onChange={(e) =>
+                                updateAssociatedInvoice(index, { tax: parseFloat(e.target.value) || 0 })
+                              }
+                              className="w-full min-w-[5rem] max-w-[7rem] ml-auto px-2 py-1 border border-gray-300 rounded text-sm text-right"
+                              title={t('taxAmountBase')}
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={invoice.taxAmount || ''}
+                              onChange={(e) =>
+                                updateAssociatedInvoice(index, { taxAmount: parseFloat(e.target.value) || 0 })
+                              }
+                              className="w-full min-w-[5rem] max-w-[7rem] ml-auto px-2 py-1 border border-gray-300 rounded text-sm text-right"
+                              title={t('tax')}
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-right font-semibold whitespace-nowrap">
+                            {formatNumber(invoice.amount)}
+                          </td>
+                          <td className="px-3 py-2">
+                            <select
+                              value={invoice.purchaseType || ''}
+                              onChange={(e) => updateAssociatedInvoice(index, { purchaseType: e.target.value })}
+                              className="w-full min-w-[10rem] max-w-[14rem] px-2 py-1 border border-gray-300 rounded text-xs"
+                            >
+                              <option value="">{t('selectType')}</option>
+                              <option value="Merchandise for sale or consumption">{t('merchandiseForSale')}</option>
+                              <option value="Goods for internal use (PPE)">{t('goodsForInternalUse')}</option>
+                              <option value="Investments or capital goods">{t('investmentsOrCapitalGoods')}</option>
+                            </select>
+                          </td>
+                          <td className="px-3 py-2">
+                            <select
+                              value={invoice.paymentType || ''}
+                              onChange={(e) =>
+                                updateAssociatedInvoice(index, {
+                                  paymentType: e.target.value,
+                                  cardId: '',
+                                  bankAccountId: '',
+                                })
+                              }
+                              className="w-full min-w-[8rem] px-2 py-1 border border-gray-300 rounded text-xs"
+                            >
+                              <option value="">{t('selectType')}</option>
+                              <option value="CHEQUE">{t('cheque')}</option>
+                              <option value="BANK_TRANSFER">{t('bankTransfer')}</option>
+                              <option value="DEBIT_CARD">Debit Card</option>
+                              <option value="CREDIT_CARD">{t('creditCard')}</option>
+                              <option value="CREDIT">{t('credit')}</option>
+                            </select>
+                          </td>
+                          <td className="px-3 py-2 min-w-[200px] space-y-2">
+                            {(invoice.paymentType === 'DEBIT_CARD' || invoice.paymentType === 'CREDIT_CARD') && (
+                              <CardSelector
+                                value={invoice.cardId || ''}
+                                onChange={(value) => updateAssociatedInvoice(index, { cardId: value })}
+                                cardType={invoice.paymentType === 'DEBIT_CARD' ? 'DEBIT' : 'CREDIT'}
+                                label={invoice.paymentType === 'DEBIT_CARD' ? 'Debit' : t('creditCard')}
+                                showAvailableLimit
+                                className="mb-0"
+                              />
+                            )}
+                            {(invoice.paymentType === 'BANK_TRANSFER' ||
+                              invoice.paymentType === 'CHEQUE' ||
+                              invoice.paymentType === 'DEPOSIT') && (
+                              <BankAccountSelector
+                                value={invoice.bankAccountId || ''}
+                                onChange={(value) => updateAssociatedInvoice(index, { bankAccountId: value })}
+                                label="Bank"
+                                showBalance
+                                className="mb-0"
+                              />
+                            )}
+                            {invoice.paymentType === 'CREDIT' && (
+                              <span className="text-xs text-gray-500">—</span>
+                            )}
                           </td>
                           <td className="px-3 py-2">
                             <button
