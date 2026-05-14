@@ -40,7 +40,7 @@ interface PrepaidExpense {
 const PrepaidExpenses = () => {
   const { t } = useLanguage();
   // ✅ Server-Side Pagination — single source of truth for data
-  const { data: expenses = [], loading, pagination, goToPage, changeLimit, updateSearch, refresh } = useTableData({ endpoint: 'prepaid-expenses' });
+  const { data: expenses = [], pagination, goToPage, changeLimit, updateSearch, refresh } = useTableData({ endpoint: 'prepaid-expenses' });
   // ✅ Only mutations — useTableData handles the GET
   const createExpenseMutation = useCreatePrepaidExpense();
   const updateExpenseMutation = useUpdatePrepaidExpense();
@@ -132,9 +132,9 @@ const PrepaidExpenses = () => {
         totalAmount: parseFloat(formData.totalAmount),
         category: formData.type, // Add category field
         // ✅ Convert all integer fields — empty string → undefined to prevent type errors
-        supplierId: formData.supplierId && formData.supplierId !== '' ? parseInt(formData.supplierId) : undefined,
-        bankAccountId: formData.bankAccountId && formData.bankAccountId !== '' ? parseInt(formData.bankAccountId) : undefined,
-        cardId: formData.cardId && formData.cardId !== '' ? parseInt(formData.cardId) : undefined,
+        supplierId: formData.supplierId && formData.supplierId !== '' ? String(parseInt(formData.supplierId)) : undefined,
+        bankAccountId: formData.bankAccountId && formData.bankAccountId !== '' ? String(parseInt(formData.bankAccountId)) : undefined,
+        cardId: formData.cardId && formData.cardId !== '' ? String(parseInt(formData.cardId)) : undefined,
       };
 
       // ✅ Use React Query mutations instead of manual API calls

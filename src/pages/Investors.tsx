@@ -179,7 +179,7 @@ const Investors = () => {
               <Users className="text-green-600" />
               {t('financers')}
             </h1>
-            <p className="text-gray-600 mt-1">{t('financersDesc')}</p>
+            <p className="text-gray-600 mt-1">Manage investor information and contributions</p>
           </div>
           <div className="flex gap-2">
             <button

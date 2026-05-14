@@ -110,10 +110,10 @@ const Investments = () => {
         maturityDate: formData.maturityDate && formData.maturityDate.trim() !== '' 
           ? formData.maturityDate 
           : undefined,
-        // ✅ Convert all integer fields — empty string → null to prevent "invalid input syntax for type integer"
-        supplierId: formData.supplierId && formData.supplierId !== '' ? parseInt(formData.supplierId) : null,
-        bankAccountId: formData.bankAccountId && formData.bankAccountId !== '' ? parseInt(formData.bankAccountId) : null,
-        cardId: formData.cardId && formData.cardId !== '' ? parseInt(formData.cardId) : null,
+        // ✅ Convert all integer fields — empty string → undefined to prevent type errors
+        supplierId: formData.supplierId && formData.supplierId !== '' ? String(parseInt(formData.supplierId)) : undefined,
+        bankAccountId: formData.bankAccountId && formData.bankAccountId !== '' ? String(parseInt(formData.bankAccountId)) : undefined,
+        cardId: formData.cardId && formData.cardId !== '' ? String(parseInt(formData.cardId)) : undefined,
       };
 
       // ✅ Use React Query mutations instead of manual API calls
