@@ -748,6 +748,9 @@ const CashRegister: React.FC = () => {
       });
       if (beforeRows.length === 0) return 0;
       beforeRows.sort((a, b) => {
+        const ca = a.createdAt ? new Date(a.createdAt as string).getTime() : 0;
+        const cb = b.createdAt ? new Date(b.createdAt as string).getTime() : 0;
+        if (ca !== cb) return ca - cb;
         const da = new Date(a.registrationDate).getTime() - new Date(b.registrationDate).getTime();
         if (da !== 0) return da;
         return (a.id || 0) - (b.id || 0);
