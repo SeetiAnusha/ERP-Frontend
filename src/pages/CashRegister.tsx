@@ -140,6 +140,11 @@ const CashRegister: React.FC = () => {
 
   const [depositData, setDepositData] = useState({
     date: new Date().toISOString().split('T')[0],
+    /**
+     * Client workflow: (1) Bank older register cash first, (2) Then same-day sales.
+     * PREVIOUS_DAYS → salesDate defaults to day before deposit (EOD "previous day deposited today").
+     */
+    depositCashKind: 'PREVIOUS_DAYS' as 'PREVIOUS_DAYS' | 'TODAY_SALES',
     /** Which day's takings this cash represents (earlier date = "previous register" bucket in EOD). */
     salesDate: addCalendarDaysToIsoDate(new Date().toISOString().split('T')[0], -1),
     cashRegisterId: '',
@@ -682,6 +687,7 @@ const CashRegister: React.FC = () => {
     const today = new Date().toISOString().split('T')[0];
     setDepositData({
       date: today,
+      depositCashKind: 'PREVIOUS_DAYS',
       salesDate: addCalendarDaysToIsoDate(today, -1),
       cashRegisterId: '',
       bankAccountId: '',
@@ -696,6 +702,7 @@ const CashRegister: React.FC = () => {
     const today = new Date().toISOString().split('T')[0];
     setDepositData({
       date: today,
+      depositCashKind: 'PREVIOUS_DAYS',
       salesDate: addCalendarDaysToIsoDate(today, -1),
       cashRegisterId: '',
       bankAccountId: '',
@@ -1958,7 +1965,10 @@ const CashRegister: React.FC = () => {
                         setDepositData((prev) => ({
                           ...prev,
                           date: next,
-                          salesDate: addCalendarDaysToIsoDate(next, -1),
+                          salesDate:
+                            prev.depositCashKind === 'TODAY_SALES'
+                              ? next
+                              : addCalendarDaysToIsoDate(next, -1),
                         }));
                       }}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
@@ -1979,23 +1989,87 @@ const CashRegister: React.FC = () => {
                   </div>
                 </div>
 
+                <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                  <p className="text-sm font-semibold text-gray-800 mb-3">
+                    What cash are you taking to the bank? (matches end-of-day report)
+                  </p>
+                  <div className="space-y-3">
+                    <label className="flex items-start gap-3 cursor-pointer rounded-lg border-2 p-3 bg-white hover:bg-blue-50/50 has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50/70">
+                      <input
+                        type="radio"
+                        name="depositCashKind"
+                        className="mt-1"
+                        checked={depositData.depositCashKind === 'PREVIOUS_DAYS'}
+                        onChange={() =>
+                          setDepositData((prev) => ({
+                            ...prev,
+                            depositCashKind: 'PREVIOUS_DAYS',
+                            salesDate: addCalendarDaysToIsoDate(prev.date, -1),
+                          }))
+                        }
+                      />
+                      <span>
+                        <span className="font-semibold text-gray-900 block">
+                          1 — Previous days&apos; sales (older cash in the register)
+                        </span>
+                        <span className="text-xs text-gray-600 block mt-1">
+                          Use this <strong>first</strong> when you bank money that was built up from{' '}
+                          <strong>earlier</strong> sales (yesterday or before). Report shows under &quot;Previous
+                          day&apos;s register — deposited today&quot;.
+                        </span>
+                      </span>
+                    </label>
+                    <label className="flex items-start gap-3 cursor-pointer rounded-lg border-2 p-3 bg-white hover:bg-emerald-50/50 has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-50/70">
+                      <input
+                        type="radio"
+                        name="depositCashKind"
+                        className="mt-1"
+                        checked={depositData.depositCashKind === 'TODAY_SALES'}
+                        onChange={() =>
+                          setDepositData((prev) => ({
+                            ...prev,
+                            depositCashKind: 'TODAY_SALES',
+                            salesDate: prev.date,
+                          }))
+                        }
+                      />
+                      <span>
+                        <span className="font-semibold text-gray-900 block">
+                          2 — Today&apos;s sales only (same-day deposit)
+                        </span>
+                        <span className="text-xs text-gray-600 block mt-1">
+                          Use this <strong>after</strong> older cash is cleared, when you deposit only{' '}
+                          <strong>today&apos;s</strong> takings. Report shows under &quot;Current day&apos;s register
+                          — same-day deposit&quot;.
+                        </span>
+                      </span>
+                    </label>
+                  </div>
+                </div>
+
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-2">
                   <label className="block text-sm font-medium text-gray-800 mb-1">
-                    Cash in register from (sales / takings date) *
+                    Cash-from date (sales / takings date) — fine tune if needed *
                   </label>
                   <input
                     type="date"
                     value={depositData.salesDate}
                     max={depositData.date}
-                    onChange={(e) => setDepositData({ ...depositData, salesDate: e.target.value })}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setDepositData((prev) => ({
+                        ...prev,
+                        salesDate: v,
+                        depositCashKind:
+                          v < prev.date ? 'PREVIOUS_DAYS' : ('TODAY_SALES' as 'PREVIOUS_DAYS' | 'TODAY_SALES'),
+                      }));
+                    }}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 bg-white"
                     required
                   />
                   <p className="text-xs text-amber-900 mt-2 leading-relaxed">
-                    <span className="font-semibold">Previous days&apos; sales deposited today:</span> leave this date{' '}
-                    <em>before</em> the deposit date (default is the day before).{' '}
-                    <span className="font-semibold">Today&apos;s sales only, deposited same day:</span> set this date{' '}
-                    <em>equal</em> to the deposit date.
+                    Auto-filled from your choice above. Change only if this cash is from a specific older day (still
+                    must be on or before the deposit date).
                   </p>
                 </div>
 
