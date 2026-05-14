@@ -26,7 +26,8 @@ import { useSharedMasterData } from '../hooks/queries/useSharedData';
 import { 
   CashRegisterSourceType,
   getSourceBadgeColor, 
-  getSourceLabel 
+  getSourceLabel,
+  isValidSourceType,
 } from '../types/CashRegisterSourceType';
 
 const CashRegister: React.FC = () => {
@@ -1521,7 +1522,9 @@ const CashRegister: React.FC = () => {
                           required
                           value={formData.relatedDocumentType}
                           onChange={(e) => {
-                            const newDocumentType = e.target.value;
+                            const raw = e.target.value;
+                            if (!isValidSourceType(raw)) return;
+                            const newDocumentType = raw;
                             const needsCashRegister = 
                               (newDocumentType === CashRegisterSourceType.CONTRIBUTION && formData.paymentMethod === 'CASH') || 
                               (newDocumentType === CashRegisterSourceType.LOAN && formData.paymentMethod === 'CASH') ||

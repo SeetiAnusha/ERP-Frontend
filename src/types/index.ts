@@ -288,6 +288,12 @@ export interface CashTransaction {
     accountNumber: string;
     accountType: 'CHECKING' | 'SAVINGS';
   };
+  /** Sale / registration timing for bank deposit reporting */
+  sales_date?: string | null;
+  deposit_date?: string | null;
+  deposit_time?: string | null;
+  deposited_by?: string | null;
+  deposit_reference_number?: string | null;
   // ✅ NEW: Deletion tracking fields
   deletion_status?: string;
   deleted_at?: string;

@@ -832,6 +832,9 @@ const translations = {
     selectDebitCardNetwork: 'Please select a debit card payment network',
     excelExportFunctionality: 'Excel export functionality would be implemented here',
     pleaseSelectSupplier: 'Please select a supplier',
+    pleaseEnterValidAmount: 'Please enter a valid amount greater than 0',
+    pleaseSelectExpenseCategory: 'Please select an expense category',
+    pleaseSelectExpenseType: 'Please select an expense type',
     fillChequeNumberDate: 'Please fill in cheque number and date',
     fillTransferNumberDate: 'Please fill in transfer number and date',
     fillAllCardPaymentDetails: 'Please fill in all card payment details',
@@ -964,6 +967,7 @@ const translations = {
     totalInvestment: 'Total Investment',
     
     // Investment Agreements
+    investmentAgreements: 'Investment Agreements',
     investmentAgreementsDesc: 'Manage investment and loan agreements before receiving money',
     totalAgreements: 'Total Agreements',
     totalCommitted: 'Total Committed',
@@ -975,9 +979,11 @@ const translations = {
     totalInvested: 'Total Invested',
     
     // Investment Report
+    investmentReport: 'Investment Report',
     investmentReportDesc: 'Portfolio Performance & ROI Analysis',
     
     // General Ledger
+    generalLedger: 'General Ledger',
     generalLedgerDesc: 'Complete transaction history',
     
     // Opening Balance
@@ -1823,6 +1829,9 @@ const translations = {
     selectDebitCardNetwork: 'Por favor seleccione una red de pago con tarjeta de débito',
     excelExportFunctionality: 'La funcionalidad de exportación a Excel se implementará aquí',
     pleaseSelectSupplier: 'Por favor seleccione un proveedor',
+    pleaseEnterValidAmount: 'Por favor ingrese un monto válido mayor que 0',
+    pleaseSelectExpenseCategory: 'Por favor seleccione una categoría de gasto',
+    pleaseSelectExpenseType: 'Por favor seleccione un tipo de gasto',
     fillChequeNumberDate: 'Por favor complete el número de cheque y la fecha',
     fillTransferNumberDate: 'Por favor complete el número de transferencia y la fecha',
     fillAllCardPaymentDetails: 'Por favor complete todos los detalles del pago con tarjeta',
@@ -1955,6 +1964,7 @@ const translations = {
     totalInvestment: 'Inversión Total',
     
     // Acuerdos de Inversión
+    investmentAgreements: 'Acuerdos de Inversión',
     investmentAgreementsDesc: 'Gestionar acuerdos de inversión y préstamos antes de recibir dinero',
     totalAgreements: 'Total de Acuerdos',
     totalCommitted: 'Total Comprometido',
@@ -1966,9 +1976,11 @@ const translations = {
     totalInvested: 'Total Invertido',
     
     // Reporte de Inversiones
+    investmentReport: 'Reporte de Inversiones',
     investmentReportDesc: 'Rendimiento de Cartera y Análisis de ROI',
     
     // Libro Mayor
+    generalLedger: 'Libro Mayor',
     generalLedgerDesc: 'Historial completo de transacciones',
     
     // Saldo Inicial

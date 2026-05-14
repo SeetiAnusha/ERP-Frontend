@@ -41,17 +41,17 @@ interface FixedAssetFormData {
   location?: string;
   serialNumber?: string;
   description?: string;
-  // Payment fields
+  // Payment fields (form uses strings; API submit may send numbers / null)
   paymentType?: string;
-  bankAccountId?: string;
-  cardId?: string;
+  bankAccountId?: string | number | null;
+  cardId?: string | number | null;
   chequeNumber?: string;
   chequeDate?: string;
   transferNumber?: string;
   transferDate?: string;
   paymentReference?: string;
   voucherDate?: string;
-  supplierId?: string;
+  supplierId?: string | number | null;
   supplierRnc?: string;
   ncf?: string;
 }
