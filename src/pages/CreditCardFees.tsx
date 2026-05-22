@@ -1,9 +1,10 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Eye, CreditCard, Calendar, X } from 'lucide-react';
+import { Eye, CreditCard, Calendar, X, DollarSign, TrendingUp, AlertCircle } from 'lucide-react';
 import { useTableData } from '../hooks/useTableData';
 import { Pagination } from '../components/common/Pagination';
 import { SearchBar } from '../components/common/SearchBar';
+import { formatNumber } from '../utils/formatNumber';
 
 interface CreditCardFeeRecord {
   id: number;
@@ -21,16 +22,19 @@ interface CreditCardFeeRecord {
   cardLastFour?: string;
   arId?: number;
   arRegistrationNumber?: string;
-  // ✅ Added AR fields
+  
+  // ✅ Expense categorization from backend
+  expenseType?: string; // 'CARD_PROCESSING_FEE', 'BANK_CHARGE', etc.
+  expenseCategory?: string; // 'Card Expenses', 'Bank Expenses', etc.
+  
+  // ✅ AR fields
   accountsReceivable?: {
     id: number;
     registrationNumber: string;
     clientName?: string;
     clientRnc?: string;
     ncf?: string;
-    transferNumber?: string;
-    transferDate?: string;
-    paymentReference?: string;
+    transferReference?: string;
     amount?: number;
     receivedAmount?: number;
   };
@@ -44,8 +48,11 @@ const CreditCardFees = () => {
     startDate: '',
     endDate: ''
   });
+  
+  // ✅ PROFESSIONAL: Simple grouping by expense type (like AR groups by type)
+  const [groupByType, setGroupByType] = useState<boolean>(true);
 
-  // ✅ FIX: Use generic table data hook with pagination - MUST be called before any conditional returns
+  // ✅ Use table data hook with pagination
   const {
     data: fees,
     loading,
@@ -55,15 +62,16 @@ const CreditCardFees = () => {
     updateSearch,
     goToPage,
     changeLimit,
-    updateFilter
+    updateFilter,
+    refresh
   } = useTableData<CreditCardFeeRecord>({
-    endpoint: 'credit-card-fees',  // ✅ FIXED: No leading slash (baseURL already has /api)
+    endpoint: 'credit-card-fees',
     initialLimit: 50,
     initialSortBy: 'transactionDate',
     initialSortOrder: 'DESC'
   });
 
-  // ✅ FIX: Define all callbacks BEFORE any conditional returns (React hooks rule)
+  // ✅ Status badge helper
   const getStatusBadge = useCallback((status: string) => {
     const styles = {
       'RECORDED': 'bg-yellow-100 text-yellow-800',
@@ -78,10 +86,10 @@ const CreditCardFees = () => {
     );
   }, []);
 
+  // ✅ Date range filter handlers
   const handleDateRangeChange = useCallback((field: 'startDate' | 'endDate', value: string) => {
     setTableDateRange(prev => {
       const newRange = { ...prev, [field]: value };
-      // Update filter when both dates are set
       if (field === 'startDate') {
         updateFilter('startDate', value);
       } else {
@@ -98,18 +106,155 @@ const CreditCardFees = () => {
   }, [updateFilter]);
 
   const shouldFilterByDate = tableDateRange.startDate && tableDateRange.endDate;
+  
+  // ✅ PROFESSIONAL: Group fees by expense type (like AR groups by type)
+  const groupedFees = useMemo(() => {
+    if (!groupByType) return null;
+    
+    const groups: Record<string, CreditCardFeeRecord[]> = {};
+    
+    fees.forEach(fee => {
+      const expenseType = fee.expenseType || 'CARD_PROCESSING_FEE';
+      if (!groups[expenseType]) {
+        groups[expenseType] = [];
+      }
+      groups[expenseType].push(fee);
+    });
+    
+    return groups;
+  }, [fees, groupByType]);
+  
+  // ✅ Calculate totals
+  const { totalFees, totalTransactions } = useMemo(() => {
+    const totalFees = fees.reduce((sum, fee) => sum + Number(fee.feeAmount || 0), 0);
+    const totalTransactions = fees.length;
+    return { totalFees, totalTransactions };
+  }, [fees]);
 
-  // Debug logging
-  console.log('🔍 Credit Card Fees Debug:', {
-    feesCount: fees?.length || 0,
-    feesIsArray: Array.isArray(fees),
-    loading,
-    error,
-    pagination,
-    fees: fees?.slice(0, 2) // Show first 2 records
-  });
+  // ✅ PROFESSIONAL: Render fee table (like AR table)
+  const renderFeeTable = useCallback((feeList: CreditCardFeeRecord[], title?: string) => (
+    <div className="mb-6">
+      {title && (
+        <div className="mb-4 p-4 bg-gray-50 rounded-lg border-l-4 border-purple-500">
+          <h3 className="text-lg font-semibold text-gray-800">{title}</h3>
+          <p className="text-sm text-gray-600">
+            {feeList.length} records • Total Fees: ${formatNumber(feeList.reduce((sum, fee) => sum + Number(fee.feeAmount || 0), 0))}
+          </p>
+        </div>
+      )}
+      <div className="bg-white rounded-xl shadow-lg overflow-x-auto max-h-[400px] overflow-y-auto">
+        <table className="w-full">
+          <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-20">
+            <tr>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">TRANSACTION #</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">DATE</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">EXPENSE TYPE</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">EXPENSE CATEGORY</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">RELATED AR</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">CLIENT NAME</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">CLIENT RNC</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">NCF</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">TRANSFER REF</th>
+              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">PAYMENT AMOUNT</th>
+              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">FEE %</th>
+              <th className="px-6 py-4 text-right text-sm font-bold text-red-800">FEE AMOUNT</th>
+              <th className="px-6 py-4 text-right text-sm font-bold text-green-800">NET AMOUNT</th>
+              <th className="px-6 py-4 text-center text-sm font-bold text-gray-800">STATUS</th>
+              <th className="px-6 py-4 text-center text-sm font-bold text-gray-800">ACTIONS</th>
+            </tr>
+          </thead>
+          <tbody>
+            {feeList.length === 0 ? (
+              <tr>
+                <td colSpan={15} className="px-6 py-12 text-center text-gray-500">
+                  No credit card fees found
+                </td>
+              </tr>
+            ) : (
+              feeList.map((fee, index) => (
+                <motion.tr
+                  key={fee.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                >
+                  <td className="px-6 py-4 text-sm font-medium">
+                    <div className="flex items-center gap-2">
+                      <span className="text-purple-500">💳</span>
+                      {fee.transactionNumber}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-sm">
+                    {new Date(fee.transactionDate).toLocaleDateString()}
+                  </td>
+                  <td className="px-6 py-4 text-sm">
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      {fee.expenseType || 'CARD_PROCESSING_FEE'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-sm">
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                      {fee.expenseCategory || 'Card Expenses'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-sm">
+                    {fee.arRegistrationNumber ? (
+                      <span className="text-blue-600 font-medium">
+                        {fee.arRegistrationNumber}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">-</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-900">
+                    {fee.accountsReceivable?.clientName || fee.customerName || '-'}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-600">
+                    {fee.accountsReceivable?.clientRnc || fee.clientRnc || '-'}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-600">
+                    {fee.accountsReceivable?.ncf || fee.ncf || '-'}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-600">
+                    {fee.accountsReceivable?.transferReference || '-'}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-right font-semibold">
+                    {formatNumber(Number(fee.paymentAmount || 0))}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-right">
+                    {Number(fee.feePercentage || 0).toFixed(2)}%
+                  </td>
+                  <td className="px-6 py-4 text-sm text-right font-bold text-red-600">
+                    {formatNumber(Number(fee.feeAmount || 0))}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-right font-bold text-green-600">
+                    {formatNumber(Number(fee.netAmount || 0))}
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    {getStatusBadge(fee.status)}
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex gap-2 justify-center">
+                      <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                        title="View Details"
+                      >
+                        <Eye size={18} />
+                      </motion.button>
+                    </div>
+                  </td>
+                </motion.tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  ), [getStatusBadge]);
 
-  // ✅ FIX: Show error AFTER all hooks are called
   if (error) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -122,220 +267,154 @@ const CreditCardFees = () => {
     );
   }
 
-  // ✅ FIX: Show loading AFTER all hooks are called
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
         <span className="ml-3 text-gray-600">Loading credit card fees...</span>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header Controls */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-        <div className="flex items-center gap-4">
-          <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-            <CreditCard className="text-blue-600" />
-            Credit Card Fees
-          </h1>
-        </div>
-
-        <div className="flex flex-col sm:flex-row gap-4 w-full lg:w-auto">
-          {/* Date Range Filter */}
-          <div className="flex gap-2 items-center">
-            <Calendar size={16} className="text-gray-500" />
-            <input
-              type="date"
-              value={tableDateRange.startDate}
-              onChange={(e) => handleDateRangeChange('startDate', e.target.value)}
-              placeholder="Start Date"
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-            />
-            <span className="text-gray-500">to</span>
-            <input
-              type="date"
-              value={tableDateRange.endDate}
-              onChange={(e) => handleDateRangeChange('endDate', e.target.value)}
-              placeholder="End Date"
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-            />
-            {shouldFilterByDate && (
-              <button
-                onClick={clearDateFilter}
-                className="px-3 py-2 bg-red-500 text-white rounded-lg text-sm hover:bg-red-600 flex items-center gap-1"
-                title="Clear date filter and show all records"
-              >
-                <X size={14} />
-                Clear
-              </button>
-            )}
-          </div>
-
-          {/* Search */}
-          <div className="relative flex-1 lg:w-80">
-            <SearchBar
-              value={search}
-              onChange={updateSearch}
-              placeholder="Search fees..."
-            />
-          </div>
-        </div>
+    <div>
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-2">
+          <CreditCard className="text-purple-600" />
+          Credit Card Processing Fees
+        </h1>
+        <p className="text-gray-600">Track and manage credit card processing fees</p>
       </div>
 
-      {/* Fees Table */}
-      <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-        {/* Info Banner */}
-        <div className="bg-blue-50 border-b border-blue-200 p-4">
-          <div className="flex items-start gap-3">
-            <div className="text-blue-600 text-xl">ℹ️</div>
-            <div className="flex-1">
-              <h4 className="text-sm font-semibold text-blue-900 mb-1">
-                About Credit Card Processing Fees
-              </h4>
-              <p className="text-sm text-blue-800">
-                These fees are automatically recorded when collecting AR payments via credit card. 
-                They represent the processing costs charged by payment processors (Visa, Mastercard, etc.).
-              </p>
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-red-50 rounded-xl p-6 border border-red-200"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-red-600 font-medium">Total Fees</p>
+              <p className="text-2xl font-bold text-red-900">${formatNumber(totalFees)}</p>
+            </div>
+            <DollarSign className="text-red-600" size={32} />
+          </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="bg-purple-50 rounded-xl p-6 border border-purple-200"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-purple-600 font-medium">Total Transactions</p>
+              <p className="text-2xl font-bold text-purple-900">{totalTransactions}</p>
+            </div>
+            <TrendingUp className="text-purple-600" size={32} />
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Info Banner */}
+      <div className="mb-6">
+        <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-6 border border-purple-200">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-purple-100 rounded-full">
+                <AlertCircle className="text-purple-600" size={20} />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">About Processing Fees</h3>
+                <p className="text-sm text-gray-600">Automatically recorded from AR collections</p>
+              </div>
             </div>
           </div>
-        </div>
-
-        {/* Table Header */}
-        <div className="p-6 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-800">
-            Processing Fee Records ({pagination.total})
-          </h2>
-          <p className="text-sm text-gray-600 mt-1">
-            🔒 Read-only records automatically generated from AR collections
+          <p className="text-sm text-gray-600">
+            💡 These fees are automatically recorded when collecting AR payments via credit card. 
+            They represent the processing costs charged by payment processors (Visa, Mastercard, etc.).
           </p>
         </div>
-
-        {/* Table */}
-        {!fees || fees.length === 0 ? (
-          <div className="p-8 text-center">
-            <CreditCard className="mx-auto h-12 w-12 text-gray-400" />
-            <p className="text-gray-500 mt-2">
-              {loading ? 'Loading...' : 'No processing fees found for the selected period'}
-            </p>
-            <p className="text-sm text-gray-400 mt-1">
-              Total records: {pagination.total || 0}
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">TRANSACTION #</th>
-                  <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">DATE</th>
-                  {/* <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">CLIENT NAME</th> */}
-                  {/* <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">CLIENT RNC</th> */}
-                  <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">FEE AMOUNT</th>
-                  {/* <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">NCF</th>
-                  <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">CARD TYPE</th>
-                  <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">CARD LAST 4</th> */}
-                  <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">RELATED AR</th>
-                  <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">AR CLIENT NAME</th>
-                  <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">AR CLIENT RNC</th>
-                  <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">AR NCF</th>
-                  <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">TRANSFER REF</th>
-                  <th className="px-6 py-4 text-center text-sm font-bold text-gray-800">STATUS</th>
-                  <th className="px-6 py-4 text-center text-sm font-bold text-gray-800">ACTIONS</th>
-                </tr>
-              </thead>
-              <tbody>
-                {fees.map((fee: CreditCardFeeRecord, index: number) => (
-                  <motion.tr
-                    key={fee.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
-                  >
-                    <td className="px-6 py-4 text-sm font-medium">
-                      <div className="flex items-center gap-2">
-                        <span className="text-blue-500">💳</span>
-                        {fee.transactionNumber}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm">
-                      {new Date(fee.transactionDate).toLocaleDateString()}
-                    </td>
-                    {/* <td className="px-6 py-4 text-sm">
-                      <div className="font-medium text-gray-900">{fee.customerName}</div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {fee.clientRnc || '-'}
-                    </td> */}
-                    {/* <td className="px-6 py-4 text-sm text-right font-semibold text-gray-900">
-                      {fee.paymentAmount ? `$${fee.paymentAmount.toFixed(2)}` : '-'}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-right text-gray-600">
-                      {fee.feePercentage ? `${fee.feePercentage}%` : '-'}
-                    </td> */}
-                    <td className="px-6 py-4 text-sm text-right font-bold text-red-600">
-                      {fee.feeAmount ? `${fee.feeAmount}` : '-'}
-                    </td>
-                    {/* <td className="px-6 py-4 text-sm text-gray-600">
-                      {fee.ncf || '-'}
-                    </td> */}
-                    {/* <td className="px-6 py-4 text-sm">
-                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-purple-100 text-purple-800">
-                        {fee.cardType || 'N/A'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm font-mono text-gray-600">
-                      {fee.cardLastFour ? `**** ${fee.cardLastFour}` : '-'}
-                    </td> */}
-                    <td className="px-6 py-4 text-sm">
-                      {fee.arRegistrationNumber ? (
-                        <span className="text-blue-600 font-medium">
-                          {fee.arRegistrationNumber}
-                        </span>
-                      ) : (
-                        <span className="text-gray-400">-</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">
-                      {fee.accountsReceivable?.clientName || '-'}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {fee.accountsReceivable?.clientRnc || '-'}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {fee.accountsReceivable?.ncf || '-'}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {fee.accountsReceivable?.transferNumber || '-'}
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      {getStatusBadge(fee.status)}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex gap-2 justify-center">
-                        <motion.button
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
-                          title="View Details"
-                        >
-                          <Eye size={18} />
-                        </motion.button>
-                      </div>
-                    </td>
-                  </motion.tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </div>
 
-      {/* ✅ Pagination - Always visible, sticky at bottom */}
-      <div className="bg-white rounded-lg shadow-sm p-4 sticky bottom-0 z-10">
+      {/* Filters */}
+      <div className="flex gap-4 mb-6 items-center flex-wrap">
+        <SearchBar
+          value={search}
+          onChange={updateSearch}
+          placeholder="Search fees..."
+        />
+        
+        {/* Date Range Filter */}
+        <div className="flex gap-2 items-center">
+          <Calendar size={16} className="text-gray-500" />
+          <input
+            type="date"
+            value={tableDateRange.startDate}
+            onChange={(e) => handleDateRangeChange('startDate', e.target.value)}
+            placeholder="Start Date"
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
+          />
+          <span className="text-gray-500">to</span>
+          <input
+            type="date"
+            value={tableDateRange.endDate}
+            onChange={(e) => handleDateRangeChange('endDate', e.target.value)}
+            placeholder="End Date"
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
+          />
+          {shouldFilterByDate && (
+            <button
+              onClick={clearDateFilter}
+              className="px-3 py-2 bg-red-500 text-white rounded-lg text-sm hover:bg-red-600 flex items-center gap-1"
+              title="Clear date filter"
+            >
+              <X size={14} />
+              Clear
+            </button>
+          )}
+        </div>
+        
+        {/* Group By Type Toggle */}
+        <label className="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-lg border border-gray-300">
+          <input
+            type="checkbox"
+            checked={groupByType}
+            onChange={(e) => setGroupByType(e.target.checked)}
+            className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+          />
+          <span className="text-sm font-medium text-gray-700">Group by Type</span>
+        </label>
+      </div>
+
+      {/* Table */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+      >
+        {groupByType && groupedFees ? (
+          <div>
+            {Object.entries(groupedFees).map(([expenseType, typeFees]) => (
+              <div key={expenseType}>
+                {renderFeeTable(typeFees, `💳 ${expenseType.replace(/_/g, ' ')}`)}
+              </div>
+            ))}
+            
+            {fees.length === 0 && (
+              <div className="bg-white rounded-xl shadow-lg p-12 text-center">
+                <p className="text-gray-500">No credit card fees found</p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <>{renderFeeTable(fees)}</>
+        )}
+      </motion.div>
+
+      {/* Pagination */}
+      <div className="mt-6">
         <Pagination
           page={pagination.page}
           totalPages={pagination.totalPages}
@@ -347,10 +426,6 @@ const CreditCardFees = () => {
           hasPrev={pagination.hasPrev}
           onPageChange={goToPage}
           onLimitChange={changeLimit}
-          onFirst={() => goToPage(1)}
-          onLast={() => goToPage(pagination.totalPages)}
-          onNext={() => goToPage(pagination.page + 1)}
-          onPrev={() => goToPage(pagination.page - 1)}
         />
       </div>
     </div>

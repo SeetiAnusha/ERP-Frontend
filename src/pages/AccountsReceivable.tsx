@@ -59,6 +59,7 @@ const AccountsReceivablePage = () => {
   const [transferReference, setTransferReference] = useState('');
   const [collectionDescription, setCollectionDescription] = useState('');
   const [expenseCategory, setExpenseCategory] = useState('CREDIT_CARD_FEE');
+  const [isSubmitting, setIsSubmitting] = useState(false); // ✅ FIX: Add isSubmitting state to prevent double-submit
 
   // ✅ PRESERVED: Keep original helper function exactly as it was
   const getExpenseRecordedAmount = useCallback((ar: AccountsReceivable) => {
@@ -110,8 +111,9 @@ const AccountsReceivablePage = () => {
     }
 
     const amount = parseFloat(paymentAmount);
-    if (amount <= 0) {
-      toast.error('Payment amount must be greater than 0');
+    // ✅ FIX: Add isNaN check to prevent invalid input like "abc" from passing validation
+    if (isNaN(amount) || amount <= 0) {
+      toast.error('Payment amount must be a valid number greater than 0');
       return;
     }
 
@@ -120,6 +122,9 @@ const AccountsReceivablePage = () => {
       toast.error('Please select a bank account for credit card payment');
       return;
     }
+
+    // ✅ FIX: Set isSubmitting to prevent double-submit
+    setIsSubmitting(true);
 
     try {
       const paymentData: any = {
@@ -157,6 +162,9 @@ const AccountsReceivablePage = () => {
     } catch (error: any) {
       console.error('Payment error:', error);
       toast.error(extractErrorMessage(error));
+    } finally {
+      // ✅ FIX: Always reset isSubmitting in finally block
+      setIsSubmitting(false);
     }
   }, [paymentModal.data, paymentAmount, selectedBankAccountId, collectionDescription, transferReference, expenseCategory, queryClient, paymentModal, refresh]);
   // ✅ PRESERVED: Keep original handleCreditSaleCollection exactly as it was
@@ -190,6 +198,68 @@ const AccountsReceivablePage = () => {
       } 
     });
   }, [navigate]);
+
+  // ✅ NEW: Handle recording card payment for ARs marked with collection_method
+  const [showCardPaymentModal, setShowCardPaymentModal] = useState(false);
+  const [selectedARForCardPayment, setSelectedARForCardPayment] = useState<AccountsReceivable | null>(null);
+  const [cardPaymentBankAccountId, setCardPaymentBankAccountId] = useState('');
+  const [cardPaymentAmount, setCardPaymentAmount] = useState('');
+  const [isRecordingCardPayment, setIsRecordingCardPayment] = useState(false);
+
+  const handleRecordCardPayment = useCallback((ar: AccountsReceivable) => {
+    setSelectedARForCardPayment(ar);
+    setCardPaymentAmount(ar.balanceAmount.toString());
+    setCardPaymentBankAccountId('');
+    setShowCardPaymentModal(true);
+  }, []);
+
+  const submitCardPayment = useCallback(async () => {
+    if (!selectedARForCardPayment) return;
+
+    if (!cardPaymentBankAccountId) {
+      toast.error('Please select a bank account');
+      return;
+    }
+
+    const amount = parseFloat(cardPaymentAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error('Payment amount must be a valid number greater than 0');
+      return;
+    }
+
+    if (amount > Number(selectedARForCardPayment.balanceAmount)) {
+      toast.error(`Payment amount cannot exceed balance amount (₹${selectedARForCardPayment.balanceAmount})`);
+      return;
+    }
+
+    setIsRecordingCardPayment(true);
+
+    try {
+      await api.post(`/accounts-receivable/${selectedARForCardPayment.id}/record-card-payment`, {
+        bankAccountId: parseInt(cardPaymentBankAccountId),
+        amount
+      });
+
+      toast.success(`Card payment of ₹${amount} recorded successfully! Bank account balance updated.`);
+      
+      // Refresh data
+      await refresh();
+      await queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.accountsReceivable] });
+      await queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.bankAccounts] });
+      
+      // Close modal
+      setShowCardPaymentModal(false);
+      setSelectedARForCardPayment(null);
+      setCardPaymentBankAccountId('');
+      setCardPaymentAmount('');
+    } catch (error: any) {
+      console.error('Error recording card payment:', error);
+      toast.error(extractErrorMessage(error));
+    } finally {
+      setIsRecordingCardPayment(false);
+    }
+  }, [selectedARForCardPayment, cardPaymentBankAccountId, cardPaymentAmount, refresh, queryClient]);
+
 
 
 
@@ -392,8 +462,17 @@ const AccountsReceivablePage = () => {
                       <div className="flex items-center justify-center gap-2">
                         {ar.status !== 'Received' && !isDeleted && (
                           <>
-                            {/* ✅ PRESERVED: Show correct button based on transaction type exactly as original */}
-                            {ar.type === 'CREDIT_CARD_SALE' || ar.type === 'DEBIT_CARD_SALE' ? (
+                            {/* ✅ NEW: Show Record Payment button for ARs marked with card collection method */}
+                            {ar.collection_method && ['CREDIT_CARD', 'DEBIT_CARD'].includes(ar.collection_method) ? (
+                              // AR marked for card payment - Show Record Payment button (purple)
+                              <button
+                                onClick={() => handleRecordCardPayment(ar)}
+                                className="inline-flex items-center gap-1 px-3 py-1 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm"
+                                title="Record card payment to bank"
+                              >
+                                💳 Record Payment
+                              </button>
+                            ) : ar.type === 'CREDIT_CARD_SALE' || ar.type === 'DEBIT_CARD_SALE' ? (
                               // Credit Card Sale - Show Record Payment button (blue)
                               <button
                                 onClick={() => handleRecordPayment(ar)}
@@ -729,12 +808,19 @@ const AccountsReceivablePage = () => {
               <div className="flex gap-3">
                 <button
                   onClick={submitPayment}
-                  className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                  disabled={isSubmitting} // ✅ FIX: Disable button while submitting to prevent double-submit
+                  className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {(paymentModal.data.type === 'CREDIT_CARD_SALE' || paymentModal.data.type === 'DEBIT_CARD_SALE') 
-                    ? 'Collect Payment' 
-                    : t('confirmPayment')
-                  }
+                  {isSubmitting ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                      Processing...
+                    </span>
+                  ) : (
+                    (paymentModal.data.type === 'CREDIT_CARD_SALE' || paymentModal.data.type === 'DEBIT_CARD_SALE') 
+                      ? 'Collect Payment' 
+                      : t('confirmPayment')
+                  )}
                 </button>
                 <button
                   onClick={() => {
@@ -745,9 +831,127 @@ const AccountsReceivablePage = () => {
                     setCollectionDescription('');
                     setExpenseCategory('CREDIT_CARD_FEE');
                   }}
-                  className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300 transition-colors"
+                  disabled={isSubmitting} // ✅ FIX: Also disable cancel button while submitting
+                  className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {t('cancel')}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* ✅ NEW: Card Payment Recording Modal */}
+      {showCardPaymentModal && selectedARForCardPayment && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          onClick={() => {
+            if (!isRecordingCardPayment) {
+              setShowCardPaymentModal(false);
+              setSelectedARForCardPayment(null);
+              setCardPaymentBankAccountId('');
+              setCardPaymentAmount('');
+            }
+          }}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
+          >
+            <h3 className="text-xl font-bold text-gray-900 mb-4">
+              💳 Record Card Payment
+            </h3>
+            
+            <div className="mb-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
+              <p className="text-sm text-purple-800 mb-2">
+                <strong>AR:</strong> {selectedARForCardPayment.registrationNumber}
+              </p>
+              <p className="text-sm text-purple-800 mb-2">
+                <strong>Customer:</strong> {selectedARForCardPayment.clientName || 'N/A'}
+              </p>
+              <p className="text-sm text-purple-800 mb-2">
+                <strong>Collection Method:</strong> {selectedARForCardPayment.collection_method}
+              </p>
+              <p className="text-sm text-purple-800">
+                <strong>Balance:</strong> ₹{selectedARForCardPayment.balanceAmount}
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Bank Account <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={cardPaymentBankAccountId}
+                  onChange={(e) => setCardPaymentBankAccountId(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                  disabled={isRecordingCardPayment}
+                >
+                  <option value="">Select Bank Account</option>
+                  {bankAccounts.map((account: any) => (
+                    <option key={account.id} value={account.id}>
+                      {account.bankName} - {account.accountNumber} (Balance: ₹{account.balance})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Payment Amount <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  value={cardPaymentAmount}
+                  onChange={(e) => setCardPaymentAmount(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                  placeholder="Enter amount"
+                  step="0.01"
+                  min="0"
+                  max={selectedARForCardPayment.balanceAmount.toString()}
+                  disabled={isRecordingCardPayment}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Maximum: ₹{selectedARForCardPayment.balanceAmount}
+                </p>
+              </div>
+
+              <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                <p className="text-sm text-blue-800">
+                  ℹ️ This will create a Bank Register entry and update the Bank Account balance.
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={submitCardPayment}
+                  disabled={isRecordingCardPayment}
+                  className="flex-1 bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isRecordingCardPayment ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                      Recording...
+                    </span>
+                  ) : (
+                    '💳 Record Payment'
+                  )}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowCardPaymentModal(false);
+                    setSelectedARForCardPayment(null);
+                    setCardPaymentBankAccountId('');
+                    setCardPaymentAmount('');
+                  }}
+                  disabled={isRecordingCardPayment}
+                  className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Cancel
                 </button>
               </div>
             </div>

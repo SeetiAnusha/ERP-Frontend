@@ -316,6 +316,46 @@ const CustomerCreditAwarePaymentModal: React.FC<CustomerCreditAwarePaymentModalP
                   </h3>
                   
                   <div className="space-y-3">
+                    {/* Show payment status */}
+                    {requestedAmount < preview.totalInvoiceBalance && (
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <FaInfoCircle className="text-yellow-600" />
+                          <span className="font-medium text-yellow-800">Partial Payment</span>
+                        </div>
+                        <p className="text-sm text-yellow-700">
+                          Collecting ₹{formatNumber(requestedAmount)} of ₹{formatNumber(preview.totalInvoiceBalance)} outstanding.
+                          Remaining balance: ₹{formatNumber(preview.totalInvoiceBalance - requestedAmount)} will stay pending.
+                        </p>
+                      </div>
+                    )}
+                    
+                    {requestedAmount === preview.totalInvoiceBalance && (
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <FaCheckCircle className="text-green-600" />
+                          <span className="font-medium text-green-800">Full Payment</span>
+                        </div>
+                        <p className="text-sm text-green-700">
+                          Collecting the full outstanding balance of ₹{formatNumber(requestedAmount)}.
+                          Invoice will be marked as "Received".
+                        </p>
+                      </div>
+                    )}
+                    
+                    {requestedAmount > preview.totalInvoiceBalance && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <FaInfoCircle className="text-blue-600" />
+                          <span className="font-medium text-blue-800">Overpayment</span>
+                        </div>
+                        <p className="text-sm text-blue-700">
+                          Collecting ₹{formatNumber(requestedAmount)} for ₹{formatNumber(preview.totalInvoiceBalance)} outstanding.
+                          Excess ₹{formatNumber(requestedAmount - preview.totalInvoiceBalance)} will be created as credit balance.
+                        </p>
+                      </div>
+                    )}
+                    
                     {preview.creditWillBeUsed > 0 && (
                       <div className="flex items-center justify-between p-3 bg-blue-100 rounded">
                         <div className="flex items-center">
@@ -330,7 +370,7 @@ const CustomerCreditAwarePaymentModal: React.FC<CustomerCreditAwarePaymentModalP
                       <div className="flex items-center justify-between p-3 bg-green-100 rounded">
                         <div className="flex items-center">
                           <FaMoneyBillWave className="text-green-600 mr-2" />
-                          <span className="text-green-800">Cash Payment Required</span>
+                          <span className="text-green-800">Cash Payment from Customer</span>
                         </div>
                         <span className="font-medium text-green-800">₹{formatNumber(preview.cashPaymentNeeded)}</span>
                       </div>
@@ -388,8 +428,10 @@ const CustomerCreditAwarePaymentModal: React.FC<CustomerCreditAwarePaymentModalP
                       
                       <div className="bg-blue-100 rounded p-3">
                         <p className="text-xs text-blue-700">
-                          💡 <strong>FULL AMOUNT (₹{formatNumber(requestedAmount)}) will be recorded</strong> in {paymentMethod === 'CASH' ? 'Cash Register' : 'Bank Register'}.
-                          Credit portion (₹{formatNumber(preview.creditWillBeUsed)}) will be applied silently in the background.
+                          💡 <strong>Amount to be recorded: ₹{formatNumber(preview.cashPaymentNeeded)}</strong> in {paymentMethod === 'CASH' ? 'Cash Register' : 'Bank Register'}.
+                          {preview.creditWillBeUsed > 0 && (
+                            <span> (Credit portion of ₹{formatNumber(preview.creditWillBeUsed)} will be applied automatically)</span>
+                          )}
                         </p>
                         {preview.willCreateNewCredit && (
                           <p className="text-xs text-blue-700 mt-1">

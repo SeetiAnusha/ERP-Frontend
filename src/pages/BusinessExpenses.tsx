@@ -77,6 +77,9 @@ const BusinessExpenses = () => {
   const [showModal, setShowModal] = useState(false);
   const [showDashboard, setShowDashboard] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // ✅ NEW: Group by dropdown - Category or Type
+  const [groupBy, setGroupBy] = useState<'none' | 'category' | 'type'>('none');
 
   // ✅ PAGINATION: Extract data and pagination info
   const rawExpenses = expenseResponse?.data || [];
@@ -153,6 +156,32 @@ const BusinessExpenses = () => {
       expense.expenseCategory?.name?.toLowerCase().includes(lowerSearch)
     );
   }, [expenses, searchTerm]);
+
+  // ✅ NEW: Group expenses by category OR type
+  const groupedExpenses = useMemo(() => {
+    if (groupBy === 'none') return null;
+    
+    const groups: Record<string, ExpenseRecord[]> = {};
+    
+    filteredExpenses.forEach(expense => {
+      let groupKey: string;
+      
+      if (groupBy === 'category') {
+        groupKey = expense.expenseCategory?.name || 'Uncategorized';
+      } else if (groupBy === 'type') {
+        groupKey = expense.expenseType?.name || 'General';
+      } else {
+        groupKey = 'All';
+      }
+      
+      if (!groups[groupKey]) {
+        groups[groupKey] = [];
+      }
+      groups[groupKey].push(expense);
+    });
+    
+    return groups;
+  }, [filteredExpenses, groupBy]);
 
   // ✅ OPTIMIZATION: Memoized submit handler with React Query cache invalidation
   const handleSubmitExpense = useCallback(async (expenseData: any) => {
@@ -324,6 +353,35 @@ const BusinessExpenses = () => {
         </motion.div>
       )}
 
+      {/* ✅ FILTERS ROW - Same as Accounts Receivable */}
+      <div className="flex gap-4 items-center">
+        {/* Search */}
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+          <input
+            type="text"
+            placeholder={t('placeholders_searchExpenses')}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+        
+        {/* ✅ Group By Dropdown - Category or Type */}
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-gray-700 whitespace-nowrap">Group By:</label>
+          <select
+            value={groupBy}
+            onChange={(e) => setGroupBy(e.target.value as 'none' | 'category' | 'type')}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-sm font-medium"
+          >
+            <option value="none">No Grouping</option>
+            <option value="category">Category</option>
+            <option value="type">Type</option>
+          </select>
+        </div>
+      </div>
+
       {/* Expenses List */}
       <div className="bg-white rounded-xl shadow-lg overflow-hidden">
         {/* Expenses List Header */}
@@ -341,10 +399,36 @@ const BusinessExpenses = () => {
           <EmptyState />
         ) : (
           <>
-            <ExpenseTable
-              expenses={filteredExpenses}
-              getStatusBadge={getStatusBadge}
-            />
+            {/* ✅ NEW: Conditional rendering based on grouping */}
+            {groupBy !== 'none' && groupedExpenses ? (
+              <div>
+                {Object.entries(groupedExpenses).map(([groupName, groupExpenses]) => (
+                  <div key={groupName} className="mb-6">
+                    {/* Group Header */}
+                    <div className="mb-4 p-4 bg-gray-50 rounded-lg border-l-4 border-blue-500 mx-6 mt-6">
+                      <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                        <FolderTree size={20} className="text-blue-600" />
+                        {groupName}
+                      </h3>
+                      <p className="text-sm text-gray-600">
+                        {groupExpenses.length} expense{groupExpenses.length !== 1 ? 's' : ''} • Total: {formatNumber(groupExpenses.reduce((sum, exp) => sum + Number(exp.amount), 0))}
+                      </p>
+                    </div>
+                    
+                    {/* Group Expenses Table */}
+                    <ExpenseTable
+                      expenses={groupExpenses}
+                      getStatusBadge={getStatusBadge}
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <ExpenseTable
+                expenses={filteredExpenses}
+                getStatusBadge={getStatusBadge}
+              />
+            )}
             
             {/* ✅ PAGINATION CONTROLS */}
             {pagination.totalPages > 1 && (

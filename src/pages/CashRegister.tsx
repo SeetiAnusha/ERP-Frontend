@@ -341,39 +341,12 @@ const CashRegister: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // ✅ NEW: For customer AR collections, use customer credit-aware payment system
-    if (formData.relatedDocumentType === CashRegisterSourceType.AR_COLLECTION && formData.customerId && !allowOverpayment) {
-      console.log('🎯 Using customer credit-aware payment system for AR collection');
-      
-      // Check if this is a credit-only payment (no payment method required)
-      if (creditPreview && !creditPreview.paymentTypeRequired) {
-        console.log('💳 Credit-only payment detected - processing directly');
-        setShowCustomerCreditAwareModal(true);
-        return;
-      }
-      
-      // For payments requiring payment method, validate first
-      if (!formData.paymentMethod) {
-        toast.error('Please select a payment method');
-        return;
-      }
-      
-      if (formData.paymentMethod === 'CASH' && !formData.cashRegisterId) {
-        toast.error('Please select a cash register for cash payments');
-        return;
-      }
-      
-      const bankMethods = ['BANK_TRANSFER', 'DEPOSIT', 'CREDIT_CARD', 'DEBIT_CARD', 'BANK_CHEQUE'];
-      if (bankMethods.includes(formData.paymentMethod) && !formData.bankAccountId) {
-        toast.error('Please select a bank account for bank payments');
-        return;
-      }
-      
-      setShowCustomerCreditAwareModal(true);
-      return; // Let the customer credit-aware modal handle the payment
-    }
+    // ✅ SIMPLIFIED: Always use regular cash register flow for AR collections
+    // This ensures cash register transactions are created and balances are updated
+    // The credit-aware system can be enabled later with a checkbox if needed
+    console.log('💰 Using regular cash register flow for AR collection');
     
-    // Phase 1: Overpayment Detection for AR Collections
+    // Phase 1: Overpayment Detection for AR Collections (only for non-credit-aware flow)
     if (formData.relatedDocumentType === CashRegisterSourceType.AR_COLLECTION && !allowOverpayment) {
       const paymentAmount = parseFloat(formData.amount);
       
@@ -391,7 +364,7 @@ const CashRegister: React.FC = () => {
         totalOutstandingBalance = parseFloat(location.state.prefilledData?.amount || '0');
       }
       
-      // Check for overpayment
+      // 🔥 CRITICAL FIX: Support partial payments - only check for overpayment, not underpayment
       if (paymentAmount > totalOutstandingBalance && totalOutstandingBalance > 0) {
         const overpaymentAmount = paymentAmount - totalOutstandingBalance;
         
@@ -405,6 +378,12 @@ const CashRegister: React.FC = () => {
         });
         setShowOverpaymentAlert(true);
         return; // Stop submission until user confirms
+      }
+      
+      // ✅ Allow partial payments - no validation error if payment < outstanding
+      if (paymentAmount < totalOutstandingBalance) {
+        console.log(`💰 Partial payment: Collecting ₹${paymentAmount} of ₹${totalOutstandingBalance} outstanding`);
+        // Continue with submission - partial payments are allowed
       }
     }
     
@@ -471,8 +450,11 @@ const CashRegister: React.FC = () => {
         {
           ...formData,
           invoiceIds: selectedInvoices.length > 0 ? JSON.stringify(selectedInvoices) : null,
+          // ✅ CRITICAL: Add flags for AR collection with card payment (two-step process)
+          fromAccountsReceivable: location.state?.fromAccountsReceivable || false,
+          accountsReceivableId: location.state?.prefilledData?.accountsReceivableId || (selectedInvoices.length === 1 ? selectedInvoices[0] : null),
         },
-        ['cashRegisterId', 'bankAccountId', 'customerId', 'cardId', 'cardPaymentNetworkId']  // Integer fields
+        ['cashRegisterId', 'bankAccountId', 'customerId', 'cardId', 'cardPaymentNetworkId', 'accountsReceivableId']  // Integer fields
       );
       // ✅ CRITICAL: Validate cash register balance for OUTFLOW
       if (formData.transactionType === 'OUTFLOW' && formData.cashRegisterId) {
@@ -509,11 +491,46 @@ const CashRegister: React.FC = () => {
       resetForm();
       
       if (location.state?.fromAccountsReceivable) {
-        toast.success('Customer invoice collection completed successfully! The Accounts Receivable status has been updated.');
+        // Calculate if this was a partial payment
+        const paymentAmount = parseFloat(formData.amount);
+        let totalOutstandingBalance = 0;
+        
+        if (selectedInvoices.length > 0) {
+          const selectedInvoiceData = pendingCreditSales.filter(invoice => 
+            selectedInvoices.includes(invoice.id)
+          );
+          totalOutstandingBalance = selectedInvoiceData.reduce((sum, invoice) => 
+            sum + parseFloat(invoice.balanceAmount), 0
+          );
+        } else if (location.state?.prefilledData?.amount) {
+          totalOutstandingBalance = parseFloat(location.state.prefilledData.amount);
+        }
+        
+        if (paymentAmount < totalOutstandingBalance) {
+          const remainingBalance = totalOutstandingBalance - paymentAmount;
+          toast.success(
+            `Partial payment of ₹${paymentAmount.toFixed(2)} collected successfully! ` +
+            `Remaining balance: ₹${remainingBalance.toFixed(2)}. ` +
+            `The Accounts Receivable status has been updated to "Partial".`
+          );
+        } else if (paymentAmount === totalOutstandingBalance) {
+          toast.success(
+            `Full payment of ₹${paymentAmount.toFixed(2)} collected successfully! ` +
+            `The Accounts Receivable status has been updated to "Received".`
+          );
+        } else {
+          const overpayment = paymentAmount - totalOutstandingBalance;
+          toast.success(
+            `Payment of ₹${paymentAmount.toFixed(2)} collected successfully! ` +
+            `Overpayment of ₹${overpayment.toFixed(2)} has been created as credit balance. ` +
+            `The Accounts Receivable status has been updated to "Received".`
+          );
+        }
+        
         // Navigate back to Accounts Receivable to see the updated status
         setTimeout(() => {
           navigate('/transactions/accounts-receivable');
-        }, 1000);
+        }, 2000);
       } else {
         toast.success(t('transactionCreated') || 'Transaction created successfully!');
       }

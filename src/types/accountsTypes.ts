@@ -22,6 +22,11 @@ export interface AccountsReceivable {
   dueDate?: string;
   receivedDate?: string;
   notes?: string;
+  // ✅ NEW: Collection tracking fields
+  collectionDate?: string;
+  transferReference?: string;
+  collectionNotes?: string;
+  collection_method?: string; // How payment was collected (CASH, CREDIT_CARD, DEBIT_CARD, etc.)
   createdAt?: string;
   updatedAt?: string;
   // New fields for expense data
