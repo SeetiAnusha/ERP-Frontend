@@ -114,6 +114,14 @@ const CashRegister: React.FC = () => {
   const [activeAgreements, setActiveAgreements] = useState<any[]>([]);
   const [pendingCreditSales, setPendingCreditSales] = useState<any[]>([]);
   const [selectedInvoices, setSelectedInvoices] = useState<number[]>([]);
+  // ✅ NEW: Shareholders state
+  const [shareholders, setShareholders] = useState<any[]>([]);
+  const [shareholdersLoading, setShareholdersLoading] = useState(false);
+  // ✅ NEW: Lenders state (FINANCIER, SHAREHOLDER_LENDER, RELATED_PARTY_LENDER)
+  const [financiers, setFinanciers] = useState<any[]>([]);
+  const [shareholderLenders, setShareholderLenders] = useState<any[]>([]);
+  const [relatedPartyLenders, setRelatedPartyLenders] = useState<any[]>([]);
+  const [lendersLoading, setLendersLoading] = useState(false);
 
   // Overpayment detection state
   const [showOverpaymentAlert, setShowOverpaymentAlert] = useState(false);
@@ -147,6 +155,13 @@ const CashRegister: React.FC = () => {
     // New fields for dynamic payment method dropdowns
     cardId: '',
     cardPaymentNetworkId: '',
+    // ✅ NEW: Shareholder contribution fields
+    shareholderId: '',
+    shareholderAmount: '',
+    // ✅ NEW: Lender loan receipt fields
+    lenderId: '',
+    lenderType: '' as 'FINANCIER' | 'SHAREHOLDER_LENDER' | 'RELATED_PARTY_LENDER' | '',
+    loanAmount: '',
   });
 
   const [depositData, setDepositData] = useState({
@@ -184,6 +199,8 @@ const CashRegister: React.FC = () => {
   // Fetch active agreements (not in shared data yet)
   useEffect(() => {
     fetchActiveAgreements();
+    fetchShareholders(); // ✅ NEW: Fetch shareholders on mount
+    fetchLenders(); // ✅ NEW: Fetch all lender types on mount
   }, []);
   
   // ✅ Update filter when filterType changes
@@ -279,6 +296,53 @@ const CashRegister: React.FC = () => {
       setActiveAgreements(response.data);
     } catch (error) {
       console.error('Error fetching active agreements:', error);
+    }
+  };
+
+  // ✅ NEW: Fetch active shareholders for dropdown
+  const fetchShareholders = async () => {
+    setShareholdersLoading(true);
+    try {
+      const response = await axios.get('/financers/shareholders');
+      setShareholders(response.data);
+      console.log('✅ Fetched shareholders:', response.data);
+    } catch (error) {
+      console.error('Error fetching shareholders:', error);
+      toast.error('Failed to load shareholders');
+      setShareholders([]);
+    } finally {
+      setShareholdersLoading(false);
+    }
+  };
+
+  // ✅ NEW: Fetch all lender types for dropdown
+  const fetchLenders = async () => {
+    setLendersLoading(true);
+    try {
+      // Fetch all 3 lender types in parallel
+      const [financiersRes, shareholderLendersRes, relatedPartyLendersRes] = await Promise.all([
+        axios.get('/financers/financiers'),
+        axios.get('/financers/shareholder-lenders'),
+        axios.get('/financers/related-party-lenders')
+      ]);
+      
+      setFinanciers(financiersRes.data);
+      setShareholderLenders(shareholderLendersRes.data);
+      setRelatedPartyLenders(relatedPartyLendersRes.data);
+      
+      console.log('✅ Fetched lenders:', {
+        financiers: financiersRes.data.length,
+        shareholderLenders: shareholderLendersRes.data.length,
+        relatedPartyLenders: relatedPartyLendersRes.data.length
+      });
+    } catch (error) {
+      console.error('Error fetching lenders:', error);
+      toast.error('Failed to load lenders');
+      setFinanciers([]);
+      setShareholderLenders([]);
+      setRelatedPartyLenders([]);
+    } finally {
+      setLendersLoading(false);
     }
   };
 
@@ -389,9 +453,12 @@ const CashRegister: React.FC = () => {
     
     // Phase 3: Conditional Cash Register Validation
     const needsCashRegister = 
-      (formData.relatedDocumentType === CashRegisterSourceType.CONTRIBUTION && formData.paymentMethod === 'CASH') || 
+      (formData.relatedDocumentType === CashRegisterSourceType.SHAREHOLDER_CONTRIBUTOR && (formData.paymentMethod === 'CASH' || formData.paymentMethod === 'BANK_CHEQUE')) || 
+      (formData.relatedDocumentType === CashRegisterSourceType.FINANCIER && ( formData.paymentMethod === 'CASH' || formData.paymentMethod === 'BANK_CHEQUE') ) || 
+      (formData.relatedDocumentType === CashRegisterSourceType.SHAREHOLDER_LENDER && ( formData.paymentMethod === 'CASH' || formData.paymentMethod === 'BANK_CHEQUE') ) || 
+      (formData.relatedDocumentType === CashRegisterSourceType.RELATED_PARTY_LENDER && ( formData.paymentMethod === 'CASH' || formData.paymentMethod === 'BANK_CHEQUE') ) || 
       (formData.relatedDocumentType === CashRegisterSourceType.LOAN && formData.paymentMethod === 'CASH') ||
-      (formData.relatedDocumentType === CashRegisterSourceType.AR_COLLECTION && formData.paymentMethod === 'CASH');
+      (formData.relatedDocumentType === CashRegisterSourceType.AR_COLLECTION && ( formData.paymentMethod === 'CASH' || formData.paymentMethod === 'BANK_CHEQUE'));
     
     if (needsCashRegister && !formData.cashRegisterId) {
       toast.error(t('selectCashRegister') || 'Please select a cash register');
@@ -417,6 +484,28 @@ const CashRegister: React.FC = () => {
           toast.error('Please select an investment/loan agreement');
           return;
         }
+      }
+
+      // ✅ NEW: Shareholder Contributor validation
+      if (formData.relatedDocumentType === 'SHAREHOLDER_CONTRIBUTOR') {
+        if (!formData.shareholderId) {
+          toast.error('Please select a shareholder');
+          return;
+        }
+        // Amount validation is already handled by the main amount field
+      }
+
+      // ✅ NEW: Lender loan receipt validation (FINANCIER, SHAREHOLDER_LENDER, RELATED_PARTY_LENDER)
+      if (
+        formData.relatedDocumentType === 'FINANCIER' || 
+        formData.relatedDocumentType === 'SHAREHOLDER_LENDER' || 
+        formData.relatedDocumentType === 'RELATED_PARTY_LENDER'
+      ) {
+        if (!formData.lenderId) {
+          toast.error('Please select a lender');
+          return;
+        }
+        // Amount validation is already handled by the main amount field
       }
 
       // Payment method validations
@@ -470,6 +559,128 @@ const CashRegister: React.FC = () => {
           );
           return;
         }
+      }
+      
+      // ✅ NEW: Handle Shareholder Contribution separately
+      if (formData.relatedDocumentType === 'SHAREHOLDER_CONTRIBUTOR') {
+        const shareholderData = {
+          registrationDate: formData.registrationDate,
+          shareholderId: parseInt(formData.shareholderId),
+          shareholderAmount: parseFloat(formData.amount), // ✅ Use main amount field
+          paymentMethod: formData.paymentMethod,
+          description: formData.description,
+          relatedDocumentType: formData.relatedDocumentType,
+          cashRegisterId: formData.cashRegisterId ? parseInt(formData.cashRegisterId) : undefined,
+          bankAccountId: formData.bankAccountId ? parseInt(formData.bankAccountId) : undefined,
+        };
+        
+        await axios.post('/cash-register/shareholder-contribution', shareholderData);
+        
+        // ✅ OPTIMIZATION: Use React Query cache invalidation and refresh pagination
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashTransactions }),
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashRegisters }),
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankAccounts }),
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.financers }),
+          queryClient.invalidateQueries({ queryKey: ['recent-activity'] })
+        ]);
+        refresh(); // Refresh paginated data
+        
+        resetForm();
+        
+        const selectedShareholder = shareholders.find(s => s.id === parseInt(formData.shareholderId));
+        const shareholderName = selectedShareholder?.name || 'Shareholder';
+        const isCardPayment = formData.paymentMethod === 'CREDIT_CARD' || formData.paymentMethod === 'DEBIT_CARD';
+        
+        if (isCardPayment) {
+          toast.success(
+            `Shareholder contribution from ${shareholderName} marked as pending (Card payment). ` +
+            `Amount: ₹${parseFloat(formData.amount).toFixed(2)}. ` +
+            `Equity will increase when payment is received via AR page.`
+          );
+        } else {
+          toast.success(
+            `Shareholder contribution from ${shareholderName} recorded successfully! ` +
+            `Amount: ₹${parseFloat(formData.amount).toFixed(2)}. ` +
+            `Equity has been increased immediately.`
+          );
+        }
+        
+        setShowModal(false);
+        return; // Exit early for shareholder contributions
+      }
+
+      // ✅ NEW: Handle Loan Receipt from Lenders separately
+      if (
+        formData.relatedDocumentType === 'FINANCIER' || 
+        formData.relatedDocumentType === 'SHAREHOLDER_LENDER' || 
+        formData.relatedDocumentType === 'RELATED_PARTY_LENDER'
+      ) {
+        const loanData = {
+          registrationDate: formData.registrationDate,
+          lenderId: parseInt(formData.lenderId),
+          lenderType: formData.relatedDocumentType as 'FINANCIER' | 'SHAREHOLDER_LENDER' | 'RELATED_PARTY_LENDER',
+          loanAmount: parseFloat(formData.amount), // ✅ Use main amount field
+          paymentMethod: formData.paymentMethod,
+          description: formData.description,
+          relatedDocumentType: formData.relatedDocumentType,
+          cashRegisterId: formData.cashRegisterId ? parseInt(formData.cashRegisterId) : undefined,
+          bankAccountId: formData.bankAccountId ? parseInt(formData.bankAccountId) : undefined,
+        };
+        
+        await axios.post('/cash-register/loan-receipt', loanData);
+        
+        // ✅ OPTIMIZATION: Use React Query cache invalidation and refresh pagination
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashTransactions }),
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashRegisters }),
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bankAccounts }),
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.financers }),
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.accountsPayable }),
+          queryClient.invalidateQueries({ queryKey: ['recent-activity'] })
+        ]);
+        refresh(); // Refresh paginated data
+        
+        resetForm();
+        
+        // Find lender name from appropriate list
+        let lenderName = 'Lender';
+        let lendersList: any[] = [];
+        
+        if (formData.relatedDocumentType === 'FINANCIER') {
+          lendersList = financiers;
+        } else if (formData.relatedDocumentType === 'SHAREHOLDER_LENDER') {
+          lendersList = shareholderLenders;
+        } else if (formData.relatedDocumentType === 'RELATED_PARTY_LENDER') {
+          lendersList = relatedPartyLenders;
+        }
+        
+        const selectedLender = lendersList.find(l => l.id === parseInt(formData.lenderId));
+        if (selectedLender) {
+          lenderName = selectedLender.name;
+        }
+        
+        const isCardPayment = formData.paymentMethod === 'CREDIT_CARD' || formData.paymentMethod === 'DEBIT_CARD';
+        const lenderTypeLabel = formData.relatedDocumentType === 'FINANCIER' ? 'Financier' :
+                                formData.relatedDocumentType === 'SHAREHOLDER_LENDER' ? 'Shareholder Lender' :
+                                'Related Party Lender';
+        
+        if (isCardPayment) {
+          toast.success(
+            `Loan receipt from ${lenderName} (${lenderTypeLabel}) marked as pending (Card payment). ` +
+            `Amount: ₹${parseFloat(formData.amount).toFixed(2)}. ` +
+            `Accounts Payable will be created when payment is received via AR page.`
+          );
+        } else {
+          toast.success(
+            `Loan receipt from ${lenderName} (${lenderTypeLabel}) recorded successfully! ` +
+            `Amount: ₹${parseFloat(formData.amount).toFixed(2)}. ` +
+            `Accounts Payable has been created and lender balance updated.`
+          );
+        }
+        
+        setShowModal(false);
+        return; // Exit early for loan receipts
       }
       
       await axios.post('/cash-register', cleanedData);
@@ -616,6 +827,13 @@ const CashRegister: React.FC = () => {
       // New fields for dynamic payment method dropdowns
       cardId: '',
       cardPaymentNetworkId: '',
+      // ✅ NEW: Shareholder contribution fields
+      shareholderId: '',
+      shareholderAmount: '',
+      // ✅ NEW: Lender loan receipt fields
+      lenderId: '',
+      lenderType: '' as 'FINANCIER' | 'SHAREHOLDER_LENDER' | 'RELATED_PARTY_LENDER' | '',
+      loanAmount: '',
     });
     setSelectedInvoices([]);
     setPendingCreditSales([]);
@@ -1479,9 +1697,12 @@ const CashRegister: React.FC = () => {
                     }
                     
                     const needsCashRegister = 
-                      (formData.relatedDocumentType === CashRegisterSourceType.CONTRIBUTION && formData.paymentMethod === 'CASH') || 
+                      (formData.relatedDocumentType === CashRegisterSourceType.SHAREHOLDER_CONTRIBUTOR && ( formData.paymentMethod === 'CASH' || formData.paymentMethod === 'BANK_CHEQUE') ) || 
+                      (formData.relatedDocumentType === CashRegisterSourceType.FINANCIER && ( formData.paymentMethod === 'CASH' || formData.paymentMethod === 'BANK_CHEQUE') ) || 
+                      (formData.relatedDocumentType === CashRegisterSourceType.SHAREHOLDER_LENDER && ( formData.paymentMethod === 'CASH' || formData.paymentMethod === 'BANK_CHEQUE') ) || 
+                      (formData.relatedDocumentType === CashRegisterSourceType.RELATED_PARTY_LENDER && ( formData.paymentMethod === 'CASH' || formData.paymentMethod === 'BANK_CHEQUE') ) || 
                       (formData.relatedDocumentType === CashRegisterSourceType.LOAN && formData.paymentMethod === 'CASH') ||
-                      (formData.relatedDocumentType === CashRegisterSourceType.AR_COLLECTION && formData.paymentMethod === 'CASH');
+                      (formData.relatedDocumentType === CashRegisterSourceType.AR_COLLECTION && ( formData.paymentMethod === 'CASH' || formData.paymentMethod === 'BANK_CHEQUE') );
                     
                     return needsCashRegister ? (
                       <div className="md:col-span-2">
@@ -1653,9 +1874,13 @@ const CashRegister: React.FC = () => {
                               onChange={(e) => {
                                 const newPaymentMethod = e.target.value;
                                 const needsCashRegister = 
-                                  (formData.relatedDocumentType === CashRegisterSourceType.CONTRIBUTION && newPaymentMethod === 'CASH') || 
-                                  (formData.relatedDocumentType === CashRegisterSourceType.LOAN && newPaymentMethod === 'CASH') ||
-                                  (formData.relatedDocumentType === CashRegisterSourceType.AR_COLLECTION && newPaymentMethod === 'CASH');
+                                  (formData.relatedDocumentType === CashRegisterSourceType.CONTRIBUTION && (newPaymentMethod === 'CASH' || newPaymentMethod === 'BANK_CHEQUE')) || 
+                                  (formData.relatedDocumentType === CashRegisterSourceType.FINANCIER && ( formData.paymentMethod === 'CASH' || formData.paymentMethod === 'BANK_CHEQUE') ) || 
+                                  (formData.relatedDocumentType === CashRegisterSourceType.SHAREHOLDER_LENDER && ( formData.paymentMethod === 'CASH' || formData.paymentMethod === 'BANK_CHEQUE') ) || 
+                                  (formData.relatedDocumentType === CashRegisterSourceType.RELATED_PARTY_LENDER && ( formData.paymentMethod === 'CASH' || formData.paymentMethod === 'BANK_CHEQUE') ) || 
+                                  (formData.relatedDocumentType === CashRegisterSourceType.LOAN && (newPaymentMethod === 'CASH' || newPaymentMethod === 'BANK_CHEQUE')) ||
+                                  (formData.relatedDocumentType === CashRegisterSourceType.AR_COLLECTION && (newPaymentMethod === 'CASH' || newPaymentMethod === 'BANK_CHEQUE')) ||
+                                  (formData.relatedDocumentType === 'SHAREHOLDER_CONTRIBUTOR' && (newPaymentMethod === 'CASH' || newPaymentMethod === 'BANK_CHEQUE'));
                                 
                                 setFormData({ 
                                   ...formData, 
@@ -1710,9 +1935,13 @@ const CashRegister: React.FC = () => {
                             if (!isValidSourceType(raw)) return;
                             const newDocumentType = raw;
                             const needsCashRegister = 
-                              (newDocumentType === CashRegisterSourceType.CONTRIBUTION && formData.paymentMethod === 'CASH') || 
-                              (newDocumentType === CashRegisterSourceType.LOAN && formData.paymentMethod === 'CASH') ||
-                              (newDocumentType === CashRegisterSourceType.AR_COLLECTION && formData.paymentMethod === 'CASH');
+                              (newDocumentType === CashRegisterSourceType.CONTRIBUTION && (formData.paymentMethod === 'CASH' || formData.paymentMethod === 'BANK_CHEQUE')) ||
+                              (formData.relatedDocumentType === CashRegisterSourceType.FINANCIER && ( formData.paymentMethod === 'CASH' || formData.paymentMethod === 'BANK_CHEQUE') ) || 
+                              (formData.relatedDocumentType === CashRegisterSourceType.SHAREHOLDER_LENDER && ( formData.paymentMethod === 'CASH' || formData.paymentMethod === 'BANK_CHEQUE') ) || 
+                              (formData.relatedDocumentType === CashRegisterSourceType.RELATED_PARTY_LENDER && ( formData.paymentMethod === 'CASH' || formData.paymentMethod === 'BANK_CHEQUE') ) ||  
+                              (newDocumentType === CashRegisterSourceType.LOAN && (formData.paymentMethod === 'CASH' || formData.paymentMethod === 'BANK_CHEQUE')) ||
+                              (newDocumentType === CashRegisterSourceType.AR_COLLECTION && (formData.paymentMethod === 'CASH' || formData.paymentMethod === 'BANK_CHEQUE')) ||
+                              (newDocumentType === 'SHAREHOLDER_CONTRIBUTOR' && (formData.paymentMethod === 'CASH' || formData.paymentMethod === 'BANK_CHEQUE'));
                             
                             // Reset payment method if switching to CONTRIBUTION/LOAN with card payment selected
                             let newPaymentMethod = formData.paymentMethod;
@@ -1726,16 +1955,154 @@ const CashRegister: React.FC = () => {
                               relatedDocumentType: newDocumentType,
                               paymentMethod: newPaymentMethod,
                               // Clear cashRegisterId if not needed
-                              cashRegisterId: needsCashRegister ? formData.cashRegisterId : ''
+                              cashRegisterId: needsCashRegister ? formData.cashRegisterId : '',
+                              // ✅ NEW: Clear shareholder fields when changing document type
+                              shareholderId: '',
+                              shareholderAmount: ''
                             });
                           }}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         >
                           <option value={CashRegisterSourceType.AR_COLLECTION}>{t('creditSaleCollection')} (Credit & Card Sales)</option>
-                          <option value={CashRegisterSourceType.CONTRIBUTION}>{t('contribution')}</option>
-                          <option value={CashRegisterSourceType.LOAN}>{t('loan')}</option>
+                          {/* ❌ COMMENTED OUT: Not needed in dropdown */}
+                          {/* <option value={CashRegisterSourceType.CREDIT_CARD_SALE_COLLECTION}>Credit/Debit Card Sale Collection</option> */}
+                          {/* ✅ NEW: Financer types */}
+                          <option value="SHAREHOLDER_CONTRIBUTOR">Shareholder Contributor</option>
+                          <option value="FINANCIER">Financier</option>
+                          <option value="SHAREHOLDER_LENDER">Shareholder Lender</option>
+                          <option value="RELATED_PARTY_LENDER">Related Party Lender</option>
+                          {/* ❌ COMMENTED OUT: Future use */}
+                          {/* <option value={CashRegisterSourceType.CONTRIBUTION}>{t('contribution')}</option> */}
+                          {/* <option value={CashRegisterSourceType.LOAN}>{t('loan')}</option> */}
                         </select>
                       </div>
+
+                      {/* ✅ NEW: Shareholder Contributor - Show shareholder dropdown only */}
+                      {formData.relatedDocumentType === 'SHAREHOLDER_CONTRIBUTOR' && (
+                        <>
+                          <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Select Shareholder (Contributor) *
+                            </label>
+                            <select
+                              required
+                              value={formData.shareholderId}
+                              onChange={(e) => setFormData({ ...formData, shareholderId: e.target.value })}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              disabled={shareholdersLoading}
+                            >
+                              <option value="">
+                                {shareholdersLoading ? 'Loading shareholders...' : 'Select shareholder...'}
+                              </option>
+                              {shareholders.map((shareholder) => (
+                                <option key={shareholder.id} value={shareholder.id}>
+                                  {shareholder.displayName} 
+                                  {shareholder.equity_percentage ? ` (${shareholder.equity_percentage}% equity)` : ''}
+                                </option>
+                              ))}
+                            </select>
+                            <p className="text-xs text-gray-500 mt-1">
+                              💰 Select the shareholder making the contribution
+                            </p>
+                            {shareholders.length === 0 && !shareholdersLoading && (
+                              <p className="text-xs text-red-600 mt-1">
+                                ⚠️ No active shareholders found. Please create shareholders in the Financers page first.
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="md:col-span-2">
+                            <p className="text-xs text-blue-600 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                              {formData.paymentMethod === 'CREDIT_CARD' || formData.paymentMethod === 'DEBIT_CARD' 
+                                ? '⚠️ Card payment: Creates AR record. Equity will increase ONLY when payment is received via AR page.'
+                                : formData.paymentMethod === 'BANK_TRANSFER' || formData.paymentMethod === 'DEPOSIT' || formData.paymentMethod === 'UPI'
+                                ? '✅ Bank payment: Money goes to Bank Account. Equity increases immediately.'
+                                : '✅ Cash/Cheque payment: Money goes to Cash Register. Equity increases immediately.'
+                              }
+                            </p>
+                          </div>
+                        </>
+                      )}
+
+                      {/* ✅ NEW: Lender Loan Receipt - Show lender dropdown based on type */}
+                      {(formData.relatedDocumentType === 'FINANCIER' || 
+                        formData.relatedDocumentType === 'SHAREHOLDER_LENDER' || 
+                        formData.relatedDocumentType === 'RELATED_PARTY_LENDER') && (
+                        <>
+                          <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Select {formData.relatedDocumentType === 'FINANCIER' ? 'Financier' : 
+                                     formData.relatedDocumentType === 'SHAREHOLDER_LENDER' ? 'Shareholder Lender' : 
+                                     'Related Party Lender'} *
+                            </label>
+                            <select
+                              required
+                              value={formData.lenderId}
+                              onChange={(e) => {
+                                setFormData({ 
+                                  ...formData, 
+                                  lenderId: e.target.value,
+                                  lenderType: formData.relatedDocumentType as 'FINANCIER' | 'SHAREHOLDER_LENDER' | 'RELATED_PARTY_LENDER'
+                                });
+                              }}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              disabled={lendersLoading}
+                            >
+                              <option value="">
+                                {lendersLoading ? 'Loading lenders...' : 'Select lender...'}
+                              </option>
+                              {formData.relatedDocumentType === 'FINANCIER' && financiers.map((lender) => (
+                                <option key={lender.id} value={lender.id}>
+                                  {lender.displayName}
+                                  {lender.interest_rate ? ` (${lender.interest_rate}% interest)` : ''}
+                                </option>
+                              ))}
+                              {formData.relatedDocumentType === 'SHAREHOLDER_LENDER' && shareholderLenders.map((lender) => (
+                                <option key={lender.id} value={lender.id}>
+                                  {lender.displayName}
+                                  {lender.interest_rate ? ` (${lender.interest_rate}% interest)` : ''}
+                                </option>
+                              ))}
+                              {formData.relatedDocumentType === 'RELATED_PARTY_LENDER' && relatedPartyLenders.map((lender) => (
+                                <option key={lender.id} value={lender.id}>
+                                  {lender.displayName}
+                                  {lender.interest_rate ? ` (${lender.interest_rate}% interest)` : ''}
+                                  {lender.relationship_description ? ` - ${lender.relationship_description}` : ''}
+                                </option>
+                              ))}
+                            </select>
+                            <p className="text-xs text-gray-500 mt-1">
+                              💰 Select the lender providing the loan
+                            </p>
+                            {formData.relatedDocumentType === 'FINANCIER' && financiers.length === 0 && !lendersLoading && (
+                              <p className="text-xs text-red-600 mt-1">
+                                ⚠️ No active financiers found. Please create financiers in the Financers page first.
+                              </p>
+                            )}
+                            {formData.relatedDocumentType === 'SHAREHOLDER_LENDER' && shareholderLenders.length === 0 && !lendersLoading && (
+                              <p className="text-xs text-red-600 mt-1">
+                                ⚠️ No active shareholder lenders found. Please create shareholder lenders in the Financers page first.
+                              </p>
+                            )}
+                            {formData.relatedDocumentType === 'RELATED_PARTY_LENDER' && relatedPartyLenders.length === 0 && !lendersLoading && (
+                              <p className="text-xs text-red-600 mt-1">
+                                ⚠️ No active related party lenders found. Please create related party lenders in the Financers page first.
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="md:col-span-2">
+                            <p className="text-xs text-orange-600 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                              {formData.paymentMethod === 'CREDIT_CARD' || formData.paymentMethod === 'DEBIT_CARD' 
+                                ? '⚠️ Card payment: Creates AR record. Accounts Payable will be created ONLY when payment is received via AR page.'
+                                : formData.paymentMethod === 'BANK_TRANSFER' || formData.paymentMethod === 'DEPOSIT' || formData.paymentMethod === 'UPI'
+                                ? '✅ Bank payment: Money goes to Bank Account. Accounts Payable created immediately (LIABILITY).'
+                                : '✅ Cash/Cheque payment: Money goes to Cash Register. Accounts Payable created immediately (LIABILITY).'
+                              }
+                            </p>
+                          </div>
+                        </>
+                      )}
 
                       {/* AR Collection: Show customer and invoice selection */}
                       {formData.relatedDocumentType === CashRegisterSourceType.AR_COLLECTION && (

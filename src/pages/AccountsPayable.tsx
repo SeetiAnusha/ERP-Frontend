@@ -49,6 +49,30 @@ const AccountsPayablePage = () => {
 
   // ✅ DSA: Helper function for determining payable entity (Single Responsibility Principle)
   const getPayableEntity = (ap: AccountsPayable) => {
+    // ✅ NEW: Check if it's a lender loan (FINANCIER, SHAREHOLDER_LENDER, RELATED_PARTY_LENDER)
+    const isLenderLoan = ap.type?.includes('FINANCIER_LOAN') || 
+                        ap.type?.includes('SHAREHOLDER_LENDER_LOAN') || 
+                        ap.type?.includes('RELATED_PARTY_LENDER_LOAN');
+    
+    if (isLenderLoan) {
+      let lenderType = 'Lender';
+      if (ap.type?.includes('FINANCIER_LOAN')) {
+        lenderType = 'Financier';
+      } else if (ap.type?.includes('SHAREHOLDER_LENDER_LOAN')) {
+        lenderType = 'Shareholder Lender';
+      } else if (ap.type?.includes('RELATED_PARTY_LENDER_LOAN')) {
+        lenderType = 'Related Party Lender';
+      }
+      
+      return {
+        type: 'LENDER',
+        icon: '💰',
+        label: lenderType,
+        name: ap.financerName || lenderType,
+        badgeClass: 'bg-orange-100 text-orange-800 border-orange-300',
+      };
+    }
+    
     // Check payment type to determine if it's supplier or card company
     const isCardPurchase = ap.paymentType === 'CREDIT_CARD' || ap.type === 'CREDIT_CARD_PURCHASE';
     
@@ -70,6 +94,13 @@ const AccountsPayablePage = () => {
       name: ap.supplierName || t('supplier'),
       badgeClass: 'bg-green-100 text-green-800 border-green-300',
     };
+  };
+
+  // ✅ NEW: Helper function to check if AP is a lender loan
+  const isLenderLoan = (ap: AccountsPayable) => {
+    return ap.type?.includes('FINANCIER_LOAN') || 
+           ap.type?.includes('SHAREHOLDER_LENDER_LOAN') || 
+           ap.type?.includes('RELATED_PARTY_LENDER_LOAN');
   };
 
   // 🔥 NEW: Helper function to check if transaction is deleted
@@ -458,9 +489,10 @@ const AccountsPayablePage = () => {
                       </div>
                     ) : (ap.status !== 'Paid' && ap.status !== 'Received') && Number(ap.balanceAmount) > 0 ? (
                       <>
-                        {/* Show Pay via Bank button for Credit payment type only */}
+                        {/* ✅ Show Pay via Bank button for Credit payment type OR Lender Loans */}
                         {((ap.paymentType === 'CREDIT' || ap.paymentType === 'Credit') || 
-                          (ap.type === 'CREDIT' || ap.type === 'Credit')) ? (
+                          (ap.type === 'CREDIT' || ap.type === 'Credit') ||
+                          isLenderLoan(ap)) ? (
                           <button
                             onClick={() => handlePayCreditPurchase(ap)}
                             className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"

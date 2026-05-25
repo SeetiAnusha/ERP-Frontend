@@ -466,7 +466,7 @@ const translations = {
     // Phase 3 - Cash Register Updates
     selectCashRegister: 'Select Cash Register',
     selectBankAccount: 'Select Bank Account',
-    selectCustomer: 'Select Customer',
+    selectCustomer: 'Select Clients',
     selectFinancer: 'Select Financer',
     selectContributor: 'Select Contributor',
     selectLender: 'Select Lender',

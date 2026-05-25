@@ -10,7 +10,14 @@ export enum CashRegisterSourceType {
   LOAN = 'LOAN',
   BANK_DEPOSIT = 'BANK_DEPOSIT',
   CORRECTION = 'CORRECTION',
-  MANUAL = 'MANUAL'
+  MANUAL = 'MANUAL',
+  // ✅ NEW: Credit Card Sale Collection
+  CREDIT_CARD_SALE_COLLECTION = 'CREDIT_CARD_SALE_COLLECTION',
+  // ✅ NEW: Financer types
+  SHAREHOLDER_CONTRIBUTOR = 'SHAREHOLDER_CONTRIBUTOR',
+  FINANCIER = 'FINANCIER',
+  SHAREHOLDER_LENDER = 'SHAREHOLDER_LENDER',
+  RELATED_PARTY_LENDER = 'RELATED_PARTY_LENDER'
 }
 
 /**
@@ -23,7 +30,12 @@ export const CashRegisterSourceTypeLabels: Record<CashRegisterSourceType, string
   [CashRegisterSourceType.LOAN]: 'Loan',
   [CashRegisterSourceType.BANK_DEPOSIT]: 'Bank Deposit',
   [CashRegisterSourceType.CORRECTION]: 'Correction',
-  [CashRegisterSourceType.MANUAL]: 'Manual Entry'
+  [CashRegisterSourceType.MANUAL]: 'Manual Entry',
+  [CashRegisterSourceType.CREDIT_CARD_SALE_COLLECTION]: 'Credit Card Sale Collection',
+  [CashRegisterSourceType.SHAREHOLDER_CONTRIBUTOR]: 'Shareholder Contributor',
+  [CashRegisterSourceType.FINANCIER]: 'Financier',
+  [CashRegisterSourceType.SHAREHOLDER_LENDER]: 'Shareholder Lender',
+  [CashRegisterSourceType.RELATED_PARTY_LENDER]: 'Related Party Lender'
 };
 
 /**
@@ -36,7 +48,12 @@ export const CashRegisterSourceTypeColors: Record<CashRegisterSourceType, string
   [CashRegisterSourceType.LOAN]: 'bg-purple-100 text-purple-800',
   [CashRegisterSourceType.BANK_DEPOSIT]: 'bg-red-100 text-red-800',
   [CashRegisterSourceType.CORRECTION]: 'bg-gray-100 text-gray-800',
-  [CashRegisterSourceType.MANUAL]: 'bg-gray-100 text-gray-800'
+  [CashRegisterSourceType.MANUAL]: 'bg-gray-100 text-gray-800',
+  [CashRegisterSourceType.CREDIT_CARD_SALE_COLLECTION]: 'bg-purple-100 text-purple-800',
+  [CashRegisterSourceType.SHAREHOLDER_CONTRIBUTOR]: 'bg-green-100 text-green-800',
+  [CashRegisterSourceType.FINANCIER]: 'bg-blue-100 text-blue-800',
+  [CashRegisterSourceType.SHAREHOLDER_LENDER]: 'bg-indigo-100 text-indigo-800',
+  [CashRegisterSourceType.RELATED_PARTY_LENDER]: 'bg-pink-100 text-pink-800'
 };
 
 /**

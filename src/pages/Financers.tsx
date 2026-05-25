@@ -20,7 +20,16 @@ interface Financer {
   email: string;
   address: string;
   rnc: string;
-  type: 'BANK' | 'INVESTOR' | 'OTHER';
+  // ✅ NEW: Enhanced fields - 4 distinct types
+  financer_type: 'SHAREHOLDER_CONTRIBUTOR' | 'FINANCIER' | 'SHAREHOLDER_LENDER' | 'RELATED_PARTY_LENDER';
+  financial_nature: 'EQUITY' | 'LOAN';
+  total_contributed?: number;
+  outstanding_balance?: number;
+  equity_percentage?: number;
+  interest_rate?: number;
+  relationship_description?: string;
+  // Legacy field (for backward compatibility)
+  type?: 'BANK' | 'INVESTOR' | 'OTHER';
   status: 'ACTIVE' | 'INACTIVE';
 }
 
@@ -42,7 +51,12 @@ const Financers = () => {
     email: '',
     address: '',
     rnc: '',
-    type: 'OTHER' as 'BANK' | 'INVESTOR' | 'OTHER',
+    // ✅ NEW: Enhanced fields
+    financer_type: 'FINANCIER' as 'SHAREHOLDER_CONTRIBUTOR' | 'FINANCIER' | 'SHAREHOLDER_LENDER' | 'RELATED_PARTY_LENDER',
+    financial_nature: 'EQUITY' as 'EQUITY' | 'LOAN',
+    equity_percentage: '',
+    interest_rate: '',
+    relationship_description: '',
     status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE',
   });
 
@@ -64,7 +78,11 @@ const Financers = () => {
         email: financer.email,
         address: financer.address,
         rnc: financer.rnc,
-        type: financer.type,
+        financer_type: financer.financer_type,
+        financial_nature: financer.financial_nature,
+        equity_percentage: financer.equity_percentage?.toString() || '',
+        interest_rate: financer.interest_rate?.toString() || '',
+        relationship_description: financer.relationship_description || '',
         status: financer.status,
       });
     } else {
@@ -76,7 +94,11 @@ const Financers = () => {
         email: '',
         address: '',
         rnc: '',
-        type: 'OTHER',
+        financer_type: 'FINANCIER',
+        financial_nature: 'EQUITY',
+        equity_percentage: '',
+        interest_rate: '',
+        relationship_description: '',
         status: 'ACTIVE',
       });
     }
@@ -92,12 +114,21 @@ const Financers = () => {
     
     setIsSubmitting(true);
     try {
+      // Prepare data with proper type conversion
+      const submitData = {
+        ...formData,
+        equity_percentage: formData.equity_percentage ? parseFloat(formData.equity_percentage) : undefined,
+        interest_rate: formData.interest_rate ? parseFloat(formData.interest_rate) : undefined,
+      };
+      
       if (editingFinancer) {
-        await api.put(`/financers/${editingFinancer.id}`, formData);
-        toast.success(t('financerUpdatedSuccess'));
+        await api.put(`/financers/${editingFinancer.id}`, submitData);
+        toast.success(t('financerUpdatedSuccess') || 'Financer updated successfully');
       } else {
-        await api.post('/financers', formData);
-        toast.success(t('financerCreatedSuccess'));
+        // Generate code automatically
+        const code = `${formData.financer_type.substring(0, 2)}${Date.now().toString().slice(-4)}`;
+        await api.post('/financers', { ...submitData, code });
+        toast.success(t('financerCreatedSuccess') || 'Financer created successfully');
       }
       // ✅ Invalidate cache
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.financers });
@@ -109,7 +140,7 @@ const Financers = () => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [isSubmitting, editingFinancer, formData, queryClient, refetch, closeModal]);
+  }, [isSubmitting, editingFinancer, formData, queryClient, refetch, closeModal, t]);
 
   // ✅ Memoized: Handle delete - NO MORE window.confirm!
   const handleDelete = useCallback(async (id: number) => {
@@ -209,32 +240,54 @@ const Financers = () => {
         <table className="w-full">
           <thead className="bg-gray-50 border-b">
             <tr>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('code').toUpperCase()}</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('name').toUpperCase()}</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('rnc').toUpperCase()}</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('contactPerson').toUpperCase()}</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('phone').toUpperCase()}</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('financerType').toUpperCase()}</th>
-              <th className="px-6 py-4 text-center text-sm font-bold text-gray-800">{t('status').toUpperCase()}</th>
-              <th className="px-6 py-4 text-center text-sm font-bold text-gray-800">{t('actions').toUpperCase()}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('code')?.toUpperCase() || 'CODE'}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('name')?.toUpperCase() || 'NAME'}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">FINANCER TYPE</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">FINANCIAL NATURE</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('contactPerson')?.toUpperCase() || 'CONTACT'}</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-gray-800">{t('phone')?.toUpperCase() || 'PHONE'}</th>
+              <th className="px-6 py-4 text-right text-sm font-bold text-gray-800">CONTRIBUTED</th>
+              <th className="px-6 py-4 text-center text-sm font-bold text-gray-800">{t('status')?.toUpperCase() || 'STATUS'}</th>
+              <th className="px-6 py-4 text-center text-sm font-bold text-gray-800">{t('actions')?.toUpperCase() || 'ACTIONS'}</th>
             </tr>
           </thead>
           <tbody>
             {filteredFinancers.map((financer) => (
               <tr key={financer.id} className="border-b hover:bg-gray-50">
                 <td className="px-6 py-4 text-sm font-medium">{financer.code}</td>
-                <td className="px-6 py-4 text-sm">{financer.name}</td>
-                <td className="px-6 py-4 text-sm">{financer.rnc || '-'}</td>
-                <td className="px-6 py-4 text-sm">{financer.contactPerson || '-'}</td>
-                <td className="px-6 py-4 text-sm">{financer.phone || '-'}</td>
+                <td className="px-6 py-4 text-sm">
+                  <div>
+                    <div className="font-medium">{financer.name}</div>
+                    {financer.rnc && <div className="text-xs text-gray-500">RNC: {financer.rnc}</div>}
+                  </div>
+                </td>
                 <td className="px-6 py-4 text-sm">
                   <span className={`px-2 py-1 rounded text-xs font-medium ${
-                    financer.type === 'BANK' ? 'bg-blue-100 text-blue-800' :
-                    financer.type === 'INVESTOR' ? 'bg-green-100 text-green-800' :
-                    'bg-gray-100 text-gray-800'
+                    financer.financer_type === 'SHAREHOLDER_CONTRIBUTOR' ? 'bg-green-100 text-green-800' :
+                    financer.financer_type === 'FINANCIER' ? 'bg-blue-100 text-blue-800' :
+                    financer.financer_type === 'SHAREHOLDER_LENDER' ? 'bg-purple-100 text-purple-800' :
+                    'bg-yellow-100 text-yellow-800'
                   }`}>
-                    {financer.type}
+                    {financer.financer_type === 'SHAREHOLDER_CONTRIBUTOR' ? 'SHAREHOLDER CONTRIBUTOR' :
+                     financer.financer_type === 'SHAREHOLDER_LENDER' ? 'SHAREHOLDER LENDER' :
+                     financer.financer_type === 'RELATED_PARTY_LENDER' ? 'RELATED PARTY LENDER' :
+                     'FINANCIER'}
                   </span>
+                </td>
+                <td className="px-6 py-4 text-sm">
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                    financer.financial_nature === 'EQUITY' ? 'bg-emerald-100 text-emerald-800' :
+                    'bg-indigo-100 text-indigo-800'
+                  }`}>
+                    {financer.financial_nature}
+                    {financer.equity_percentage && ` (${financer.equity_percentage}%)`}
+                    {financer.interest_rate && ` (${financer.interest_rate}%)`}
+                  </span>
+                </td>
+                <td className="px-6 py-4 text-sm">{financer.contactPerson || '-'}</td>
+                <td className="px-6 py-4 text-sm">{financer.phone || '-'}</td>
+                <td className="px-6 py-4 text-sm text-right font-medium">
+                  {financer.total_contributed ? `₹${financer.total_contributed.toLocaleString()}` : '-'}
                 </td>
                 <td className="px-6 py-4 text-center">
                   <span className={`px-3 py-1 rounded-full text-xs font-medium ${
@@ -293,7 +346,7 @@ const Financers = () => {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
-                    <label className="block text-sm font-medium mb-1">{t('name')} *</label>
+                    <label className="block text-sm font-medium mb-1">{t('name') || 'Name'} *</label>
                     <input
                       type="text"
                       required
@@ -304,7 +357,68 @@ const Financers = () => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium mb-1">{t('rnc')}</label>
+                    <label className="block text-sm font-medium mb-1">Financer Type *</label>
+                    <select
+                      required
+                      value={formData.financer_type}
+                      onChange={(e) => setFormData({ ...formData, financer_type: e.target.value as 'SHAREHOLDER_CONTRIBUTOR' | 'FINANCIER' | 'SHAREHOLDER_LENDER' | 'RELATED_PARTY_LENDER' })}
+                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="SHAREHOLDER_CONTRIBUTOR">SHAREHOLDER CONTRIBUTOR</option>
+                      <option value="FINANCIER">FINANCIER</option>
+                      <option value="SHAREHOLDER_LENDER">SHAREHOLDER LENDER</option>
+                      <option value="RELATED_PARTY_LENDER">RELATED PARTY LENDER</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Financial Nature *</label>
+                    <select
+                      required
+                      value={formData.financial_nature}
+                      onChange={(e) => setFormData({ ...formData, financial_nature: e.target.value as 'EQUITY' | 'LOAN' })}
+                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="EQUITY">EQUITY (Ownership)</option>
+                      <option value="LOAN">LOAN (Debt)</option>
+                    </select>
+                  </div>
+
+                  {/* Show equity_percentage only for SHAREHOLDER_CONTRIBUTOR with EQUITY */}
+                  {formData.financer_type === 'SHAREHOLDER_CONTRIBUTOR' && formData.financial_nature === 'EQUITY' && (
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Equity Percentage (%)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max="100"
+                        value={formData.equity_percentage}
+                        onChange={(e) => setFormData({ ...formData, equity_percentage: e.target.value })}
+                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                        placeholder="e.g., 25.00"
+                      />
+                    </div>
+                  )}
+
+                  {/* Show interest_rate only for LOAN */}
+                  {formData.financial_nature === 'LOAN' && (
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Interest Rate (%)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={formData.interest_rate}
+                        onChange={(e) => setFormData({ ...formData, interest_rate: e.target.value })}
+                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                        placeholder="e.g., 5.50"
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">{t('rnc') || 'RNC'}</label>
                     <input
                       type="text"
                       value={formData.rnc}
@@ -314,21 +428,7 @@ const Financers = () => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium mb-1">{t('financerType')} *</label>
-                    <select
-                      required
-                      value={formData.type}
-                      onChange={(e) => setFormData({ ...formData, type: e.target.value as 'BANK' | 'INVESTOR' | 'OTHER' })}
-                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                    >
-                      <option value="BANK">{t('bank')}</option>
-                      <option value="INVESTOR">{t('investor')}</option>
-                      <option value="OTHER">{t('other')}</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-1">{t('contactPerson')}</label>
+                    <label className="block text-sm font-medium mb-1">{t('contactPerson') || 'Contact Person'}</label>
                     <input
                       type="text"
                       value={formData.contactPerson}
@@ -338,7 +438,7 @@ const Financers = () => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium mb-1">{t('phone')}</label>
+                    <label className="block text-sm font-medium mb-1">{t('phone') || 'Phone'}</label>
                     <input
                       type="text"
                       value={formData.phone}
@@ -348,7 +448,7 @@ const Financers = () => {
                   </div>
 
                   <div className="col-span-2">
-                    <label className="block text-sm font-medium mb-1">{t('email')}</label>
+                    <label className="block text-sm font-medium mb-1">{t('email') || 'Email'}</label>
                     <input
                       type="email"
                       value={formData.email}
@@ -358,25 +458,39 @@ const Financers = () => {
                   </div>
 
                   <div className="col-span-2">
-                    <label className="block text-sm font-medium mb-1">{t('address')}</label>
+                    <label className="block text-sm font-medium mb-1">{t('address') || 'Address'}</label>
                     <textarea
                       value={formData.address}
                       onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                       className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                      rows={3}
+                      rows={2}
                     />
                   </div>
 
+                  {/* Show relationship_description for RELATED_PARTY_LENDER */}
+                  {formData.financer_type === 'RELATED_PARTY_LENDER' && (
+                    <div className="col-span-2">
+                      <label className="block text-sm font-medium mb-1">Relationship Description</label>
+                      <textarea
+                        value={formData.relationship_description}
+                        onChange={(e) => setFormData({ ...formData, relationship_description: e.target.value })}
+                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                        rows={2}
+                        placeholder="Describe the relationship with the company..."
+                      />
+                    </div>
+                  )}
+
                   <div className="col-span-2">
-                    <label className="block text-sm font-medium mb-1">{t('status')} *</label>
+                    <label className="block text-sm font-medium mb-1">{t('status') || 'Status'} *</label>
                     <select
                       required
                       value={formData.status}
                       onChange={(e) => setFormData({ ...formData, status: e.target.value as 'ACTIVE' | 'INACTIVE' })}
                       className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
                     >
-                      <option value="ACTIVE">{t('active')}</option>
-                      <option value="INACTIVE">{t('inactive')}</option>
+                      <option value="ACTIVE">{t('active') || 'Active'}</option>
+                      <option value="INACTIVE">{t('inactive') || 'Inactive'}</option>
                     </select>
                   </div>
                 </div>
@@ -388,7 +502,7 @@ const Financers = () => {
                     disabled={isSubmitting}
                     className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {t('cancel')}
+                    {t('cancel') || 'Cancel'}
                   </button>
                   <button
                     type="submit"
@@ -401,7 +515,7 @@ const Financers = () => {
                         {editingFinancer ? 'Updating...' : 'Creating...'}
                       </div>
                     ) : (
-                      editingFinancer ? t('update') : t('create')
+                      editingFinancer ? (t('update') || 'Update') : (t('create') || 'Create')
                     )}
                   </button>
                 </div>

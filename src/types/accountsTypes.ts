@@ -62,6 +62,11 @@ export interface AccountsPayable {
   supplierId?: number;
   supplierName?: string;
   supplierRnc?: string;
+  // ✅ NEW: Financer/Lender fields (for FINANCIER, SHAREHOLDER_LENDER, RELATED_PARTY_LENDER)
+  financerId?: number;
+  financerName?: string;
+  loanAmount?: number;
+  interestRate?: number;
   cardId?: number;
   cardIssuer?: string;
   ncf?: string;
@@ -83,4 +88,50 @@ export interface AccountsPayable {
   deleted_by?: number;
   deletion_reason_code?: string;
   deletion_memo?: string;
+}
+
+// ✅ NEW: Shareholder interface for Cash Register
+export interface Shareholder {
+  id: number;
+  code: string;
+  name: string;
+  equity_percentage?: number;
+  total_contributed: number;
+  displayName: string;
+}
+
+// ✅ NEW: Lender interface for Cash Register (FINANCIER, SHAREHOLDER_LENDER, RELATED_PARTY_LENDER)
+export interface Lender {
+  id: number;
+  code: string;
+  name: string;
+  financer_type: 'FINANCIER' | 'SHAREHOLDER_LENDER' | 'RELATED_PARTY_LENDER';
+  interest_rate?: number;
+  total_contributed: number;
+  outstanding_balance: number;
+  relationship_description?: string;
+  displayName: string;
+}
+
+// ✅ NEW: Cash Register interface with shareholder fields
+export interface CashRegister {
+  id: number;
+  registrationNumber: string;
+  registrationDate: string;
+  transactionType: 'INFLOW' | 'OUTFLOW';
+  amount: number;
+  paymentMethod: string;
+  relatedDocumentType: string;
+  relatedDocumentNumber?: string;
+  description: string;
+  customerId?: number;
+  customerName?: string;
+  cashRegisterId?: number;
+  bankAccountId?: number;
+  balance: number;
+  // ✅ NEW: Shareholder contribution fields
+  shareholderId?: number;
+  shareholderAmount?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
