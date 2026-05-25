@@ -63,7 +63,6 @@ const CreditCardFees = () => {
     goToPage,
     changeLimit,
     updateFilter,
-    refresh
   } = useTableData<CreditCardFeeRecord>({
     endpoint: 'credit-card-fees',
     initialLimit: 50,
