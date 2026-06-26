@@ -377,7 +377,8 @@ const Inventory = () => {
     if (products.length > 0 && purchases.length > 0) {
       calculateInventorySheets();
     }
-  }, [products, purchases, sales, dateRange, selectedProduct, calculateInventorySheets]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [products, purchases, sales, dateRange, selectedProduct]);
 
   // ✅ Memoized: Export to Excel
   const exportToExcel = useCallback(() => {

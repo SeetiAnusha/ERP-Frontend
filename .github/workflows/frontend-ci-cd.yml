@@ -1,0 +1,118 @@
+# =============================================================================
+# FRONTEND CI/CD PIPELINE
+# =============================================================================
+# WHAT THIS DOES:
+#   Every time you push frontend code to GitHub, this pipeline automatically:
+#   1. Checks TypeScript compiles without errors
+#   2. Builds the Vite/React app (creates the optimized production bundle)
+#   3. Deploys to Vercel (production) only when you push to 'main'
+#
+# YOUR STACK:
+#   - React 18 + TypeScript
+#   - Vite (build tool)
+#   - Deployed on Vercel
+#   - Tailwind CSS
+# =============================================================================
+
+name: Frontend CI/CD
+
+on:
+  push:
+    branches:
+      - main       # Deploy to Vercel on push to main
+      - develop    # Build check only, no deploy
+  pull_request:
+    branches:
+      - main       # Run checks on PRs targeting main before merging
+
+jobs:
+
+  # ---------------------------------------------------------------------------
+  # JOB 1: TYPE CHECK & BUILD
+  # Runs: tsc (TypeScript check) + vite build (production bundle)
+  # If the build fails, Vercel deployment is blocked.
+  # ---------------------------------------------------------------------------
+  build:
+    name: TypeScript & Vite Build
+    runs-on: ubuntu-latest
+
+    steps:
+      # Download your code onto the GitHub Actions machine
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Install Node.js 22 with npm cache enabled
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      # Install exact dependencies from package-lock.json
+      - name: Install dependencies
+        run: npm ci
+
+      # TypeScript check only — fast, no output files produced
+      - name: TypeScript type check
+        run: npx tsc --noEmit
+
+      # Full Vite production build
+      # This produces the optimized dist/ folder that Vercel will serve
+      - name: Build production bundle
+        run: npm run build
+        env:
+          # Pass the backend URL so axios knows where to send API requests.
+          # Store this in GitHub Secrets → Settings → Secrets and variables → Actions
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+
+      # Upload the built dist/ folder so the deploy job can use it
+      # This passes the artifact between jobs without rebuilding
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist/
+          retention-days: 1   # Only keep for 1 day — we just need it for this pipeline run
+
+  # ---------------------------------------------------------------------------
+  # JOB 2: DEPLOY TO VERCEL (Production)
+  # Only runs on pushes to main after build passes.
+  # Uses the official Vercel GitHub Action.
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Deploy to Vercel
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Install the Vercel CLI so we can deploy from the command line
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      # Deploy to Vercel production
+      # VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID are stored as GitHub Secrets
+      - name: Deploy to Vercel Production
+        run: |
+          vercel --token ${{ secrets.VERCEL_TOKEN }} \
+                 --prod \
+                 --yes \
+                 --build-env VITE_API_URL=${{ secrets.VITE_API_URL }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deployment complete
+        run: echo "✅ Frontend deployed to Vercel successfully"
